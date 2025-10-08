@@ -1,0 +1,244 @@
+/* src/styles/global.css - Styles globaux optimisés */
+
+/* === SCROLL SMOOTH === */
+html {
+    scroll-behavior: smooth;
+  }
+  
+  /* === OPTIMISATION DES PERFORMANCES === */
+  * {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  /* === ANIMATIONS === */
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes slide-in-left {
+    from {
+      opacity: 0;
+      transform: translateX(-30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  
+  @keyframes slide-in-right {
+    from {
+      opacity: 0;
+      transform: translateX(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  
+  @keyframes pulse-slow {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.7;
+    }
+  }
+  
+  .animate-fade-in {
+    animation: fade-in 0.6s ease-out;
+  }
+  
+  .animate-slide-in-left {
+    animation: slide-in-left 0.8s ease-out;
+  }
+  
+  .animate-slide-in-right {
+    animation: slide-in-right 0.8s ease-out;
+  }
+  
+  .animate-pulse-slow {
+    animation: pulse-slow 3s ease-in-out infinite;
+  }
+  
+  /* === FOCUS VISIBLE (ACCESSIBILITÉ) === */
+  *:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  
+  button:focus-visible,
+  a:focus-visible {
+    outline: 3px solid #3b82f6;
+    outline-offset: 2px;
+  }
+  
+  /* === TRANSITIONS GLOBALES === */
+  a, button {
+    transition: all 0.3s ease;
+  }
+  
+  /* === SKIP TO MAIN CONTENT (ACCESSIBILITÉ) === */
+  .skip-to-main {
+    position: absolute;
+    left: -9999px;
+    z-index: 999;
+    padding: 1rem;
+    background-color: #3b82f6;
+    color: white;
+    text-decoration: none;
+    font-weight: bold;
+  }
+  
+  .skip-to-main:focus {
+    left: 50%;
+    transform: translateX(-50%);
+    top: 1rem;
+  }
+  
+  /* === OPTIMISATION IMAGES === */
+  img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+  
+  /* === SCROLL BAR PERSONNALISÉE === */
+  ::-webkit-scrollbar {
+    width: 10px;
+  }
+  
+  ::-webkit-scrollbar-track {
+    background: #f1f1f1;
+  }
+  
+  ::-webkit-scrollbar-thumb {
+    background: #2792B0;
+    border-radius: 5px;
+  }
+  
+  ::-webkit-scrollbar-thumb:hover {
+    background: #207A94;
+  }
+  
+  /* === REDUCE MOTION (ACCESSIBILITÉ) === */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+  
+  /* === PRINT STYLES === */
+  @media print {
+    header,
+    footer,
+    nav,
+    .no-print {
+      display: none !important;
+    }
+    
+    body {
+      font-size: 12pt;
+      line-height: 1.5;
+    }
+    
+    a {
+      text-decoration: underline;
+    }
+    
+    a[href^="http"]:after {
+      content: " (" attr(href) ")";
+    }
+  }
+  
+  /* === DARK MODE SUPPORT === */
+  @media (prefers-color-scheme: dark) {
+    /* À implémenter si nécessaire */
+  }
+  
+  /* === LOADING STATES === */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      #f0f0f0 25%,
+      #e0e0e0 50%,
+      #f0f0f0 75%
+    );
+    background-size: 200% 100%;
+    animation: loading 1.5s ease-in-out infinite;
+  }
+  
+  @keyframes loading {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+  
+  /* === RESPONSIVE UTILITIES === */
+  @media (max-width: 640px) {
+    h1 {
+      font-size: 2rem;
+    }
+    
+    h2 {
+      font-size: 1.75rem;
+    }
+    
+    h3 {
+      font-size: 1.5rem;
+    }
+  }
+  
+  /* === HOVER EFFECTS === */
+  .hover-lift {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+  
+  .hover-lift:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  }
+  
+  /* === GRADIENT TEXT === */
+  .gradient-text {
+    background: linear-gradient(135deg, #2792B0, #8BC34A);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  
+  /* === GLASS MORPHISM === */
+  .glass {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  /* === SELECTION STYLING === */
+  ::selection {
+    background-color: #2792B0;
+    color: white;
+  }
+  
+  ::-moz-selection {
+    background-color: #2792B0;
+    color: white;
+  }

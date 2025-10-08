@@ -1,0 +1,454 @@
+import { useState } from "react";
+import { 
+  X, User,Calendar,MapPin, Plus, Trash2,
+  AlertTriangle, Package, Check
+} from "lucide-react";
+import { useVehicles, useDrivers } from "../hooks/useTourData";
+
+interface DeliveryStop {
+  id: string;
+  address: string;
+  customerName: string;
+  customerPhone: string;
+  timeWindowStart: string;
+  timeWindowEnd: string;
+  weight_kg: number;
+  volume_m3: number;
+  notes: string;
+}
+
+interface TourFormModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave?: (tourData: any) => void;
+  selectedDate?: Date;
+}
+
+export default function TourFormModal({ isOpen, onClose, onSave, selectedDate = new Date() }: TourFormModalProps) {
+  const { vehicles, loading: vehiclesLoading } = useVehicles();
+  const { drivers, loading: driversLoading } = useDrivers();
+  
+  const [tourName, setTourName] = useState("");
+  const [tourDate, setTourDate] = useState(selectedDate.toISOString().split('T')[0]);
+  const [selectedDriver, setSelectedDriver] = useState("");
+  const [selectedVehicle, setSelectedVehicle] = useState("");
+  const [startTime, setStartTime] = useState("08:00");
+  const [stops, setStops] = useState<DeliveryStop[]>([]);
+  const [showAddStop, setShowAddStop] = useState(false);
+  
+  const [newStop, setNewStop] = useState<DeliveryStop>({
+    id: "",
+    address: "",
+    customerName: "",
+    customerPhone: "",
+    timeWindowStart: "09:00",
+    timeWindowEnd: "17:00",
+    weight_kg: 0,
+    volume_m3: 0,
+    notes: "",
+  });
+
+  if (!isOpen) return null;
+
+  const vehicle = vehicles.find(v => v.id === selectedVehicle);
+  const driver = drivers.find(d => d.id === selectedDriver);
+
+  const totalWeight = stops.reduce((sum, s) => sum + (s.weight_kg || 0), 0);
+  const totalVolume = stops.reduce((sum, s) => sum + (s.volume_m3 || 0), 0);
+  const weightPercent = vehicle ? (totalWeight / vehicle.capacity_kg) * 100 : 0;
+  const volumePercent = vehicle ? (totalVolume / vehicle.capacity_m3) * 100 : 0;
+  const isOverloaded = weightPercent > 100 || volumePercent > 100;
+
+  const handleAddStop = () => {
+    if (!newStop.address || !newStop.customerName) {
+      alert("L'adresse et le nom du client sont obligatoires");
+      return;
+    }
+    
+    setStops([...stops, { ...newStop, id: Date.now().toString() }]);
+    setNewStop({
+      id: "",
+      address: "",
+      customerName: "",
+      customerPhone: "",
+      timeWindowStart: "09:00",
+      timeWindowEnd: "17:00",
+      weight_kg: 0,
+      volume_m3: 0,
+      notes: "",
+    });
+    setShowAddStop(false);
+  };
+
+  const handleRemoveStop = (id: string) => {
+    setStops(stops.filter(s => s.id !== id));
+  };
+
+  const handleSave = () => {
+    if (!tourName) {
+      alert("Le nom de la tournée est obligatoire");
+      return;
+    }
+    if (!selectedDriver || !selectedVehicle) {
+      alert("Veuillez sélectionner un chauffeur et un véhicule");
+      return;
+    }
+    if (stops.length === 0) {
+      alert("Ajoutez au moins un point de livraison");
+      return;
+    }
+    if (isOverloaded) {
+      alert("Le véhicule est en surcharge ! Réduisez le poids ou le volume.");
+      return;
+    }
+
+    const tourData = {
+      name: tourName,
+      date: tourDate,
+      driver_id: selectedDriver,
+      vehicle_id: selectedVehicle,
+      start_time: startTime,
+      stops: stops,
+      status: "planned",
+    };
+
+    if (onSave) {
+      onSave(tourData);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Nouvelle tournée</h2>
+            <p className="text-sm text-gray-500 mt-1">Planifiez une nouvelle tournée de livraison</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Calendar size={18} />
+              Informations générales
+            </h3>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nom de la tournée *</label>
+                <input
+                  type="text"
+                  value={tourName}
+                  onChange={(e) => setTourName(e.target.value)}
+                  placeholder="Ex: Tournée Nord"
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+                <input
+                  type="date"
+                  value={tourDate}
+                  onChange={(e) => setTourDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Heure de départ *</label>
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <User size={18} />
+              Affectation
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Chauffeur *</label>
+                <select
+                  value={selectedDriver}
+                  onChange={(e) => setSelectedDriver(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={driversLoading}
+                >
+                  <option value="">Sélectionner un chauffeur</option>
+                  {drivers.map(driver => (
+                    <option key={driver.id} value={driver.id} disabled={driver.status !== "available"}>
+                      {driver.name} {driver.status !== "available" && "(Indisponible)"}
+                    </option>
+                  ))}
+                </select>
+                {driver && <p className="text-xs text-gray-500 mt-1">{driver.phone}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Véhicule *</label>
+                <select
+                  value={selectedVehicle}
+                  onChange={(e) => setSelectedVehicle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={vehiclesLoading}
+                >
+                  <option value="">Sélectionner un véhicule</option>
+                  {vehicles.map(vehicle => (
+                    <option key={vehicle.id} value={vehicle.id} disabled={vehicle.status !== "available"}>
+                      {vehicle.name} - {vehicle.license_plate} {vehicle.status !== "available" && "(En cours)"}
+                    </option>
+                  ))}
+                </select>
+                {vehicle && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Capacité: {vehicle.capacity_kg} kg • {vehicle.capacity_m3} m³
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {vehicle && stops.length > 0 && (
+            <div className={`rounded-lg p-4 border ${isOverloaded ? 'bg-red-50 border-red-200' : 'bg-blue-50 border-blue-200'}`}>
+              <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <Package size={18} />
+                Charge du véhicule
+                {isOverloaded && <AlertTriangle size={18} className="text-red-600" />}
+              </h3>
+              <div className="space-y-3">
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="font-medium">Poids</span>
+                    <span className={weightPercent > 100 ? "text-red-600 font-semibold" : ""}>
+                      {totalWeight} / {vehicle.capacity_kg} kg ({weightPercent.toFixed(0)}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${
+                        weightPercent > 100 ? 'bg-red-600' : weightPercent > 80 ? 'bg-orange-500' : 'bg-green-500'
+                      }`}
+                      style={{ width: `${Math.min(weightPercent, 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="font-medium">Volume</span>
+                    <span className={volumePercent > 100 ? "text-red-600 font-semibold" : ""}>
+                      {totalVolume.toFixed(1)} / {vehicle.capacity_m3} m³ ({volumePercent.toFixed(0)}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${
+                        volumePercent > 100 ? 'bg-red-600' : volumePercent > 80 ? 'bg-orange-500' : 'bg-green-500'
+                      }`}
+                      style={{ width: `${Math.min(volumePercent, 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {isOverloaded && (
+                  <div className="flex items-start gap-2 text-sm text-red-700 mt-2">
+                    <AlertTriangle size={16} className="mt-0.5 flex-shrink-0" />
+                    <span>Attention: Le véhicule est en surcharge. Réduisez le nombre de livraisons ou choisissez un véhicule plus grand.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <MapPin size={18} />
+                Points de livraison ({stops.length})
+              </h3>
+              <button
+                onClick={() => setShowAddStop(true)}
+                className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-1 text-sm font-medium"
+              >
+                <Plus size={16} />
+                Ajouter un point
+              </button>
+            </div>
+
+            {stops.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <MapPin size={48} className="mx-auto mb-2 opacity-30" />
+                <p className="text-sm">Aucun point de livraison ajouté</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {stops.map((stop, index) => (
+                  <div key={stop.id} className="bg-white rounded-lg p-3 border border-gray-200 flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="flex items-center justify-center w-6 h-6 bg-blue-600 text-white text-xs font-bold rounded-full">
+                          {index + 1}
+                        </span>
+                        <span className="font-medium text-gray-900">{stop.customerName}</span>
+                      </div>
+                      <p className="text-sm text-gray-600 ml-8">{stop.address}</p>
+                      <div className="flex items-center gap-4 ml-8 mt-1 text-xs text-gray-500">
+                        <span>{stop.customerPhone || "Non renseigné"}</span>
+                        <span>{stop.timeWindowStart} - {stop.timeWindowEnd}</span>
+                        <span>{stop.weight_kg} kg • {stop.volume_m3} m³</span>
+                      </div>
+                      {stop.notes && (
+                        <p className="text-xs text-gray-500 ml-8 mt-1 italic">Note: {stop.notes}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => handleRemoveStop(stop.id)}
+                      className="p-1.5 hover:bg-red-50 rounded text-red-600"
+                      title="Supprimer"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {showAddStop && (
+            <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-300">
+              <h4 className="font-semibold text-gray-900 mb-3">Nouveau point de livraison</h4>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Adresse *</label>
+                  <input
+                    type="text"
+                    value={newStop.address}
+                    onChange={(e) => setNewStop({...newStop, address: e.target.value})}
+                    placeholder="123 Rue de la Livraison, 75001 Paris"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nom du client *</label>
+                  <input
+                    type="text"
+                    value={newStop.customerName}
+                    onChange={(e) => setNewStop({...newStop, customerName: e.target.value})}
+                    placeholder="Nom du client"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Téléphone</label>
+                  <input
+                    type="tel"
+                    value={newStop.customerPhone}
+                    onChange={(e) => setNewStop({...newStop, customerPhone: e.target.value})}
+                    placeholder="06 12 34 56 78"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Créneau début</label>
+                  <input
+                    type="time"
+                    value={newStop.timeWindowStart}
+                    onChange={(e) => setNewStop({...newStop, timeWindowStart: e.target.value})}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Créneau fin</label>
+                  <input
+                    type="time"
+                    value={newStop.timeWindowEnd}
+                    onChange={(e) => setNewStop({...newStop, timeWindowEnd: e.target.value})}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Poids (kg)</label>
+                  <input
+                    type="number"
+                    value={newStop.weight_kg}
+                    onChange={(e) => setNewStop({...newStop, weight_kg: parseFloat(e.target.value) || 0})}
+                    placeholder="0"
+                    min="0"
+                    step="0.1"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Volume (m³)</label>
+                  <input
+                    type="number"
+                    value={newStop.volume_m3}
+                    onChange={(e) => setNewStop({...newStop, volume_m3: parseFloat(e.target.value) || 0})}
+                    placeholder="0"
+                    min="0"
+                    step="0.1"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <textarea
+                    value={newStop.notes}
+                    onChange={(e) => setNewStop({...newStop, notes: e.target.value})}
+                    placeholder="Instructions particulières..."
+                    rows={2}
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 resize-none"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={handleAddStop}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex items-center gap-2"
+                >
+                  <Check size={16} />
+                  Ajouter
+                </button>
+                <button
+                  onClick={() => setShowAddStop(false)}
+                  className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-lg transition-colors font-medium"
+          >
+            Annuler
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!tourName || !selectedDriver || !selectedVehicle || stops.length === 0 || isOverloaded}
+            className={`px-6 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all ${
+              !tourName || !selectedDriver || !selectedVehicle || stops.length === 0 || isOverloaded
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-blue-600 text-white hover:bg-blue-700 shadow-sm"
+            }`}
+          >
+            <Check size={18} />
+            Créer la tournée
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

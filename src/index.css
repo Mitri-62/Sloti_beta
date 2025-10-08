@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2;
+  }
+
+  .btn-secondary {
+    @apply px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2;
+  }
+
+  .card {
+    @apply bg-white rounded-lg shadow-sm border border-gray-200;
+  }
+
+  .dashboard-layout {
+    @apply min-h-screen bg-gray-50 dark:bg-gray-900;
+  }
+
+  .dashboard-content {
+    @apply bg-white text-gray-900;
+  }
+}
+
+/* ✅ Smooth scroll */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ✅ Fix pour la navbar fixe (évite que les sections soient cachées) */
+[id] {
+  scroll-margin-top: 6rem; /* 96px ≈ hauteur de ta navbar */
+}
