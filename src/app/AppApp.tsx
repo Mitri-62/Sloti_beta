@@ -19,6 +19,10 @@ import TourDetailView from "../pages/TourDetailView";
 import MasterData from "../pages/MasterData";
 import AdvancedLoadingSystem from "../views/AdvancedLoadingSystem";
 import ToastProvider from '../components/ToastProvider';
+import Profile from "../pages/Profile";
+import Settings from "../pages/Settings";
+import Notifications from "../pages/Notifications";
+
 
 function AppContent() {
   return (
@@ -43,6 +47,11 @@ function AppContent() {
         <Route path="tour-planning" element={<PrivateRoute><TourPlanning /></PrivateRoute>} />
         <Route path="tour-planning/:tourId" element={<PrivateRoute><TourDetailView /></PrivateRoute>} />
         
+        <Route path="profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
+<Route path="settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
+<Route path="notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />
+
+
         {/* Communication */}
         <Route path="chat" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
         <Route path="chat/:userId" element={<ChatPage />} />

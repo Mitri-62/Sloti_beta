@@ -6,6 +6,7 @@ import { Toaster } from "sonner";
 import { RealtimeProvider } from "./contexts/RealtimeProvider";
 import Login from "./vitrine/pages/Login"; // 🔹 ton vrai composant Login
 
+
 export default function App() {
   return (
       <BrowserRouter>

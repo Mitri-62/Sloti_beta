@@ -1,66 +1,92 @@
 // src/vitrine/components/Features.tsx
-import { Truck, Package, BarChart3, Users, Clock, Shield, Smartphone, Zap } from "lucide-react";
+import { LayoutDashboard, Calendar, Box, Layers, Truck, Package, TrendingUp, TrendingDown, Boxes, BarChart3, MessageSquare, Shield } from "lucide-react";
 
 const features = [
   {
-    icon: Truck,
-    title: "Planification des expéditions",
-    description: "Organisez facilement vos flux logistiques et gagnez en visibilité sur vos livraisons.",
+    icon: LayoutDashboard,
+    title: "Dashboard intuitif",
+    description: "Accédez à toutes vos informations clés depuis un tableau de bord centralisé et personnalisable.",
     color: "blue",
   },
   {
-    icon: Package,
-    title: "Réceptions simplifiées",
-    description: "Suivez et validez vos réceptions en quelques clics avec un processus digitalisé.",
-    color: "green",
-  },
-  {
-    icon: BarChart3,
-    title: "Suivi en temps réel",
-    description: "Visualisez vos stocks, expéditions et réceptions instantanément grâce à nos tableaux.",
+    icon: Calendar,
+    title: "Planning collaboratif",
+    description: "Organisez vos réceptions et expéditions avec un planning partagé en temps réel.",
     color: "purple",
   },
   {
-    icon: Users,
-    title: "Collaboration optimisée",
-    description: "Invitez vos équipes et transporteurs pour une coordination sans friction.",
+    icon: Box,
+    title: "Chargement 3D",
+    description: "Visualisez et optimisez le chargement de vos camions en 3D pour maximiser l'espace disponible.",
+    color: "cyan",
+  },
+  {
+    icon: Layers,
+    title: "Chargement Auto",
+    description: "Algorithme intelligent qui calcule automatiquement l'optimisation du chargement de vos palettes.",
+    color: "green",
+  },
+  {
+    icon: Truck,
+    title: "Gestion des tournées",
+    description: "Planifiez et optimisez vos tournées de livraison pour réduire les coûts et les délais.",
     color: "orange",
   },
   {
-    icon: Clock,
-    title: "Gain de temps",
-    description: "Automatisez vos processus répétitifs et concentrez-vous sur l'essentiel.",
-    color: "red",
-  },
-  {
-    icon: Shield,
-    title: "Données sécurisées",
-    description: "Vos informations sont protégées avec les dernières technologies de sécurité.",
+    icon: Package,
+    title: "Gestion des stocks",
+    description: "Suivez vos entrées, sorties et consultez l'état de vos stocks en temps réel.",
     color: "indigo",
   },
   {
-    icon: Smartphone,
-    title: "Mobile friendly",
-    description: "Accédez à vos données depuis n'importe quel appareil, partout et à tout moment.",
+    icon: TrendingUp,
+    title: "Entrées de stock",
+    description: "Enregistrez et suivez toutes vos réceptions de marchandises avec traçabilité complète.",
+    color: "green",
+  },
+  {
+    icon: TrendingDown,
+    title: "Sorties de stock",
+    description: "Gérez vos expéditions et mouvements de sortie avec validation et historique détaillé.",
+    color: "red",
+  },
+  {
+    icon: Boxes,
+    title: "Vue Synoptique 3D",
+    description: "Explorez votre entrepôt en 3D interactive et localisez instantanément vos palettes.",
+    color: "teal",
+  },
+  {
+    icon: BarChart3,
+    title: "MasterData",
+    description: "Centralisez et gérez toutes vos données de référence : articles, clients, fournisseurs.",
+    color: "purple",
+  },
+  {
+    icon: MessageSquare,
+    title: "Messagerie intégrée",
+    description: "Communiquez directement avec vos équipes et partenaires depuis la plateforme.",
     color: "pink",
   },
   {
-    icon: Zap,
-    title: "Performance optimale",
-    description: "Interface rapide et réactive pour une expérience utilisateur fluide.",
-    color: "yellow",
+    icon: Shield,
+    title: "Sécurité renforcée",
+    description: "Vos données sont protégées avec un chiffrement de bout en bout et des sauvegardes automatiques.",
+    color: "gray",
   },
 ];
 
 const colorClasses = {
   blue: "bg-blue-100 text-blue-600 group-hover:bg-blue-600 group-hover:text-white",
   green: "bg-green-100 text-green-600 group-hover:bg-green-600 group-hover:text-white",
+  cyan: "bg-cyan-100 text-cyan-600 group-hover:bg-cyan-600 group-hover:text-white",
+  teal: "bg-teal-100 text-teal-600 group-hover:bg-teal-600 group-hover:text-white",
   purple: "bg-purple-100 text-purple-600 group-hover:bg-purple-600 group-hover:text-white",
   orange: "bg-orange-100 text-orange-600 group-hover:bg-orange-600 group-hover:text-white",
   red: "bg-red-100 text-red-600 group-hover:bg-red-600 group-hover:text-white",
   indigo: "bg-indigo-100 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white",
   pink: "bg-pink-100 text-pink-600 group-hover:bg-pink-600 group-hover:text-white",
-  yellow: "bg-yellow-100 text-yellow-600 group-hover:bg-yellow-600 group-hover:text-white",
+  gray: "bg-gray-100 text-gray-600 group-hover:bg-gray-600 group-hover:text-white",
 };
 
 export default function Features() {
@@ -80,7 +106,7 @@ export default function Features() {
             Les <span className="text-[#2792B0]">fonctionnalités</span> clés
           </h2>
           <p className="text-base sm:text-lg lg:text-xl text-gray-600 max-w-3xl mx-auto">
-            Tout ce dont vous avez besoin pour gérer vos flux logistiques au quotidien avec efficacité.
+            Une suite complète d'outils pour gérer efficacement vos opérations logistiques au quotidien.
           </p>
         </div>
 
