@@ -5,6 +5,7 @@ import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Dialog } from "@headlessui/react";
+import { Check, Undo2, Trash2 } from "lucide-react";
 import { Planning } from "../hooks/usePlannings";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
@@ -14,9 +15,9 @@ interface Props {
   onDelete: (id: string) => void;
   onValidate: (id: string) => void;
   onReset: (id: string) => void;
-  add: (planning: Omit<Planning, "id">) => Promise<void>;
   companyId: string;
   onUpdate: (ev: Planning) => Promise<void>;
+  onOpenAddModal: (initialData?: Partial<Planning>) => void;
 }
 
 const locales = {
@@ -39,26 +40,13 @@ export default function PlanningAgenda({
   onDelete,
   onValidate,
   onReset,
-  add,
   companyId,
   onUpdate,
+  onOpenAddModal,
 }: Props) {
   const [view, setView] = useState<View>("week");
   const [date, setDate] = useState(new Date());
-  const [isOpen, setIsOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const [selectedEvent, setSelectedEvent] = useState<Planning | null>(null);
-  
-  const [newEvent, setNewEvent] = useState<Partial<Planning>>({
-    date: "",
-    hour: "",
-    type: "Réception",
-    transporter: "",
-    products: "",
-    status: "Prévu",
-    duration: 30,
-  });
 
   const calendarEvents = useMemo(() => {
     return events.map(ev => {
@@ -101,10 +89,14 @@ export default function PlanningAgenda({
     };
   }, []);
 
+  /**
+   * Gestion du clic sur un slot vide (création d'événement)
+   */
   const handleSelectSlot = useCallback((slotInfo: any) => {
     const startDate = slotInfo.start as Date;
     
-    setNewEvent({
+    // Ouvrir le modal parent avec les données pré-remplies
+    onOpenAddModal({
       date: format(startDate, 'yyyy-MM-dd'),
       hour: format(startDate, 'HH:mm'),
       type: "Réception",
@@ -113,15 +105,19 @@ export default function PlanningAgenda({
       status: "Prévu",
       duration: 30,
     });
-    setError("");
-    setIsOpen(true);
-  }, []);
+  }, [onOpenAddModal]);
 
+  /**
+   * Gestion du clic sur un événement
+   */
   const handleSelectEvent = useCallback((event: any) => {
     const ev = event.resource as Planning;
     setSelectedEvent(ev);
   }, []);
 
+  /**
+   * Drag & drop d'un événement
+   */
   const handleEventDrop = useCallback(async ({ event, start, end }: any) => {
     const ev = event.resource as Planning;
     
@@ -132,7 +128,6 @@ export default function PlanningAgenda({
 
     const duration = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
     
-    // Ne garder que les champs qui existent dans la table plannings
     const updatedData = {
       date: format(start, 'yyyy-MM-dd'),
       hour: format(start, 'HH:mm'),
@@ -147,6 +142,9 @@ export default function PlanningAgenda({
     }
   }, [onUpdate]);
 
+  /**
+   * Redimensionnement d'un événement
+   */
   const handleEventResize = useCallback(async ({ event, start, end }: any) => {
     const ev = event.resource as Planning;
     
@@ -157,7 +155,6 @@ export default function PlanningAgenda({
 
     const duration = Math.round((end.getTime() - start.getTime()) / (1000 * 60));
     
-    // Ne garder que les champs qui existent dans la table plannings
     const updatedData = {
       date: format(start, 'yyyy-MM-dd'),
       hour: format(start, 'HH:mm'),
@@ -171,39 +168,6 @@ export default function PlanningAgenda({
       alert("Impossible de redimensionner l'événement. Veuillez réessayer.");
     }
   }, [onUpdate]);
-
-  const handleSave = async () => {
-    if (!newEvent.transporter?.trim()) {
-      setError("Le transporteur est requis");
-      return;
-    }
-    
-    if (!newEvent.date || !newEvent.hour) {
-      setError("Date et heure sont requises");
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-    
-    try {
-      await add({ ...newEvent, company_id: companyId } as Omit<Planning, "id">);
-      setIsOpen(false);
-      setNewEvent({
-        date: "",
-        hour: "",
-        type: "Réception",
-        transporter: "",
-        products: "",
-        status: "Prévu",
-        duration: 30,
-      });
-    } catch (err) {
-      setError("Erreur lors de la création de l'événement");
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const closeEventDetail = () => {
     setSelectedEvent(null);
@@ -249,218 +213,119 @@ export default function PlanningAgenda({
         }}
       />
 
-      <Dialog open={isOpen} onClose={() => setIsOpen(false)} className="relative z-50">
-        <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-        <div className="fixed inset-0 flex items-center justify-center p-4">
-          <Dialog.Panel className="bg-white p-6 rounded-lg w-full max-w-md space-y-4 shadow-lg">
-            <Dialog.Title className="text-lg font-semibold">
-              Nouvel événement
-            </Dialog.Title>
+      {/* Modal de détail d'événement */}
+      {selectedEvent && (
+        <Dialog open={true} onClose={closeEventDetail} className="relative z-50">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
+          
+          <div className="fixed inset-0 flex items-center justify-center p-4">
+            <Dialog.Panel className="bg-white rounded-xl p-6 w-full max-w-md shadow-2xl">
+              <Dialog.Title className="text-xl font-bold text-gray-900 mb-4">
+                Détails de l'événement
+              </Dialog.Title>
 
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-800 px-3 py-2 rounded text-sm">
-                {error}
-              </div>
-            )}
-
-            <div>
-              <label className="block text-sm font-medium mb-1">Type</label>
-              <select
-                className="border p-2 w-full rounded"
-                value={newEvent.type}
-                onChange={(e) => setNewEvent({ 
-                  ...newEvent, 
-                  type: e.target.value as "Réception" | "Expédition"
-                })}
-              >
-                <option value="Réception">Réception</option>
-                <option value="Expédition">Expédition</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">Transporteur *</label>
-              <input
-                className="border p-2 w-full rounded"
-                placeholder="Nom du transporteur"
-                value={newEvent.transporter}
-                onChange={(e) => setNewEvent({ ...newEvent, transporter: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">Produits</label>
-              <input
-                className="border p-2 w-full rounded"
-                placeholder="Description des produits"
-                value={newEvent.products}
-                onChange={(e) => setNewEvent({ ...newEvent, products: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">Durée (minutes)</label>
-              <input
-                type="number"
-                min={30}
-                step={30}
-                className="border p-2 w-full rounded"
-                placeholder="30"
-                value={newEvent.duration || 30}
-                onChange={(e) => setNewEvent({ ...newEvent, duration: parseInt(e.target.value, 10) || 30 })}
-              />
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                onClick={() => {
-                  setIsOpen(false);
-                  setError("");
-                }}
-                className="px-4 py-2 rounded border hover:bg-gray-50"
-                disabled={loading}
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={loading}
-                className={`px-4 py-2 rounded text-white ${
-                  loading 
-                    ? 'bg-blue-400 cursor-not-allowed' 
-                    : 'bg-blue-600 hover:bg-blue-700'
-                }`}
-              >
-                {loading ? "Enregistrement..." : "Enregistrer"}
-              </button>
-            </div>
-          </Dialog.Panel>
-        </div>
-      </Dialog>
-
-      <Dialog open={!!selectedEvent} onClose={closeEventDetail} className="relative z-50">
-        <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
-        <div className="fixed inset-0 flex items-center justify-center p-4">
-          <Dialog.Panel className="bg-white p-6 rounded-lg w-full max-w-md space-y-4 shadow-lg">
-            <Dialog.Title className="text-lg font-semibold">
-              Détails de l'événement
-            </Dialog.Title>
-
-            {selectedEvent && (
-              <>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">Type:</span>
-                    <span className={`text-sm px-2 py-1 rounded ${
-                      selectedEvent.type === "Réception" 
-                        ? "bg-blue-100 text-blue-700"
-                        : "bg-orange-100 text-orange-700"
-                    }`}>
-                      {selectedEvent.type}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">Statut:</span>
-                    <span className="text-sm">{selectedEvent.status}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">Date:</span>
-                    <span className="text-sm">{selectedEvent.date} à {selectedEvent.hour}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm font-medium">Transporteur:</span>
-                    <span className="text-sm font-semibold">{selectedEvent.transporter}</span>
-                  </div>
-                  <div>
-                    <span className="text-sm font-medium">Produits:</span>
-                    <p className="text-sm text-gray-600 mt-1">{selectedEvent.products}</p>
-                  </div>
+              <div className="space-y-3 mb-6">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Type:</span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                    selectedEvent.type === "Réception"
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-orange-100 text-orange-700"
+                  }`}>
+                    {selectedEvent.type}
+                  </span>
                 </div>
+                
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Statut:</span>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                    selectedEvent.status === "Prévu" ? "bg-blue-100 text-blue-800" :
+                    selectedEvent.status === "En cours" ? "bg-yellow-100 text-yellow-800" :
+                    selectedEvent.status === "Chargé" ? "bg-purple-100 text-purple-800" :
+                    "bg-green-100 text-green-800"
+                  }`}>
+                    {selectedEvent.status}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Date:</span>
+                  <span className="text-sm text-gray-900">
+                    {selectedEvent.date} à {selectedEvent.hour}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-gray-700">Durée:</span>
+                  <span className="text-sm text-gray-900">
+                    {selectedEvent.duration || 30} minutes
+                  </span>
+                </div>
+                
+                <div className="pt-3 border-t border-gray-200">
+                  <span className="text-sm font-medium text-gray-700">Transporteur:</span>
+                  <p className="text-base font-semibold text-gray-900 mt-1">
+                    {selectedEvent.transporter}
+                  </p>
+                </div>
+                
+                {selectedEvent.products && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-700">Produits:</span>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {selectedEvent.products}
+                    </p>
+                  </div>
+                )}
+              </div>
 
-                <div className="flex justify-between gap-2 pt-4 border-t">
+              {/* Actions */}
+              <div className="flex flex-wrap gap-2">
+                {selectedEvent.status !== "Terminé" && (
                   <button
                     onClick={() => {
-                      onDelete(selectedEvent.id!);
+                      onValidate(selectedEvent.id!);
                       closeEventDetail();
                     }}
-                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
                   >
-                    Supprimer
+                    <Check size={16} /> Valider
                   </button>
-                  
-                  <div className="flex gap-2">
-                    {selectedEvent.status !== "Prévu" && (
-                      <button
-                        onClick={() => {
-                          onReset(selectedEvent.id!);
-                          closeEventDetail();
-                        }}
-                        className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
-                      >
-                        Réinitialiser
-                      </button>
-                    )}
-                    {selectedEvent.status !== "Terminé" && (
-                      <button
-                        onClick={() => {
-                          onValidate(selectedEvent.id!);
-                          closeEventDetail();
-                        }}
-                        className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                      >
-                        Valider
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-          </Dialog.Panel>
-        </div>
-      </Dialog>
+                )}
+                
+                {selectedEvent.status !== "Prévu" && (
+                  <button
+                    onClick={() => {
+                      onReset(selectedEvent.id!);
+                      closeEventDetail();
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors"
+                  >
+                    <Undo2 size={16} /> Réinitialiser
+                  </button>
+                )}
+                
+                <button
+                  onClick={() => {
+                    onDelete(selectedEvent.id!);
+                    closeEventDetail();
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors ml-auto"
+                >
+                  <Trash2 size={16} /> Supprimer
+                </button>
+              </div>
 
-      <style>{`
-        .rbc-toolbar button {
-          padding: 8px 16px;
-          border-radius: 6px;
-        }
-        .rbc-toolbar button.rbc-active {
-          background-color: #3b82f6;
-          color: white;
-        }
-        .rbc-time-slot {
-          min-height: 40px;
-        }
-        .rbc-event {
-          padding: 2px 5px;
-          user-select: none;
-          -webkit-user-select: none;
-          -moz-user-select: none;
-          -ms-user-select: none;
-        }
-        .rbc-event * {
-          user-select: none;
-          -webkit-user-select: none;
-          -moz-user-select: none;
-          -ms-user-select: none;
-        }
-        .rbc-addons-dnd-resizable {
-          cursor: move;
-          user-select: none;
-        }
-        .rbc-addons-dnd-resize-ns-anchor {
-          cursor: ns-resize;
-        }
-        .rbc-addons-dnd .rbc-addons-dnd-resizable {
-          position: relative;
-        }
-        .rbc-calendar {
-          user-select: none;
-        }
-        .rbc-time-content {
-          user-select: none;
-        }
-      `}</style>
+              <button
+                onClick={closeEventDetail}
+                className="w-full mt-4 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium transition-colors"
+              >
+                Fermer
+              </button>
+            </Dialog.Panel>
+          </div>
+        </Dialog>
+      )}
     </div>
   );
 }

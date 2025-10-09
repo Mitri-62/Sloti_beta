@@ -5,6 +5,7 @@ import { useAuth } from "../contexts/AuthContext";
 
 interface DocumentsModalProps {
   planningId: string;
+  companyId: string;
   isOpen: boolean;
   onClose: () => void;
   reloadPlannings: () => void; // ✅ nouveau prop

@@ -1,6 +1,8 @@
 // src/hooks/usePlannings.ts
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../supabaseClient";
+import { validatePlanning, validatePlanningUpdate } from "../schemas/planningSchema";
+import { toast } from "sonner";
 
 export interface Document {
   id: string;
@@ -34,6 +36,20 @@ interface UsePlanningsOptions {
   enableRealtime?: boolean;
 }
 
+/**
+ * Classe d'erreur personnalisée pour les opérations de planning
+ */
+export class PlanningError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public details?: any
+  ) {
+    super(message);
+    this.name = 'PlanningError';
+  }
+}
+
 export function usePlannings(
   companyId?: string, 
   options: UsePlanningsOptions = {}
@@ -44,7 +60,61 @@ export function usePlannings(
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Chargement initial
+  /**
+   * Gestionnaire d'erreur centralisé
+   */
+  const handleError = useCallback((
+    error: any, 
+    operation: string,
+    showToast = true
+  ): never => {
+    console.error(`[usePlannings] Erreur lors de ${operation}:`, error);
+
+    let message = `Impossible de ${operation}`;
+    let code = 'UNKNOWN_ERROR';
+
+    // Erreur Supabase
+    if (error?.code) {
+      code = error.code;
+      
+      switch (error.code) {
+        case '23505': // Violation de contrainte unique
+          message = "Un événement similaire existe déjà";
+          break;
+        case '23503': // Violation de clé étrangère
+          message = "Référence invalide (company_id)";
+          break;
+        case 'PGRST116': // Aucune ligne retournée
+          message = "Événement introuvable";
+          break;
+        case '42501': // Permission refusée
+          message = "Vous n'avez pas les permissions nécessaires";
+          break;
+        default:
+          message = error.message || message;
+      }
+    }
+    // Erreur de validation
+    else if (error?.message) {
+      message = error.message;
+      code = 'VALIDATION_ERROR';
+    }
+
+    setError(message);
+    
+    if (showToast) {
+      toast.error(message, {
+        description: `Opération: ${operation}`,
+        duration: 5000,
+      });
+    }
+
+    throw new PlanningError(message, code, error);
+  }, []);
+
+  /**
+   * Chargement initial des plannings
+   */
   const load = useCallback(async () => {
     if (!companyId) {
       setPlannings([]);
@@ -66,57 +136,86 @@ export function usePlannings(
         .order("date", { ascending: true })
         .order("hour", { ascending: true });
 
-      if (err) throw err;
+      if (err) handleError(err, "charger les plannings", false);
 
       setPlannings((data as Planning[]) || []);
     } catch (err: any) {
-      console.error("Erreur chargement plannings:", err);
-      setError(err.message || "Impossible de charger les plannings");
+      // L'erreur a déjà été gérée par handleError
+      if (!(err instanceof PlanningError)) {
+        handleError(err, "charger les plannings", false);
+      }
     } finally {
       setLoading(false);
     }
-  }, [companyId, forecastOnly]);
+  }, [companyId, forecastOnly, handleError]);
 
-  // Ajout
+  /**
+   * Ajout d'un planning avec validation
+   */
   const add = async (planning: Omit<Planning, "id">) => {
     if (!companyId) {
-      throw new Error("Company ID manquant");
+      throw new PlanningError("Company ID manquant", "MISSING_COMPANY_ID");
     }
 
     setError(null);
 
     try {
+      // 🔒 Validation des données
+      const validation = validatePlanning(planning);
+      if (!validation.success) {
+        throw new PlanningError(
+          validation.message,
+          "VALIDATION_ERROR",
+          validation.errors
+        );
+      }
+
       // Retirer documents de l'objet à insérer
       const { documents, ...planningData } = planning;
       
       const { data, error: err } = await supabase
         .from("plannings")
         .insert({ 
-          ...planningData, 
+          ...validation.data, // Utiliser les données validées
           company_id: companyId,
           is_forecast: planning.is_forecast ?? false
         })
         .select("*, documents(*)");
 
-      if (err) throw err;
+      if (err) handleError(err, "ajouter l'événement");
 
       if (data && data.length > 0) {
         setPlannings((prev) => [...prev, ...data]);
+        toast.success("Événement ajouté avec succès");
       }
     } catch (err: any) {
-      console.error("Erreur ajout planning:", err);
-      setError(err.message || "Impossible d'ajouter l'événement");
-      throw err;
+      if (!(err instanceof PlanningError)) {
+        handleError(err, "ajouter l'événement");
+      } else {
+        throw err; // Re-throw pour que le composant puisse gérer
+      }
     }
   };
 
-  // Mise à jour
+  /**
+   * Mise à jour d'un planning avec validation partielle
+   */
   const update = async (id: string, updates: Partial<Planning>) => {
     setError(null);
 
     try {
+      // 🔒 Validation des données de mise à jour
+      const validation = validatePlanningUpdate(updates);
+      if (!validation.success) {
+        throw new PlanningError(
+          validation.message,
+          "VALIDATION_ERROR",
+          validation.errors
+        );
+      }
+
       // Retirer les champs qui ne sont pas dans la table
-      const { documents, ...cleanUpdates } = updates;
+      const { documents, id: _, company_id, created_at, updated_at, ...cleanUpdates } = validation.data as any;
       
       const { data, error: err } = await supabase
         .from("plannings")
@@ -124,21 +223,26 @@ export function usePlannings(
         .eq("id", id)
         .select("*, documents(*)");
 
-      if (err) throw err;
+      if (err) handleError(err, "mettre à jour l'événement");
 
       if (data && data[0]) {
         setPlannings((prev) =>
           prev.map((p) => (p.id === id ? data[0] : p))
         );
+        toast.success("Événement modifié avec succès");
       }
     } catch (err: any) {
-      console.error("Erreur update planning:", err);
-      setError(err.message || "Impossible de mettre à jour l'événement");
-      throw err;
+      if (!(err instanceof PlanningError)) {
+        handleError(err, "mettre à jour l'événement");
+      } else {
+        throw err;
+      }
     }
   };
 
-  // Suppression
+  /**
+   * Suppression d'un planning
+   */
   const remove = async (id: string) => {
     setError(null);
 
@@ -148,13 +252,16 @@ export function usePlannings(
         .delete()
         .eq("id", id);
 
-      if (err) throw err;
+      if (err) handleError(err, "supprimer l'événement");
 
       setPlannings((prev) => prev.filter((p) => p.id !== id));
+      toast.success("Événement supprimé avec succès");
     } catch (err: any) {
-      console.error("Erreur suppression planning:", err);
-      setError(err.message || "Impossible de supprimer l'événement");
-      throw err;
+      if (!(err instanceof PlanningError)) {
+        handleError(err, "supprimer l'événement");
+      } else {
+        throw err;
+      }
     }
   };
 
@@ -181,50 +288,58 @@ export function usePlannings(
           const newPlanning = payload.new as Planning;
           const oldPlanning = payload.old as Planning;
 
-          if (payload.eventType === "INSERT") {
-            if (newPlanning.is_forecast === forecastOnly) {
-              const { data } = await supabase
-                .from("plannings")
-                .select("*, documents(*)")
-                .eq("id", newPlanning.id)
-                .single();
+          try {
+            if (payload.eventType === "INSERT") {
+              if (newPlanning.is_forecast === forecastOnly) {
+                const { data, error } = await supabase
+                  .from("plannings")
+                  .select("*, documents(*)")
+                  .eq("id", newPlanning.id)
+                  .single();
 
-              if (data) {
-                setPlannings((prev) => {
-                  if (prev.some(p => p.id === data.id)) return prev;
-                  return [...prev, data].sort((a, b) => {
-                    if (a.date !== b.date) return a.date.localeCompare(b.date);
-                    return a.hour.localeCompare(b.hour);
-                  });
-                });
-              }
-            }
-          } else if (payload.eventType === "UPDATE") {
-            if (newPlanning.is_forecast !== forecastOnly) {
-              setPlannings((prev) => prev.filter((p) => p.id !== newPlanning.id));
-            } else {
-              const { data } = await supabase
-                .from("plannings")
-                .select("*, documents(*)")
-                .eq("id", newPlanning.id)
-                .single();
+                if (error) throw error;
 
-              if (data) {
-                setPlannings((prev) => {
-                  const exists = prev.some(p => p.id === data.id);
-                  if (exists) {
-                    return prev.map((p) => (p.id === data.id ? data : p));
-                  } else {
+                if (data) {
+                  setPlannings((prev) => {
+                    if (prev.some(p => p.id === data.id)) return prev;
                     return [...prev, data].sort((a, b) => {
                       if (a.date !== b.date) return a.date.localeCompare(b.date);
                       return a.hour.localeCompare(b.hour);
                     });
-                  }
-                });
+                  });
+                }
               }
+            } else if (payload.eventType === "UPDATE") {
+              if (newPlanning.is_forecast !== forecastOnly) {
+                setPlannings((prev) => prev.filter((p) => p.id !== newPlanning.id));
+              } else {
+                const { data, error } = await supabase
+                  .from("plannings")
+                  .select("*, documents(*)")
+                  .eq("id", newPlanning.id)
+                  .single();
+
+                if (error) throw error;
+
+                if (data) {
+                  setPlannings((prev) => {
+                    const exists = prev.some(p => p.id === data.id);
+                    if (exists) {
+                      return prev.map((p) => (p.id === data.id ? data : p));
+                    } else {
+                      return [...prev, data].sort((a, b) => {
+                        if (a.date !== b.date) return a.date.localeCompare(b.date);
+                        return a.hour.localeCompare(b.hour);
+                      });
+                    }
+                  });
+                }
+              }
+            } else if (payload.eventType === "DELETE") {
+              setPlannings((prev) => prev.filter((p) => p.id !== oldPlanning.id));
             }
-          } else if (payload.eventType === "DELETE") {
-            setPlannings((prev) => prev.filter((p) => p.id !== oldPlanning.id));
+          } catch (err) {
+            console.error("[Realtime] Erreur lors du traitement:", err);
           }
         }
       )
