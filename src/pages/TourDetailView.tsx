@@ -1,3 +1,4 @@
+// src/pages/TourDetailView.tsx - AVEC DARK MODE
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
@@ -42,10 +43,10 @@ interface Tour {
 }
 
 const statusColors = {
-  pending: "bg-gray-100 text-gray-700 border-gray-300",
-  arrived: "bg-blue-100 text-blue-700 border-blue-300",
-  completed: "bg-green-100 text-green-700 border-green-300",
-  failed: "bg-red-100 text-red-700 border-red-300",
+  pending: "bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600",
+  arrived: "bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700",
+  completed: "bg-green-100 text-green-700 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700",
+  failed: "bg-red-100 text-red-700 border-red-300 dark:bg-red-900 dark:text-red-200 dark:border-red-700",
 };
 
 export default function TourDetailView() {
@@ -66,7 +67,6 @@ export default function TourDetailView() {
     async function loadTourDetails() {
       setLoading(true);
 
-      // Charger la tournée
       const { data: tourData, error: tourError } = await supabase
         .from('tours')
         .select(`
@@ -87,7 +87,6 @@ export default function TourDetailView() {
 
       setTour(tourData);
 
-      // Charger les stops
       const { data: stopsData, error: stopsError } = await supabase
         .from('delivery_stops')
         .select('*')
@@ -103,7 +102,6 @@ export default function TourDetailView() {
 
     loadTourDetails();
 
-    // Realtime pour les mises à jour
     const channel = supabase
       .channel(`tour-${tourId}`)
       .on('postgres_changes', {
@@ -204,21 +202,21 @@ export default function TourDetailView() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400"></div>
       </div>
     );
   }
 
   if (!tour) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <AlertCircle size={48} className="mx-auto text-red-500 mb-4" />
-          <p className="text-lg font-semibold">Tournée introuvable</p>
+          <AlertCircle size={48} className="mx-auto text-red-500 dark:text-red-400 mb-4" />
+          <p className="text-lg font-semibold text-gray-900 dark:text-white">Tournée introuvable</p>
           <button 
             onClick={() => navigate('/app/tour-planning')}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg"
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Retour aux tournées
           </button>
@@ -240,12 +238,12 @@ export default function TourDetailView() {
           <div className="flex items-center gap-4">
             <button 
               onClick={() => navigate(`/tour-planning/${tour.id}`)}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-900 dark:text-white"
             >
               <ArrowLeft size={20} />
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">{tour.name}</h1>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{tour.name}</h1>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 {new Date(tour.date).toLocaleDateString('fr-FR', { 
                   weekday: 'long', 
@@ -263,7 +261,7 @@ export default function TourDetailView() {
               className={`px-4 py-2 rounded-lg flex items-center gap-2 transition-colors ${
                 showMap 
                   ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300'
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
               }`}
             >
               <MapPin size={16} />
@@ -314,13 +312,13 @@ export default function TourDetailView() {
         <div className="mb-4">
           <div className="flex justify-between text-sm mb-2">
             <span className="text-gray-600 dark:text-gray-400">Progression</span>
-            <span className="font-medium text-gray-900 dark:text-gray-100">
+            <span className="font-medium text-gray-900 dark:text-white">
               {completedStops} / {stops.length} livrés ({progress.toFixed(0)}%)
             </span>
           </div>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
             <div
-              className="bg-blue-600 h-2 rounded-full transition-all"
+              className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -332,7 +330,7 @@ export default function TourDetailView() {
             <User size={20} className="text-gray-500 dark:text-gray-400 mt-0.5" />
             <div>
               <p className="text-xs text-gray-500 dark:text-gray-400">Chauffeur</p>
-              <p className="font-medium text-gray-900 dark:text-gray-100">{tour.driver?.name || 'Non assigné'}</p>
+              <p className="font-medium text-gray-900 dark:text-white">{tour.driver?.name || 'Non assigné'}</p>
               {tour.driver?.phone && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
                   <Phone size={12} />
@@ -346,7 +344,7 @@ export default function TourDetailView() {
             <Truck size={20} className="text-gray-500 dark:text-gray-400 mt-0.5" />
             <div>
               <p className="text-xs text-gray-500 dark:text-gray-400">Véhicule</p>
-              <p className="font-medium text-gray-900 dark:text-gray-100">{tour.vehicle?.name || 'Non assigné'}</p>
+              <p className="font-medium text-gray-900 dark:text-white">{tour.vehicle?.name || 'Non assigné'}</p>
               {tour.vehicle?.license_plate && (
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{tour.vehicle.license_plate}</p>
               )}
@@ -357,7 +355,7 @@ export default function TourDetailView() {
             <Package size={20} className="text-gray-500 dark:text-gray-400 mt-0.5" />
             <div>
               <p className="text-xs text-gray-500 dark:text-gray-400">Charge totale</p>
-              <p className="font-medium text-gray-900 dark:text-gray-100">{totalWeight} kg</p>
+              <p className="font-medium text-gray-900 dark:text-white">{totalWeight} kg</p>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{totalVolume.toFixed(1)} m³</p>
             </div>
           </div>
@@ -366,7 +364,7 @@ export default function TourDetailView() {
             <Clock size={20} className="text-gray-500 dark:text-gray-400 mt-0.5" />
             <div>
               <p className="text-xs text-gray-500 dark:text-gray-400">Horaire départ</p>
-              <p className="font-medium text-gray-900 dark:text-gray-100">
+              <p className="font-medium text-gray-900 dark:text-white">
                 {new Date(tour.start_time).toLocaleTimeString('fr-FR', { 
                   hour: '2-digit', 
                   minute: '2-digit' 
@@ -382,15 +380,15 @@ export default function TourDetailView() {
 
       {/* Carte */}
       {showMap && stops.length > 0 && (
-        <div className="mx-6 mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+        <div className="mx-6 mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
           <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
               <MapPin size={18} />
               Itinéraire de la tournée
             </h3>
             {driverLocation && (
               <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500">
+                <span className="text-xs text-gray-500 dark:text-gray-400">
                   Position chauffeur mise à jour il y a {
                     Math.floor((Date.now() - new Date(driverLocation.last_update).getTime()) / 60000)
                   } min
@@ -457,7 +455,7 @@ export default function TourDetailView() {
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-semibold text-gray-900 dark:text-gray-100">{stop.customer_name}</h3>
+                          <h3 className="font-semibold text-gray-900 dark:text-white">{stop.customer_name}</h3>
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${statusColors[stop.status]}`}>
                             {stop.status === 'pending' && 'En attente'}
                             {stop.status === 'arrived' && 'Arrivé'}
@@ -475,24 +473,24 @@ export default function TourDetailView() {
                     <div className="grid grid-cols-3 gap-3 text-sm mb-3">
                       <div>
                         <p className="text-gray-500 dark:text-gray-400 text-xs">Créneau</p>
-                        <p className="font-medium text-gray-900 dark:text-gray-100">
+                        <p className="font-medium text-gray-900 dark:text-white">
                           {stop.time_window_start} - {stop.time_window_end}
                         </p>
                       </div>
                       <div>
                         <p className="text-gray-500 dark:text-gray-400 text-xs">Contact</p>
-                        <p className="font-medium text-gray-900 dark:text-gray-100">{stop.customer_phone || 'N/A'}</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{stop.customer_phone || 'N/A'}</p>
                       </div>
                       <div>
                         <p className="text-gray-500 dark:text-gray-400 text-xs">Colis</p>
-                        <p className="font-medium text-gray-900 dark:text-gray-100">
+                        <p className="font-medium text-gray-900 dark:text-white">
                           {stop.weight_kg} kg • {stop.volume_m3} m³
                         </p>
                       </div>
                     </div>
 
                     {stop.notes && (
-                      <div className="text-sm p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-yellow-800 dark:text-yellow-200 mb-3">
+                      <div className="text-sm p-2 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded text-yellow-800 dark:text-yellow-200 mb-3">
                         <strong>Note:</strong> {stop.notes}
                       </div>
                     )}

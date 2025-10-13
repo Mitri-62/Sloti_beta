@@ -1,37 +1,34 @@
-// src/components/ForecastView.tsx
+// src/components/ForecastView.tsx - STYLE MONDAY.COM AVEC GRID LAYOUT
 import { useState, useMemo } from "react";
+import { Responsive, WidthProvider, Layout } from "react-grid-layout";
 import { 
-  BarChart, 
-  Bar, 
-  LineChart,
-  Line,
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  ResponsiveContainer, 
-  Legend, 
-  ReferenceLine,
-  CartesianGrid,
-  Area,
-  AreaChart
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, 
+  ResponsiveContainer, CartesianGrid, Area, AreaChart
 } from "recharts";
 import { usePlannings, Planning } from "../hooks/usePlannings";
-import { format, getWeek, addDays, startOfWeek, endOfWeek } from "date-fns";
+import { format, getWeek, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { 
-  TrendingUp, 
-  TrendingDown, 
-  Minus, 
-  AlertTriangle,
-  Calendar,
-  TrendingUpIcon,
-  Package,
-  Truck,
-  Download
+  TrendingUp, TrendingDown, Minus, AlertTriangle, Calendar,
+  TrendingUpIcon, Package, Truck, Download, 
+ ChevronDown, ChevronUp, RotateCcw
 } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import "react-grid-layout/css/styles.css";
+import "react-resizable/css/styles.css";
+
+const ResponsiveGridLayout = WidthProvider(Responsive);
+
+// Types
+type SectionId = 'alerts' | 'kpis' | 'chart' | 'summary' | 'methodology';
+
+interface GridSection {
+  id: SectionId;
+  title: string;
+  collapsed: boolean;
+}
 
 interface ForecastData {
   date: string;
@@ -49,20 +46,18 @@ interface WeekStats {
   };
 }
 
-// Parser date correctement (fix timezone)
+// Fonctions utilitaires
 const parseDate = (dateStr: string): Date => {
   const [year, month, day] = dateStr.split('-').map(Number);
   return new Date(year, month - 1, day);
 };
 
-// Obtenir la clé de semaine
 const getWeekKey = (date: Date): string => {
   const year = date.getFullYear();
   const week = getWeek(date, { weekStartsOn: 1 });
   return `${year}-W${week.toString().padStart(2, '0')}`;
 };
 
-// Calculer les prévisions par type
 function calculateForecast(
   plannings: Planning[], 
   weeks: number,
@@ -73,7 +68,6 @@ function calculateForecast(
   const limit = new Date();
   limit.setDate(today.getDate() - weeks * 7);
 
-  // Filtrer historique par type et transporteur
   let filtered = plannings.filter(
     (p) => p.type === type && parseDate(p.date) >= limit && parseDate(p.date) < today
   );
@@ -82,7 +76,6 @@ function calculateForecast(
     filtered = filtered.filter(p => p.transporter === transporterFilter);
   }
 
-  // Grouper par jour de semaine ET par semaine
   const byDayOfWeek: Record<number, WeekStats> = {};
 
   filtered.forEach((ev) => {
@@ -102,7 +95,6 @@ function calculateForecast(
     }
   });
 
-  // Calculer moyenne par jour de semaine
   const averages: Record<number, number> = {};
   Object.keys(byDayOfWeek).forEach((dow) => {
     const weekCounts = Object.values(byDayOfWeek[+dow]);
@@ -114,7 +106,6 @@ function calculateForecast(
   return averages;
 }
 
-// Détecter tendance
 function detectTrend(data: number[]): { trend: 'increasing' | 'decreasing' | 'stable'; percent: number } {
   if (data.length < 4) return { trend: 'stable', percent: 0 };
   
@@ -131,6 +122,31 @@ function detectTrend(data: number[]): { trend: 'increasing' | 'decreasing' | 'st
   return { trend: 'stable', percent: 0 };
 }
 
+// Layout par défaut
+const defaultLayouts = {
+  lg: [
+    { i: 'alerts', x: 0, y: 0, w: 12, h: 3, minW: 6, minH: 2 },
+    { i: 'kpis', x: 0, y: 3, w: 12, h: 4, minW: 6, minH: 3 },
+    { i: 'chart', x: 0, y: 7, w: 12, h: 7, minW: 6, minH: 5 },
+    { i: 'summary', x: 0, y: 14, w: 6, h: 5, minW: 3, minH: 3 },
+    { i: 'methodology', x: 6, y: 14, w: 6, h: 5, minW: 3, minH: 3 },
+  ],
+  md: [
+    { i: 'alerts', x: 0, y: 0, w: 10, h: 3, minW: 5, minH: 2 },
+    { i: 'kpis', x: 0, y: 3, w: 10, h: 4, minW: 5, minH: 3 },
+    { i: 'chart', x: 0, y: 7, w: 10, h: 7, minW: 5, minH: 5 },
+    { i: 'summary', x: 0, y: 14, w: 5, h: 5, minW: 3, minH: 3 },
+    { i: 'methodology', x: 5, y: 14, w: 5, h: 5, minW: 3, minH: 3 },
+  ],
+  sm: [
+    { i: 'alerts', x: 0, y: 0, w: 6, h: 3, minW: 3, minH: 2 },
+    { i: 'kpis', x: 0, y: 3, w: 6, h: 4, minW: 3, minH: 3 },
+    { i: 'chart', x: 0, y: 7, w: 6, h: 7, minW: 3, minH: 5 },
+    { i: 'summary', x: 0, y: 14, w: 6, h: 5, minW: 3, minH: 3 },
+    { i: 'methodology', x: 0, y: 19, w: 6, h: 5, minW: 3, minH: 3 },
+  ],
+};
+
 export default function ForecastView({ companyId }: { companyId: string }) {
   const { plannings, loading } = usePlannings(companyId);
   const [weeks, setWeeks] = useState(4);
@@ -138,12 +154,44 @@ export default function ForecastView({ companyId }: { companyId: string }) {
   const [transporterFilter, setTransporterFilter] = useState<string>("Tous");
   const [viewMode, setViewMode] = useState<"bar" | "line" | "area">("bar");
 
-  // Liste des transporteurs
+  // Charger layouts et sections depuis localStorage
+  const loadFromStorage = () => {
+    try {
+      const savedLayouts = localStorage.getItem('forecast-layouts');
+      const savedSections = localStorage.getItem('forecast-sections');
+      
+      return {
+        layouts: savedLayouts ? JSON.parse(savedLayouts) : defaultLayouts,
+        sections: savedSections ? JSON.parse(savedSections) : [
+          { id: 'alerts', title: 'Alertes de surcharge', collapsed: false },
+          { id: 'kpis', title: 'Indicateurs clés', collapsed: false },
+          { id: 'chart', title: 'Graphique prévisionnel', collapsed: false },
+          { id: 'summary', title: 'Résumé statistique', collapsed: false },
+          { id: 'methodology', title: 'Méthodologie', collapsed: false },
+        ]
+      };
+    } catch (error) {
+      return { layouts: defaultLayouts, sections: [] };
+    }
+  };
+
+  const [layouts, setLayouts] = useState(loadFromStorage().layouts);
+  const [sections, setSections] = useState<GridSection[]>(loadFromStorage().sections);
+
+  // Sauvegarder dans localStorage
+  const saveToStorage = (newLayouts: any, newSections: GridSection[]) => {
+    try {
+      localStorage.setItem('forecast-layouts', JSON.stringify(newLayouts));
+      localStorage.setItem('forecast-sections', JSON.stringify(newSections));
+    } catch (error) {
+      console.error('Erreur sauvegarde:', error);
+    }
+  };
+
   const transporters = useMemo(() => {
     return [...new Set(plannings.map(p => p.transporter))].filter(Boolean).sort();
   }, [plannings]);
 
-  // Calcul des prévisions mémorisé
   const { forecasts, stats, alerts } = useMemo(() => {
     if (plannings.length === 0) {
       return { forecasts: [], stats: null, alerts: [] };
@@ -151,16 +199,13 @@ export default function ForecastView({ companyId }: { companyId: string }) {
 
     const today = new Date();
     
-    // Calculer prévisions pour chaque type
     const recAvg = calculateForecast(plannings, weeks, "Réception", transporterFilter);
     const expAvg = calculateForecast(plannings, weeks, "Expédition", transporterFilter);
 
-    // Calculer moyenne historique globale
     const historicalTotal = Object.values(recAvg).reduce((a, b) => a + b, 0) + 
                            Object.values(expAvg).reduce((a, b) => a + b, 0);
     const historicalAverage = historicalTotal / 7;
 
-    // Générer prévisions pour les N prochains jours
     const data: ForecastData[] = [];
     for (let i = 1; i <= forecastDays; i++) {
       const d = addDays(today, i);
@@ -179,7 +224,6 @@ export default function ForecastView({ companyId }: { companyId: string }) {
       });
     }
 
-    // Stats globales
     let filteredPlannings = plannings;
     if (transporterFilter !== "Tous") {
       filteredPlannings = plannings.filter(p => p.transporter === transporterFilter);
@@ -192,13 +236,11 @@ export default function ForecastView({ companyId }: { companyId: string }) {
     const recTrend = detectTrend(Object.values(recAvg));
     const expTrend = detectTrend(Object.values(expAvg));
 
-    // Identifier les jours de pointe
     const peakDay = data.reduce((max, day) => day.total > max.total ? day : max, data[0]);
     const calmDay = data.reduce((min, day) => day.total < min.total ? day : min, data[0]);
 
-    // Alertes de surcharge (>150% de la moyenne)
     const overloadThreshold = historicalAverage * 1.5;
-    const alerts = data
+    const alertsList = data
       .filter(day => day.total > overloadThreshold)
       .map(day => ({
         date: day.date,
@@ -220,38 +262,47 @@ export default function ForecastView({ companyId }: { companyId: string }) {
         historicalAverage,
         totalForecast: data.reduce((sum, day) => sum + day.total, 0),
       },
-      alerts
+      alerts: alertsList
     };
   }, [plannings, weeks, forecastDays, transporterFilter]);
 
-  /**
-   * Export PDF des prévisions
-   */
+  const handleLayoutChange = (_newLayout: Layout[], allLayouts: any) => {
+    setLayouts(allLayouts);
+    saveToStorage(allLayouts, sections);
+  };
+
+  const toggleCollapse = (id: SectionId) => {
+    const newSections = sections.map(s => 
+      s.id === id ? { ...s, collapsed: !s.collapsed } : s
+    );
+    setSections(newSections);
+    saveToStorage(layouts, newSections);
+  };
+
+  const resetLayout = () => {
+    setLayouts(defaultLayouts);
+    const defaultSections = [
+      { id: 'alerts', title: 'Alertes de surcharge', collapsed: false },
+      { id: 'kpis', title: 'Indicateurs clés', collapsed: false },
+      { id: 'chart', title: 'Graphique prévisionnel', collapsed: false },
+      { id: 'summary', title: 'Résumé statistique', collapsed: false },
+      { id: 'methodology', title: 'Méthodologie', collapsed: false },
+    ] as GridSection[];
+    setSections(defaultSections);
+    saveToStorage(defaultLayouts, defaultSections);
+    toast.success("Layout réinitialisé");
+  };
+
   const handleExportPDF = () => {
     if (!stats) return;
 
     const doc = new jsPDF();
     
-    // En-tête
     doc.setFontSize(18);
     doc.text("Prévisions Planning", 14, 20);
     doc.setFontSize(11);
     doc.text(`Généré le ${format(new Date(), "dd/MM/yyyy à HH:mm")}`, 14, 28);
-    doc.text(`Période d'analyse : ${weeks} semaines`, 14, 34);
-    if (transporterFilter !== "Tous") {
-      doc.text(`Transporteur : ${transporterFilter}`, 14, 40);
-    }
-
-    // KPIs
-    doc.setFontSize(14);
-    doc.text("Indicateurs clés", 14, 50);
-    doc.setFontSize(10);
-    doc.text(`• Total événements historiques : ${stats.totalHistoric}`, 14, 58);
-    doc.text(`• Réceptions : ${stats.historicReceptions} (${stats.recTrend.trend})`, 14, 64);
-    doc.text(`• Expéditions : ${stats.historicExpeditions} (${stats.expTrend.trend})`, 14, 70);
-    doc.text(`• Moyenne journalière : ${Math.round(stats.historicalAverage)} événements`, 14, 76);
-
-    // Tableau prévisions
+    
     const tableData = forecasts.map(f => [
       format(parseDate(f.date), 'dd/MM/yyyy'),
       f.dayName,
@@ -261,437 +312,395 @@ export default function ForecastView({ companyId }: { companyId: string }) {
     ]);
 
     (doc as any).autoTable({
-      startY: 85,
+      startY: 35,
       head: [["Date", "Jour", "Réceptions", "Expéditions", "Total"]],
       body: tableData,
-      styles: { fontSize: 9, cellPadding: 2 },
-      headStyles: { fillColor: [37, 99, 235] },
     });
-
-    // Alertes
-    if (alerts.length > 0) {
-      const finalY = (doc as any).lastAutoTable.finalY + 10;
-      doc.setFontSize(12);
-      doc.setTextColor(220, 38, 38);
-      doc.text("⚠️ Alertes de surcharge", 14, finalY);
-      doc.setFontSize(9);
-      doc.setTextColor(0, 0, 0);
-      alerts.forEach((alert, i) => {
-        doc.text(
-          `• ${format(parseDate(alert.date), 'dd/MM')} (${alert.dayName}) : ${alert.total} événements (+${alert.percent}%)`,
-          14,
-          finalY + 8 + (i * 6)
-        );
-      });
-    }
 
     doc.save(`previsions_${format(new Date(), "yyyy-MM-dd")}.pdf`);
     toast.success("Export PDF réussi");
   };
 
-  if (loading) {
-    return (
-      <div className="bg-white p-8 rounded-lg shadow text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600">Chargement des prévisions...</p>
-      </div>
-    );
-  }
-
-  // Données insuffisantes
-  if (!stats || stats.totalHistoric < 10) {
-    return (
-      <div className="bg-yellow-50 border-2 border-yellow-200 p-8 rounded-xl">
-        <div className="flex items-start gap-4">
-          <AlertTriangle className="text-yellow-600 flex-shrink-0" size={32} />
-          <div>
-            <h3 className="font-semibold text-yellow-800 text-lg mb-2">
-              Données insuffisantes
-            </h3>
-            <p className="text-yellow-700 mb-2">
-              Minimum <strong>10 événements</strong> historiques requis pour générer des prévisions fiables.
-            </p>
-            <p className="text-yellow-600 text-sm">
-              Actuellement : <strong>{stats?.totalHistoric || 0}</strong> événements dans l'historique
-            </p>
-            <p className="text-yellow-600 text-sm mt-2">
-              💡 Continuez à créer des événements dans votre planning pour activer les prévisions.
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const getTrendIcon = (trend: 'increasing' | 'decreasing' | 'stable') => {
-    if (trend === 'increasing') return <TrendingUp className="text-green-600" size={20} />;
-    if (trend === 'decreasing') return <TrendingDown className="text-red-600" size={20} />;
-    return <Minus className="text-gray-600" size={20} />;
+    if (trend === 'increasing') return <TrendingUp className="text-green-600 dark:text-green-400" size={20} />;
+    if (trend === 'decreasing') return <TrendingDown className="text-red-600 dark:text-red-400" size={20} />;
+    return <Minus className="text-gray-600 dark:text-gray-400" size={20} />;
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Header avec contrôles */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-1">
-              📊 Prévisions & Analytics
-            </h2>
-            <p className="text-sm text-gray-500">
-              Basé sur {weeks} semaines d'historique • {stats.totalHistoric} événements analysés
-            </p>
-          </div>
+  // Rendu des sections avec header collapse et drag séparés
+  const renderSection = (sectionId: SectionId) => {
+    if (!stats) return null;
 
-          <div className="flex flex-wrap gap-3">
-            <select 
-              value={transporterFilter}
-              onChange={(e) => setTransporterFilter(e.target.value)}
-              className="border rounded-lg px-3 py-2 text-sm bg-white"
-            >
-              <option value="Tous">Tous les transporteurs</option>
-              {transporters.map(t => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
+    const section = sections.find(s => s.id === sectionId);
+    if (!section) return null;
 
-            <select 
-              value={weeks} 
-              onChange={(e) => setWeeks(Number(e.target.value))}
-              className="border rounded-lg px-3 py-2 text-sm bg-white"
-            >
-              <option value={2}>2 semaines</option>
-              <option value={4}>4 semaines</option>
-              <option value={8}>8 semaines</option>
-              <option value={12}>12 semaines</option>
-            </select>
+    const renderContent = () => {
+      if (section.collapsed) return null;
 
-            <select 
-              value={forecastDays} 
-              onChange={(e) => setForecastDays(Number(e.target.value))}
-              className="border rounded-lg px-3 py-2 text-sm bg-white"
-            >
-              <option value={7}>7 jours</option>
-              <option value={14}>14 jours</option>
-              <option value={30}>30 jours</option>
-            </select>
-
-            <button
-              onClick={handleExportPDF}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Download size={16} /> PDF
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Alertes de surcharge */}
-      {alerts.length > 0 && (
-        <div className="bg-red-50 border-2 border-red-200 rounded-xl p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="text-red-600 flex-shrink-0 mt-0.5" size={24} />
-            <div className="flex-1">
-              <h3 className="font-semibold text-red-900 mb-2">
-                ⚠️ Alerte : Jours de forte charge détectés
-              </h3>
-              <div className="space-y-1">
-                {alerts.map(alert => (
-                  <p key={alert.date} className="text-sm text-red-700">
-                    • <strong>{format(parseDate(alert.date), 'EEEE dd MMMM', { locale: fr })}</strong> : 
-                    {" "}{alert.total} événements prévus 
-                    {" "}({alert.percent > 0 ? '+' : ''}{alert.percent}% vs moyenne)
-                  </p>
-                ))}
-              </div>
+      switch (sectionId) {
+        case 'alerts':
+          return (
+            <div className="flex-1 overflow-auto min-h-0">
+              {alerts.length > 0 ? (
+                <div className="p-4 min-w-0">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" size={24} />
+                    <div className="flex-1 min-w-0">
+                      <div className="space-y-1">
+                        {alerts.map(alert => (
+                          <p key={alert.date} className="text-sm text-red-700 dark:text-red-300 break-words">
+                            • <strong>{format(parseDate(alert.date), 'EEEE dd/MM', { locale: fr })}</strong> : 
+                            {" "}{alert.total} événements (+{alert.percent}%)
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+                  ✅ Aucune alerte de surcharge
+                </div>
+              )}
             </div>
-          </div>
-        </div>
-      )}
+          );
 
-      {/* KPIs Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Moyenne journalière */}
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 p-5 rounded-xl">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-blue-900">Moyenne / jour</h3>
-            <Calendar className="text-blue-600" size={20} />
+        case 'kpis':
+  return (
+    <div className="flex-1 overflow-auto min-h-0 p-4">
+      <div className="grid gap-3 min-h-full" style={{
+        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))'
+      }}>
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 p-3 rounded-lg min-w-0">
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <span className="text-xs font-medium text-blue-900 dark:text-blue-100 truncate">Moyenne/jour</span>
+            <Calendar className="text-blue-600 dark:text-blue-300 flex-shrink-0" size={16} />
           </div>
-          <p className="text-3xl font-bold text-blue-700">
+          <p className="text-xl font-bold text-blue-700 dark:text-blue-200">
             {Math.round(stats.historicalAverage)}
           </p>
-          <p className="text-xs text-blue-600 mt-1">événements</p>
         </div>
 
-        {/* Réceptions */}
-        <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 p-5 rounded-xl">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-green-900">Réceptions</h3>
-            <Package className="text-green-600" size={20} />
+        <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900 dark:to-green-800 p-3 rounded-lg min-w-0">
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <span className="text-xs font-medium text-green-900 dark:text-green-100 truncate">Réceptions</span>
+            <Package className="text-green-600 dark:text-green-300 flex-shrink-0" size={16} />
           </div>
-          <p className="text-3xl font-bold text-green-700">
+          <p className="text-xl font-bold text-green-700 dark:text-green-200">
             {stats.historicReceptions}
           </p>
           <div className="flex items-center gap-1 mt-1">
             {getTrendIcon(stats.recTrend.trend)}
-            <span className="text-xs text-green-600">
+            <span className="text-xs text-green-600 dark:text-green-300 truncate">
               {stats.recTrend.trend === 'stable' ? 'Stable' : 
                `${stats.recTrend.trend === 'increasing' ? '+' : '-'}${stats.recTrend.percent}%`}
             </span>
           </div>
         </div>
 
-        {/* Expéditions */}
-        <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 p-5 rounded-xl">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-orange-900">Expéditions</h3>
-            <Truck className="text-orange-600" size={20} />
+        <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900 dark:to-orange-800 p-3 rounded-lg min-w-0">
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <span className="text-xs font-medium text-orange-900 dark:text-orange-100 truncate">Expéditions</span>
+            <Truck className="text-orange-600 dark:text-orange-300 flex-shrink-0" size={16} />
           </div>
-          <p className="text-3xl font-bold text-orange-700">
+          <p className="text-xl font-bold text-orange-700 dark:text-orange-200">
             {stats.historicExpeditions}
           </p>
           <div className="flex items-center gap-1 mt-1">
             {getTrendIcon(stats.expTrend.trend)}
-            <span className="text-xs text-orange-600">
+            <span className="text-xs text-orange-600 dark:text-orange-300 truncate">
               {stats.expTrend.trend === 'stable' ? 'Stable' : 
                `${stats.expTrend.trend === 'increasing' ? '+' : '-'}${stats.expTrend.percent}%`}
             </span>
           </div>
         </div>
 
-        {/* Jour de pointe */}
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 p-5 rounded-xl">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-medium text-purple-900">Jour de pointe</h3>
-            <TrendingUpIcon className="text-purple-600" size={20} />
+        <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900 dark:to-purple-800 p-3 rounded-lg min-w-0">
+          <div className="flex items-center justify-between mb-2 gap-2">
+            <span className="text-xs font-medium text-purple-900 dark:text-purple-100 truncate">Pic</span>
+            <TrendingUpIcon className="text-purple-600 dark:text-purple-300 flex-shrink-0" size={16} />
           </div>
-          <p className="text-2xl font-bold text-purple-700 capitalize">
+          <p className="text-base font-bold text-purple-700 dark:text-purple-200 capitalize truncate">
             {stats.peakDay.dayName}
           </p>
-          <p className="text-xs text-purple-600 mt-1">
-            {stats.peakDay.total} événements prévus
+          <p className="text-xs text-purple-600 dark:text-purple-300 mt-1">
+            {stats.peakDay.total} événements
           </p>
         </div>
       </div>
+    </div>
+  );
 
-      {/* Sélecteur de type de graphique */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setViewMode("bar")}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            viewMode === "bar" 
-              ? "bg-blue-600 text-white" 
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-        >
-          Barres
-        </button>
-        <button
-          onClick={() => setViewMode("line")}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            viewMode === "line" 
-              ? "bg-blue-600 text-white" 
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-        >
-          Courbe
-        </button>
-        <button
-          onClick={() => setViewMode("area")}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            viewMode === "area" 
-              ? "bg-blue-600 text-white" 
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-          }`}
-        >
-          Aires
-        </button>
-      </div>
+        case 'chart':
+          return (
+            <div className="flex-1 flex flex-col min-h-0 p-4">
+              <div className="flex gap-2 mb-4 flex-shrink-0 flex-wrap">
+                {['bar', 'line', 'area'].map(mode => (
+                  <button
+                    key={mode}
+                    onClick={() => setViewMode(mode as any)}
+                    className={`px-2 sm:px-3 py-1 rounded text-xs sm:text-sm font-medium transition-colors ${
+                      viewMode === mode 
+                        ? "bg-blue-600 text-white" 
+                        : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                    }`}
+                  >
+                    {mode === 'bar' ? 'Barres' : mode === 'line' ? 'Courbe' : 'Aires'}
+                  </button>
+                ))}
+              </div>
+              <div className="flex-1 min-h-0 min-w-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  {viewMode === "bar" ? (
+                    <BarChart data={forecasts}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="dayName" tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                      <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                      <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '0.5rem', fontSize: '12px' }} />
+                      <Bar dataKey="receptions" fill="#3b82f6" name="Réceptions" />
+                      <Bar dataKey="expeditions" fill="#f97316" name="Expéditions" />
+                    </BarChart>
+                  ) : viewMode === "line" ? (
+                    <LineChart data={forecasts}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="dayName" tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                      <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                      <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '0.5rem', fontSize: '12px' }} />
+                      <Line type="monotone" dataKey="receptions" stroke="#3b82f6" strokeWidth={2} name="Réceptions" />
+                      <Line type="monotone" dataKey="expeditions" stroke="#f97316" strokeWidth={2} name="Expéditions" />
+                    </LineChart>
+                  ) : (
+                    <AreaChart data={forecasts}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="dayName" tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                      <YAxis tick={{ fontSize: 10, fill: '#9ca3af' }} />
+                      <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '0.5rem', fontSize: '12px' }} />
+                      <Area type="monotone" dataKey="receptions" stackId="1" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
+                      <Area type="monotone" dataKey="expeditions" stackId="1" stroke="#f97316" fill="#f97316" fillOpacity={0.6} />
+                    </AreaChart>
+                  )}
+                </ResponsiveContainer>
+              </div>
+            </div>
+          );
 
-      {/* Graphique principal */}
-      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-        <h3 className="text-lg font-semibold mb-4">
-          Prévisions pour les {forecastDays} prochains jours
-        </h3>
-        <ResponsiveContainer width="100%" height={400}>
-          {viewMode === "bar" ? (
-            <BarChart data={forecasts}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis 
-                dataKey="dayName" 
-                tick={{ fontSize: 12 }}
-              />
-              <YAxis />
-              <Tooltip 
-                content={({ active, payload }) => {
-                  if (active && payload && payload.length) {
-                    const data = payload[0].payload;
-                    return (
-                      <div className="bg-white p-4 border rounded-lg shadow-lg">
-                        <p className="font-semibold mb-2 capitalize">
-                          {data.dayName} {format(parseDate(data.date), 'dd/MM', { locale: fr })}
-                        </p>
-                        <p className="text-sm text-blue-600">
-                          Réceptions : <strong>{data.receptions}</strong>
-                        </p>
-                        <p className="text-sm text-orange-600">
-                          Expéditions : <strong>{data.expeditions}</strong>
-                        </p>
-                        <p className="text-sm text-gray-600 mt-1 pt-1 border-t">
-                          Total : <strong>{data.total}</strong>
-                        </p>
-                      </div>
-                    );
-                  }
-                  return null;
-                }}
-              />
-              <Legend />
-              <ReferenceLine 
-                y={stats.historicalAverage} 
-                stroke="#ef4444" 
-                strokeDasharray="3 3" 
-                label={{ 
-                  value: `Moyenne: ${Math.round(stats.historicalAverage)}`, 
-                  position: 'right', 
-                  fill: '#ef4444', 
-                  fontSize: 11 
-                }}
-              />
-              <Bar 
-                dataKey="receptions" 
-                fill="#3b82f6" 
-                name="Réceptions"
-                radius={[4, 4, 0, 0]}
-              />
-              <Bar 
-                dataKey="expeditions" 
-                fill="#f97316" 
-                name="Expéditions"
-                radius={[4, 4, 0, 0]}
-              />
-            </BarChart>
-          ) : viewMode === "line" ? (
-            <LineChart data={forecasts}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="dayName" tick={{ fontSize: 12 }} />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <ReferenceLine 
-                y={stats.historicalAverage} 
-                stroke="#ef4444" 
-                strokeDasharray="3 3" 
-              />
-              <Line 
-                type="monotone" 
-                dataKey="receptions" 
-                stroke="#3b82f6" 
-                strokeWidth={3}
-                name="Réceptions"
-                dot={{ r: 4 }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="expeditions" 
-                stroke="#f97316" 
-                strokeWidth={3}
-                name="Expéditions"
-                dot={{ r: 4 }}
-              />
-            </LineChart>
-          ) : (
-            <AreaChart data={forecasts}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="dayName" tick={{ fontSize: 12 }} />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <ReferenceLine 
-                y={stats.historicalAverage} 
-                stroke="#ef4444" 
-                strokeDasharray="3 3" 
-              />
-              <Area 
-                type="monotone" 
-                dataKey="receptions" 
-                stackId="1"
-                stroke="#3b82f6" 
-                fill="#3b82f6"
-                fillOpacity={0.6}
-                name="Réceptions"
-              />
-              <Area 
-                type="monotone" 
-                dataKey="expeditions" 
-                stackId="1"
-                stroke="#f97316" 
-                fill="#f97316"
-                fillOpacity={0.6}
-                name="Expéditions"
-              />
-            </AreaChart>
-          )}
-        </ResponsiveContainer>
-      </div>
+        case 'summary':
+          return (
+            <div className="flex-1 overflow-auto min-h-0 p-4">
+              <div className="space-y-3 min-w-0">
+                <div>
+                  <h4 className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">📈 Analyse</h4>
+                  <div className="space-y-1 text-xs sm:text-sm">
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-600 dark:text-gray-400 truncate">Période :</span>
+                      <span className="font-medium text-gray-900 dark:text-white flex-shrink-0">{weeks} semaines</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-600 dark:text-gray-400 truncate">Total historique :</span>
+                      <span className="font-bold text-blue-600 dark:text-blue-400 flex-shrink-0">{stats.totalHistoric}</span>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">🔮 Prévision</h4>
+                  <div className="space-y-1 text-xs sm:text-sm">
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-600 dark:text-gray-400 truncate">Période :</span>
+                      <span className="font-medium text-gray-900 dark:text-white flex-shrink-0">{forecastDays} jours</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-gray-600 dark:text-gray-400 truncate">Total prévu :</span>
+                      <span className="font-bold text-purple-600 dark:text-purple-400 flex-shrink-0">{stats.totalForecast}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
 
-      {/* Résumé statistique */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-          <h3 className="font-semibold text-gray-900 mb-3">📈 Période analysée</h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Début :</span>
-              <span className="font-medium">
-                {format(addDays(new Date(), -weeks * 7), 'dd MMMM yyyy', { locale: fr })}
-              </span>
+        case 'methodology':
+          return (
+            <div className="flex-1 overflow-auto min-h-0 p-4">
+              <div className="text-xs sm:text-sm text-blue-900 dark:text-blue-200 min-w-0">
+                <p className="font-semibold mb-2">📊 Méthodologie</p>
+                <p className="text-blue-700 dark:text-blue-300 text-xs">
+                  Prévisions basées sur la moyenne d'événements par jour de semaine sur {weeks} semaines. 
+                  Alertes déclenchées au-delà de 150% de la charge moyenne.
+                </p>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Fin :</span>
-              <span className="font-medium">
-                {format(new Date(), 'dd MMMM yyyy', { locale: fr })}
-              </span>
+          );
+
+        default:
+          return null;
+      }
+    };
+
+    return (
+      <div className="h-full w-full flex flex-col bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
+        {/* Header avec zone drag séparée */}
+        <div className="flex items-center justify-between p-2 sm:p-3 bg-gray-100 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600 flex-shrink-0">
+          {/* Zone de drag - à gauche */}
+          <div className="drag-handle flex items-center gap-2 cursor-move flex-1 mr-2 min-w-0">
+            <div className="flex flex-col gap-0.5 flex-shrink-0">
+              <div className="w-3 sm:w-4 h-0.5 bg-gray-400 dark:bg-gray-500 rounded"></div>
+              <div className="w-3 sm:w-4 h-0.5 bg-gray-400 dark:bg-gray-500 rounded"></div>
+              <div className="w-3 sm:w-4 h-0.5 bg-gray-400 dark:bg-gray-500 rounded"></div>
             </div>
-            <div className="flex justify-between pt-2 border-t">
-              <span className="text-gray-600">Événements totaux :</span>
-              <span className="font-bold text-blue-600">{stats.totalHistoric}</span>
-            </div>
+            <h3 className="font-semibold text-gray-900 dark:text-white text-xs sm:text-sm truncate">
+              {section.title}
+            </h3>
           </div>
+          
+          {/* Bouton collapse - à droite - CLIQUABLE */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleCollapse(sectionId);
+            }}
+            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition-colors flex-shrink-0"
+          >
+            {section.collapsed ? (
+              <ChevronDown size={16} className="text-gray-600 dark:text-gray-300" />
+            ) : (
+              <ChevronUp size={16} className="text-gray-600 dark:text-gray-300" />
+            )}
+          </button>
         </div>
+        
+        {/* Contenu avec hauteur et largeur dynamique */}
+        {renderContent()}
+      </div>
+    );
+  };
 
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-200">
-          <h3 className="font-semibold text-gray-900 mb-3">🔮 Période de prévision</h3>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Début :</span>
-              <span className="font-medium">
-                {format(addDays(new Date(), 1), 'dd MMMM yyyy', { locale: fr })}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Fin :</span>
-              <span className="font-medium">
-                {format(addDays(new Date(), forecastDays), 'dd MMMM yyyy', { locale: fr })}
-              </span>
-            </div>
-            <div className="flex justify-between pt-2 border-t">
-              <span className="text-gray-600">Total prévu :</span>
-              <span className="font-bold text-purple-600">{stats.totalForecast}</span>
-            </div>
+  if (loading) {
+    return (
+      <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mx-auto mb-4"></div>
+        <p className="text-gray-600 dark:text-gray-400">Chargement...</p>
+      </div>
+    );
+  }
+
+  if (!stats || stats.totalHistoric < 10) {
+    return (
+      <div className="bg-yellow-50 dark:bg-yellow-900/30 border-2 border-yellow-200 dark:border-yellow-700 p-8 rounded-xl">
+        <div className="flex items-start gap-4">
+          <AlertTriangle className="text-yellow-600 dark:text-yellow-400" size={32} />
+          <div>
+            <h3 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
+              Données insuffisantes
+            </h3>
+            <p className="text-yellow-700 dark:text-yellow-300">
+              Minimum 10 événements requis. Actuellement : {stats?.totalHistoric || 0}
+            </p>
           </div>
         </div>
       </div>
+    );
+  }
 
-      {/* Note méthodologie */}
-      <div className="bg-blue-50 border border-blue-200 p-4 rounded-xl text-sm text-blue-900">
-        <p className="font-semibold mb-2">📊 Méthodologie de calcul</p>
-        <p className="text-blue-700">
-          Les prévisions sont calculées en analysant la moyenne d'événements par jour de semaine 
-          sur les {weeks} dernières semaines. Les tendances détectent les variations significatives (&gt;10%) 
-          entre la première et la seconde moitié de la période analysée. Les alertes sont générées 
-          lorsqu'un jour dépasse 150% de la charge moyenne.
-        </p>
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+            📊 Prévisions
+          </h2>
+          
+          <div className="flex flex-wrap gap-2">
+            <select 
+              value={transporterFilter}
+              onChange={(e) => setTransporterFilter(e.target.value)}
+              className="border rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            >
+              <option value="Tous">Tous</option>
+              {transporters.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+
+            <select 
+              value={weeks} 
+              onChange={(e) => setWeeks(Number(e.target.value))}
+              className="border rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            >
+              <option value={2}>2 sem</option>
+              <option value={4}>4 sem</option>
+              <option value={8}>8 sem</option>
+            </select>
+
+            <select 
+              value={forecastDays} 
+              onChange={(e) => setForecastDays(Number(e.target.value))}
+              className="border rounded px-2 py-1 text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            >
+              <option value={7}>7j</option>
+              <option value={14}>14j</option>
+              <option value={30}>30j</option>
+            </select>
+
+            <button
+              onClick={resetLayout}
+              className="flex items-center gap-1 bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700"
+            >
+              <RotateCcw size={14} /> Reset
+            </button>
+
+            <button
+              onClick={handleExportPDF}
+              className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700"
+            >
+              <Download size={14} /> PDF
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* Grid Layout */}
+      <ResponsiveGridLayout
+        className="layout"
+        layouts={layouts}
+        breakpoints={{ lg: 1200, md: 996, sm: 768 }}
+        cols={{ lg: 12, md: 10, sm: 6 }}
+        rowHeight={60}
+        onLayoutChange={handleLayoutChange}
+        draggableHandle=".drag-handle"
+        isDraggable={true}
+        isResizable={true}
+      >
+        {sections.map(section => (
+          <div key={section.id} className="h-full w-full">
+            {renderSection(section.id)}
+          </div>
+        ))}
+      </ResponsiveGridLayout>
+
+      <style>{`
+        .react-grid-item {
+          transition: all 200ms ease;
+          transition-property: left, top, width, height;
+        }
+        .react-grid-item.resizing {
+          transition: none;
+          z-index: 100;
+        }
+        .react-grid-item.react-draggable-dragging {
+          transition: none;
+          z-index: 100;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        .react-grid-placeholder {
+          background: #3b82f6;
+          opacity: 0.2;
+          transition-duration: 100ms;
+          z-index: 2;
+          border-radius: 0.5rem;
+        }
+        .drag-handle {
+          cursor: move !important;
+        }
+      `}</style>
     </div>
   );
 }

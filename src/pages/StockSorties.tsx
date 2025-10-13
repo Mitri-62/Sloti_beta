@@ -60,7 +60,7 @@ export default function StockSorties() {
   
     const { data: existing } = await supabase
       .from("stocks")
-      .select("*")  // ✅ Retour à select("*") comme avant
+      .select("*")
       .eq("ean", cleanEan)
       .eq("company_id", companyId)
       .maybeSingle();
@@ -148,7 +148,7 @@ export default function StockSorties() {
           if (ean && companyId) {
             const { data: existing } = await supabase
               .from("stocks")
-              .select("id, name, quantity")  // ✅ name au lieu de sku
+              .select("id, name, quantity")
               .eq("ean", ean)
               .eq("company_id", companyId)
               .maybeSingle();
@@ -164,7 +164,7 @@ export default function StockSorties() {
   
           return {
             ean,
-            sku: stockData?.name || row["Article"] || "UNKNOWN",  // ✅ name = sku
+            sku: stockData?.name || row["Article"] || "UNKNOWN",
             quantity: stockData?.quantity || parseInt(row["Quantité"]) || 1,
             lot: row["Lot"] || null,
             expiration_date:
@@ -302,22 +302,22 @@ export default function StockSorties() {
 
   // 🔹 Rendu UI
   return (
-    <div className="p-4 sm:p-6 bg-gray-50 min-h-screen">
+    <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
-            <TrendingDown className="text-red-600" size={28} />
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <TrendingDown className="text-red-600 dark:text-red-500" size={28} />
             Sorties Stock
           </h1>
-          <p className="text-gray-600 mt-1">
+          <p className="text-gray-600 dark:text-gray-400 mt-1">
             Enregistrez vos expéditions de marchandises
           </p>
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-lg shadow mb-6">
-          <div className="border-b">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6">
+          <div className="border-b border-gray-200 dark:border-gray-700">
             <nav className="flex" aria-label="Tabs">
               {[
                 { id: "manual", label: "Saisie manuelle", icon: Edit },
@@ -329,8 +329,8 @@ export default function StockSorties() {
                   onClick={() => setActiveTab(tab.id as any)}
                   className={`flex items-center gap-2 px-6 py-4 font-medium border-b-2 transition-colors ${
                     activeTab === tab.id
-                      ? "border-red-600 text-red-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                      ? "border-red-600 dark:border-red-500 text-red-600 dark:text-red-500"
+                      : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
                   }`}
                 >
                   <tab.icon size={20} />
@@ -344,7 +344,7 @@ export default function StockSorties() {
           <div className="p-6">
             {/* 🔹 Error message */}
             {error && (
-              <div className="mb-4 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg flex items-center gap-2">
+              <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300 px-4 py-3 rounded-lg flex items-center gap-2">
                 <AlertCircle size={20} />
                 <span>{error}</span>
               </div>
@@ -360,12 +360,12 @@ export default function StockSorties() {
                     setFormData({ ...formData, movementName: e.target.value })
                   }
                   placeholder="Nom de l'expédition (ex: EXP01) *"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-red-500 focus:outline-none"
                 />
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <input
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-red-500 focus:outline-none"
                     placeholder="Code128 (EAN) *"
                     value={formData.code128}
                     onChange={(e) =>
@@ -373,7 +373,7 @@ export default function StockSorties() {
                     }
                   />
                   <input
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-red-500 focus:outline-none"
                     placeholder="Quantité (info)"
                     type="number"
                     value={formData.quantite}
@@ -382,7 +382,7 @@ export default function StockSorties() {
                     }
                   />
                   <input
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-red-500 focus:outline-none"
                     placeholder="Lot (facultatif)"
                     value={formData.lot}
                     onChange={(e) =>
@@ -390,7 +390,7 @@ export default function StockSorties() {
                     }
                   />
                   <input
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:outline-none"
                     type="date"
                     value={formData.dlc}
                     onChange={(e) =>
@@ -401,7 +401,7 @@ export default function StockSorties() {
 
                 <button
                   onClick={handleManualAdd}
-                  className="w-full sm:w-auto bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 font-medium transition-colors flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto bg-red-600 dark:bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-700 dark:hover:bg-red-600 font-medium transition-colors flex items-center justify-center gap-2"
                 >
                   <PackageMinus size={20} />
                   Enregistrer sortie
@@ -414,19 +414,19 @@ export default function StockSorties() {
               <div className="space-y-4">
                 <video
                   id="video-sorties"
-                  className="w-full max-w-md mx-auto border rounded-lg"
+                  className="w-full max-w-md mx-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-black"
                 />
                 <button
                   onClick={startScan}
-                  className="w-full sm:w-auto bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center justify-center gap-2 mx-auto"
+                  className="w-full sm:w-auto bg-blue-600 dark:bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 font-medium transition-colors flex items-center justify-center gap-2 mx-auto"
                 >
                   <Camera size={20} />
                   Lancer le scan
                 </button>
                 {lastScan && (
-                  <p className="text-center text-gray-600">
+                  <p className="text-center text-gray-600 dark:text-gray-400">
                     Dernier scan :{" "}
-                    <span className="font-mono font-bold">{lastScan}</span>
+                    <span className="font-mono font-bold text-gray-900 dark:text-white">{lastScan}</span>
                   </p>
                 )}
               </div>
@@ -435,7 +435,7 @@ export default function StockSorties() {
             {/* 🔹 Onglet excel */}
             {activeTab === "excel" && (
               <div className="space-y-4">
-                <label className="flex items-center justify-center gap-2 cursor-pointer bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 font-medium transition-colors w-full sm:w-auto">
+                <label className="flex items-center justify-center gap-2 cursor-pointer bg-red-600 dark:bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-700 dark:hover:bg-red-600 font-medium transition-colors w-full sm:w-auto">
                   <Upload size={20} />
                   Sélectionner un fichier
                   <input
@@ -449,8 +449,8 @@ export default function StockSorties() {
 
                 {previewData.length > 0 && (
                   <div className="space-y-4">
-                    <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                      <p className="text-sm font-medium text-orange-900">
+                    <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
+                      <p className="text-sm font-medium text-orange-900 dark:text-orange-300">
                         <CheckCircle className="inline mr-2" size={16} />
                         {summary.supprimées} palettes à supprimer |
                         <XCircle className="inline mx-2" size={16} />
@@ -468,65 +468,65 @@ export default function StockSorties() {
                         })
                       }
                       placeholder="Nom de l'expédition (ex: EXP01) *"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-red-500 focus:outline-none"
                     />
 
-                    <div className="border rounded-lg overflow-hidden">
+                    <div className="border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
                       <div className="overflow-x-auto max-h-96">
                         <table className="w-full text-sm">
-                          <thead className="bg-gray-100 sticky top-0">
+                          <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
                             <tr>
-                              <th className="px-4 py-2 text-left font-semibold">
+                              <th className="px-4 py-2 text-left font-semibold text-gray-900 dark:text-white">
                                 EAN
                               </th>
-                              <th className="px-4 py-2 text-left font-semibold">
+                              <th className="px-4 py-2 text-left font-semibold text-gray-900 dark:text-white">
                                 SKU
                               </th>
-                              <th className="px-4 py-2 text-left font-semibold">
+                              <th className="px-4 py-2 text-left font-semibold text-gray-900 dark:text-white">
                                 Qté
                               </th>
-                              <th className="px-4 py-2 text-left font-semibold">
+                              <th className="px-4 py-2 text-left font-semibold text-gray-900 dark:text-white">
                                 Article
                               </th>
-                              <th className="px-4 py-2 text-left font-semibold">
+                              <th className="px-4 py-2 text-left font-semibold text-gray-900 dark:text-white">
                                 Lot
                               </th>
-                              <th className="px-4 py-2 text-left font-semibold">
+                              <th className="px-4 py-2 text-left font-semibold text-gray-900 dark:text-white">
                                 DLC
                               </th>
-                              <th className="px-4 py-2 text-left font-semibold">
+                              <th className="px-4 py-2 text-left font-semibold text-gray-900 dark:text-white">
                                 Statut
                               </th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y">
+                          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                             {previewData.map((row, i) => (
                               <tr
                                 key={i}
                                 className={
                                   row.status === "supprimée"
-                                    ? "bg-green-50"
-                                    : "bg-red-50"
+                                    ? "bg-green-50 dark:bg-green-900/20"
+                                    : "bg-red-50 dark:bg-red-900/20"
                                 }
                               >
-                                <td className="px-4 py-2 font-mono text-xs">
+                                <td className="px-4 py-2 font-mono text-xs text-gray-900 dark:text-white">
                                   {row.ean || "-"}
                                 </td>
-                                <td className="px-4 py-2 font-mono text-xs">
+                                <td className="px-4 py-2 font-mono text-xs text-gray-900 dark:text-white">
                                   {row.sku}
                                 </td>
-                                <td className="px-4 py-2">{row.quantity}</td>
-                                <td className="px-4 py-2">{row.article}</td>
-                                <td className="px-4 py-2">{row.lot || "-"}</td>
-                                <td className="px-4 py-2">
+                                <td className="px-4 py-2 text-gray-900 dark:text-white">{row.quantity}</td>
+                                <td className="px-4 py-2 text-gray-900 dark:text-white">{row.article}</td>
+                                <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{row.lot || "-"}</td>
+                                <td className="px-4 py-2 text-gray-600 dark:text-gray-400">
                                   {row.expiration_date || "-"}
                                 </td>
                                 <td className="px-4 py-2">
                                   <span
                                     className={`px-2 py-1 rounded text-xs font-medium ${
                                       row.status === "supprimée"
-                                        ? "bg-green-200 text-green-800"
-                                        : "bg-red-200 text-red-800"
+                                        ? "bg-green-200 dark:bg-green-900/40 text-green-800 dark:text-green-300"
+                                        : "bg-red-200 dark:bg-red-900/40 text-red-800 dark:text-red-300"
                                     }`}
                                   >
                                     {row.status}
@@ -544,7 +544,7 @@ export default function StockSorties() {
                       <button
                         onClick={confirmImport}
                         disabled={loading}
-                        className="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="flex-1 bg-green-600 dark:bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-700 dark:hover:bg-green-600 font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         {loading ? (
                           <>
@@ -562,7 +562,7 @@ export default function StockSorties() {
                       <button
                         onClick={exportForLoading}
                         disabled={loading}
-                        className="flex-1 bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="flex-1 bg-purple-600 dark:bg-purple-500 text-white px-6 py-3 rounded-lg hover:bg-purple-700 dark:hover:bg-purple-600 font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         <Truck size={20} />
                         Exporter pour chargement
@@ -571,7 +571,7 @@ export default function StockSorties() {
                       <button
                         onClick={handleCancelImport}
                         disabled={loading}
-                        className="flex-1 bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="flex-1 bg-red-600 dark:bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-700 dark:hover:bg-red-600 font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         <XCircle size={20} />
                         Annuler

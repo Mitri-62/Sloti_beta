@@ -1,5 +1,7 @@
+// src/components/StackedTruck3D.tsx - AVEC DARK MODE
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Edges, Grid, Text, Billboard } from "@react-three/drei";
+import { useEffect, useState } from "react";
 
 interface StackedUnit {
   base_pallet: {
@@ -139,21 +141,57 @@ export default function StackedTruck3D({
   truck,
   highlightedIndex = null,
 }: StackedTruck3DProps) {
+  // Détection du dark mode
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    // Détecte si le dark mode est actif
+    const checkDarkMode = () => {
+      const isDark = document.documentElement.classList.contains('dark');
+      setIsDarkMode(isDark);
+    };
+
+    // Vérification initiale
+    checkDarkMode();
+
+    // Observer les changements de classe sur l'élément HTML
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Couleurs adaptées au mode
+  const backgroundColor = isDarkMode ? '#1f2937' : '#f3f4f6';
+  const gridSectionColor = isDarkMode ? '#4b5563' : '#9ca3af';
+  const gridCellColor = isDarkMode ? '#374151' : '#d1d5db';
+  const groundColor = isDarkMode ? '#374151' : '#e5e7eb';
+
   return (
     <Canvas
       camera={{ position: [25, 18, 30], fov: 60 }}
       style={{ height: 600 }}
       shadows
     >
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[10, 15, 5]} intensity={0.8} castShadow />
+      {/* Fond adaptatif */}
+      <color attach="background" args={[backgroundColor]} />
+
+      <ambientLight intensity={isDarkMode ? 0.4 : 0.6} />
+      <directionalLight 
+        position={[10, 15, 5]} 
+        intensity={isDarkMode ? 0.6 : 0.8} 
+        castShadow 
+      />
       <OrbitControls enableDamping dampingFactor={0.05} />
 
       {/* Contour du camion */}
       <mesh position={[truck.length / 2, truck.height / 2, truck.width / 2]}>
         <boxGeometry args={[truck.length, truck.height, truck.width]} />
         <meshBasicMaterial color="transparent" opacity={0} transparent />
-        <Edges color="black" linewidth={2} />
+        <Edges color={isDarkMode ? "#9ca3af" : "black"} linewidth={2} />
       </mesh>
 
       {/* Sol */}
@@ -163,13 +201,17 @@ export default function StackedTruck3D({
         receiveShadow
       >
         <planeGeometry args={[truck.length + 2, truck.width + 2]} />
-        <meshStandardMaterial color="#e5e7eb" opacity={0.8} transparent />
+        <meshStandardMaterial 
+          color={groundColor} 
+          opacity={0.8} 
+          transparent 
+        />
       </mesh>
 
       <Grid
         args={[truck.length + 2, truck.width + 2]}
-        sectionColor="#9ca3af"
-        cellColor="#d1d5db"
+        sectionColor={gridSectionColor}
+        cellColor={gridCellColor}
         infiniteGrid={false}
         position={[truck.length / 2, 0, truck.width / 2]}
         cellSize={0.5}

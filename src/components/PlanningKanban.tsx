@@ -1,3 +1,4 @@
+// src/components/PlanningKanban.tsx - AVEC DARK MODE
 import { Planning } from "../hooks/usePlannings";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -60,33 +61,33 @@ function DraggableCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`p-3 bg-white rounded-lg shadow-sm mb-2 border transition-all cursor-grab active:cursor-grabbing ${
+      className={`p-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm mb-2 border border-gray-200 dark:border-gray-700 transition-all cursor-grab active:cursor-grabbing ${
         isDragging ? 'shadow-lg scale-105' : 'hover:shadow-md'
       }`}
     >
-      <p className="font-medium text-sm mb-1">
+      <p className="font-medium text-sm mb-1 text-gray-900 dark:text-white">
         {format(parseDateTime(ev.date, ev.hour), "EEE dd/MM/yyyy à HH:mm", { locale: fr })}
       </p>
 
       <span className={`inline-block px-2 py-1 text-xs rounded-full font-medium mb-2 ${
         ev.type === "Réception" 
-          ? "bg-blue-100 text-blue-700"
-          : "bg-orange-100 text-orange-700"
+          ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200"
+          : "bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-200"
       }`}>
         {ev.type}
       </span>
 
-      <p className="text-sm font-semibold text-gray-800">
+      <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">
         {ev.transporter}
       </p>
 
-      <p className="text-xs text-gray-500 mt-1">
+      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
         {ev.products}
       </p>
 
       {ev.documents && ev.documents.length > 0 && (
         <div className="mt-2">
-          <span className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded">
+          <span className="text-xs bg-blue-50 dark:bg-blue-900 text-blue-600 dark:text-blue-200 px-2 py-1 rounded">
             Docs ({ev.documents.length})
           </span>
         </div>
@@ -125,13 +126,13 @@ function DroppableColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`bg-gray-50 p-4 rounded-lg shadow min-h-[500px] transition-colors ${
-        isOver ? 'bg-blue-50 ring-2 ring-blue-300' : ''
+      className={`bg-gray-50 dark:bg-gray-900 p-4 rounded-lg shadow min-h-[500px] transition-colors ${
+        isOver ? 'bg-blue-50 dark:bg-blue-950 ring-2 ring-blue-300 dark:ring-blue-600' : ''
       }`}
     >
       <div className={`font-semibold mb-3 px-3 py-2 rounded-lg border ${statusColors[status]} flex justify-between items-center`}>
         <span>{status}</span>
-        <span className="text-xs font-normal opacity-75 bg-white px-2 py-0.5 rounded-full">
+        <span className="text-xs font-normal opacity-75 bg-white dark:bg-gray-800 px-2 py-0.5 rounded-full">
           {count}
         </span>
       </div>
@@ -145,8 +146,8 @@ export default function PlanningKanban({ events, onDelete, onValidate }: Props) 
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const statusColors: Record<string, string> = {
-    "Prévu": "bg-blue-100 text-blue-800 border-blue-300",
-    "Terminé": "bg-green-100 text-green-800 border-green-300",
+    "Prévu": "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700",
+    "Terminé": "bg-green-100 text-green-800 border-green-300 dark:bg-green-900 dark:text-green-200 dark:border-green-700",
   };
 
   // Filtrer uniquement Prévu et Terminé
@@ -234,8 +235,8 @@ export default function PlanningKanban({ events, onDelete, onValidate }: Props) 
   return (
     <>
       {otherStatusCount > 0 && (
-        <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-          <p className="text-sm text-yellow-800">
+        <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700 rounded-lg">
+          <p className="text-sm text-yellow-800 dark:text-yellow-200">
             {otherStatusCount} événement{otherStatusCount > 1 ? "s" : ""} avec le statut "En cours" ou "Chargé" 
             {otherStatusCount > 1 ? " sont" : " est"} masqué{otherStatusCount > 1 ? "s" : ""} dans cette vue. 
             Utilisez la vue Liste ou Agenda pour les gérer.
@@ -276,8 +277,8 @@ export default function PlanningKanban({ events, onDelete, onValidate }: Props) 
                     ))
                   ) : (
                     <div className="text-center py-20 h-full min-h-[400px] flex flex-col items-center justify-center">
-                      <p className="text-sm text-gray-400 italic">Aucun événement</p>
-                      <p className="text-xs text-gray-300 mt-1">Glissez une carte ici</p>
+                      <p className="text-sm text-gray-400 dark:text-gray-500 italic">Aucun événement</p>
+                      <p className="text-xs text-gray-300 dark:text-gray-600 mt-1">Glissez une carte ici</p>
                     </div>
                   )}
                 </SortableContext>
@@ -288,18 +289,18 @@ export default function PlanningKanban({ events, onDelete, onValidate }: Props) 
 
         <DragOverlay>
           {activeEvent ? (
-            <div className="p-3 bg-white rounded-lg shadow-lg border-2 border-blue-400 rotate-3">
-              <p className="font-medium text-sm">
+            <div className="p-3 bg-white dark:bg-gray-800 rounded-lg shadow-lg border-2 border-blue-400 dark:border-blue-600 rotate-3">
+              <p className="font-medium text-sm text-gray-900 dark:text-white">
                 {format(new Date(`${activeEvent.date}T${activeEvent.hour}`), "dd/MM à HH:mm")}
               </p>
-              <p className="text-sm font-semibold">{activeEvent.transporter}</p>
+              <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">{activeEvent.transporter}</p>
             </div>
           ) : null}
         </DragOverlay>
       </DndContext>
 
-      <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-        <p className="text-sm text-blue-800">
+      <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+        <p className="text-sm text-blue-800 dark:text-blue-200">
           Glissez-déposez les cartes entre "Prévu" et "Terminé" pour changer leur statut
         </p>
       </div>

@@ -1,10 +1,14 @@
-// src/pages/MasterData.tsx - VERSION COMPLÈTE
+// src/pages/MasterData.tsx - VERSION AMÉLIORÉE
 import { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../contexts/AuthContext";
 import MasterDataTable from "../components/MasterDataTable";
 import MasterDataFormModal from "../components/MasterDataFormModal";
-import { Upload, Plus, AlertCircle, Package } from "lucide-react";
+import { 
+  Upload, Plus, AlertCircle, Package, Search, Filter, 
+  Download, TrendingUp, Layers, Weight, FileText,
+  CheckSquare, Square, Trash2
+} from "lucide-react";
 import { toast } from "sonner";
 
 export default function MasterData() {
@@ -13,11 +17,18 @@ export default function MasterData() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editProduct, setEditProduct] = useState<any | null>(null);
+  
+  // Nouveaux états pour les améliorations
+  const [search, setSearch] = useState("");
+  const [filterType, setFilterType] = useState<string>("Tous");
+  const [filterStackable, setFilterStackable] = useState<string>("Tous");
+  const [showFilters, setShowFilters] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
-  // ✅ Chargement des produits avec filtre company_id
+  // Chargement des produits
   const loadProducts = async () => {
     if (!user?.company_id) {
-      console.error("Pas de company_id");
       setLoading(false);
       return;
     }
@@ -35,7 +46,6 @@ export default function MasterData() {
       toast.error("Erreur de chargement");
     } else {
       setProducts(data || []);
-      console.log(`✅ ${data?.length || 0} produits chargés pour company ${user.company_id}`);
     }
     
     setLoading(false);
@@ -45,19 +55,170 @@ export default function MasterData() {
     loadProducts();
   }, [user?.company_id]);
 
-  // ✅ Ajout d'un article
+  // Filtrage et recherche
+  const filteredProducts = products.filter(product => {
+    const searchLower = search.toLowerCase();
+    const matchSearch = 
+      product.sku?.toLowerCase().includes(searchLower) ||
+      product.designation?.toLowerCase().includes(searchLower) ||
+      product.ean?.toLowerCase().includes(searchLower);
+    
+    const matchType = filterType === "Tous" || product.tus === filterType;
+    const matchStackable = 
+      filterStackable === "Tous" || 
+      (filterStackable === "Oui" && product.stackable) ||
+      (filterStackable === "Non" && !product.stackable);
+    
+    return matchSearch && matchType && matchStackable;
+  });
+
+  // Tri
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    if (!sortConfig) return 0;
+    
+    const aVal = a[sortConfig.key];
+    const bVal = b[sortConfig.key];
+    
+    if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  // Gestion du tri
+  const handleSort = (key: string) => {
+    setSortConfig(current => {
+      if (!current || current.key !== key) {
+        return { key, direction: 'asc' };
+      }
+      if (current.direction === 'asc') {
+        return { key, direction: 'desc' };
+      }
+      return null;
+    });
+  };
+
+  // KPI
+  const totalProducts = products.length;
+  const stackableProducts = products.filter(p => p.stackable).length;
+  const totalWeight = products.reduce((sum, p) => sum + (p.poids_brut || 0) * (p.qty_per_pallet || 0), 0);
+  const uniqueTypes = [...new Set(products.map(p => p.tus))].filter(Boolean);
+
+  // Sélection
+  const toggleSelectAll = () => {
+    if (selectedIds.size === sortedProducts.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(sortedProducts.map(p => p.id)));
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  // Suppression en masse
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) {
+      toast.warning("Aucun produit sélectionné");
+      return;
+    }
+
+    if (!confirm(`Supprimer ${selectedIds.size} produit(s) ?`)) return;
+
+    const { error } = await supabase
+      .from("masterdata")
+      .delete()
+      .in("id", Array.from(selectedIds))
+      .eq("company_id", user?.company_id);
+
+    if (error) {
+      toast.error("Erreur lors de la suppression");
+    } else {
+      toast.success(`${selectedIds.size} produit(s) supprimé(s)`);
+      setSelectedIds(new Set());
+      loadProducts();
+    }
+  };
+
+  // Export CSV avec sélection
+  const handleExportCSV = () => {
+    const dataToExport = selectedIds.size > 0 
+      ? sortedProducts.filter(p => selectedIds.has(p.id))
+      : sortedProducts;
+
+    if (dataToExport.length === 0) {
+      toast.error("Aucune donnée à exporter");
+      return;
+    }
+
+    const headers = [
+      "SKU", "Type", "Désignation", "EAN", "Qté/palette",
+      "Poids net", "Poids brut", "Longueur", "Largeur", "Hauteur",
+      "Nb couches", "Hauteur couche", "Gerbable", "Poids max"
+    ];
+
+    const rows = dataToExport.map(p => [
+      p.sku, p.tus, p.designation, p.ean, p.qty_per_pallet,
+      p.poids_net, p.poids_brut, p.longueur, p.largeur, p.hauteur,
+      p.nb_couches, p.hauteur_couche, p.stackable ? "Oui" : "Non", p.max_stack_weight
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(cell => `"${cell}"`).join(";"))
+      .join("\n");
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `masterdata_${new Date().toISOString().split("T")[0]}.csv`;
+    link.click();
+    
+    toast.success(`${dataToExport.length} produit(s) exporté(s)`);
+  };
+
+  // Télécharger template
+  const handleDownloadTemplate = () => {
+    const headers = [
+      "Article", "Désignation article", "TUS", "Qté EqpCh.", 
+      "Poids net", "Poids brut", "Longueur", "Largeur", "Hauteur",
+      "Compteur", "Code EAN/UPC"
+    ];
+
+    const exampleRow = [
+      "SKU001", "Exemple de produit", "FEU", "100",
+      "10.5", "11.2", "1200", "800", "150",
+      "8", "1234567890123"
+    ];
+
+    const csvContent = [headers, exampleRow]
+      .map(row => row.map(cell => `"${cell}"`).join(";"))
+      .join("\n");
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "template_masterdata.csv";
+    link.click();
+    
+    toast.success("Template téléchargé");
+  };
+
   const handleAdd = () => {
     setEditProduct(null);
     setShowModal(true);
   };
 
-  // ✅ Édition d'un article
   const handleEdit = (row: any) => {
     setEditProduct(row);
     setShowModal(true);
   };
 
-  // ✅ Suppression d'un article
   const handleDelete = async (row: any) => {
     if (!confirm("Supprimer cet article ?")) return;
     
@@ -68,7 +229,6 @@ export default function MasterData() {
       .eq("company_id", user?.company_id);
 
     if (error) {
-      console.error("Erreur suppression:", error);
       toast.error("Erreur lors de la suppression");
     } else {
       toast.success("Article supprimé");
@@ -76,7 +236,6 @@ export default function MasterData() {
     }
   };
 
-  // ✅ Sauvegarde d'un article (création ou mise à jour)
   const handleSave = async (formData: any) => {
     if (!user?.company_id) {
       toast.error("Erreur: company_id manquant");
@@ -90,7 +249,6 @@ export default function MasterData() {
       };
 
       if (editProduct) {
-        // Mise à jour
         const { error } = await supabase
           .from("masterdata")
           .update(dataWithCompany)
@@ -100,7 +258,6 @@ export default function MasterData() {
         if (error) throw error;
         toast.success("Article mis à jour");
       } else {
-        // Création
         const { error } = await supabase
           .from("masterdata")
           .insert([dataWithCompany]);
@@ -117,7 +274,6 @@ export default function MasterData() {
     }
   };
 
-  // ✅ Import CSV/Excel avec toutes les fonctionnalités
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -133,7 +289,6 @@ export default function MasterData() {
       let parsedData: any[] = [];
       const fileName = file.name.toLowerCase();
 
-      // Import CSV
       if (fileName.endsWith('.csv')) {
         const text = await file.text();
         const lines = text.split("\n").filter(l => l.trim());
@@ -143,7 +298,6 @@ export default function MasterData() {
           return;
         }
 
-        // Détecter le séparateur (, ou ;)
         const separator = lines[0].includes(';') ? ';' : ',';
         const headers = lines[0].split(separator).map(h => h.trim());
         
@@ -156,7 +310,6 @@ export default function MasterData() {
           return row;
         });
       } 
-      // Import Excel
       else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
         const arrayBuffer = await file.arrayBuffer();
         const XLSX = await import('xlsx');
@@ -170,54 +323,36 @@ export default function MasterData() {
         return;
       }
 
-      console.log(`📊 ${parsedData.length} lignes détectées`);
-
-      // Mapping et validation
       const validEntries = parsedData
         .filter((row: any) => {
           return (row.Article || row.sku) && (row['Qté EqpCh.'] || row.qty_per_pallet);
         })
         .map((row: any) => ({
           company_id: user.company_id,
-          
-          // Informations de base
           sku: String(row.Article || row.sku || '').trim(),
           designation: String(row['Désignation article'] || row.designation || '').trim(),
           tus: (row.TUS || row.tus || 'FEU').toUpperCase(),
-          
-          // Quantités et poids (poids en KG dans l'Excel)
           qty_per_pallet: parseFloat(row['Qté EqpCh.'] || row.qty_per_pallet) || 0,
           poids_net: parseFloat(row['Poids net'] || row.poids_net) || 0,
           poids_brut: parseFloat(row['Poids brut'] || row.poids_brut) || 0,
-          
-          // Dimensions (en MM dans l'Excel)
           longueur: parseFloat(row.Longueur || row.longueur) || 1200,
           largeur: parseFloat(row.Largeur || row.largeur) || 800,
           hauteur: parseFloat(row.Hauteur || row.hauteur) || 150,
-          
-          // Couches
           nb_couches: parseInt(row.Compteur || row.nb_couches) || 8,
           hauteur_couche: parseFloat(row.Hauteur || row.hauteur) || 150,
-          
-          // Gerbage (valeurs par défaut)
           stackable: true,
           max_stack_weight: 600,
-          
-          // Autres
           ean: String(row['Code EAN/UPC'] || row.ean || ''),
           unite_mesure: 'MM',
           unite: 'KG',
         }))
         .filter((entry: any) => entry.sku && entry.qty_per_pallet > 0);
 
-      console.log(`✅ ${validEntries.length} entrées valides`);
-
       if (validEntries.length === 0) {
-        toast.warning("Aucune donnée valide trouvée dans le fichier");
+        toast.warning("Aucune donnée valide trouvée");
         return;
       }
 
-      // Vérifier les doublons existants
       const skus = validEntries.map((e: any) => e.sku);
       const { data: existing } = await supabase
         .from("masterdata")
@@ -234,7 +369,6 @@ export default function MasterData() {
         return;
       }
 
-      // Import par lots de 100
       const batchSize = 100;
       let totalImported = 0;
       
@@ -246,63 +380,56 @@ export default function MasterData() {
           .insert(batch);
 
         if (error) {
-          console.error("Erreur Supabase:", error);
-          toast.error(`Erreur au lot ${Math.floor(i / batchSize) + 1}: ${error.message}`);
+          toast.error(`Erreur au lot ${Math.floor(i / batchSize) + 1}`);
           break;
         }
         
         totalImported += batch.length;
-        
-        if (newEntries.length > batchSize) {
-          toast.info(`📦 ${totalImported}/${newEntries.length} importés...`);
-        }
       }
 
       await loadProducts();
 
       const message = duplicates > 0 
-        ? `✅ ${totalImported} nouveaux articles importés (${duplicates} doublons ignorés)`
-        : `✅ ${totalImported} articles importés avec succès`;
+        ? `✅ ${totalImported} nouveaux articles (${duplicates} doublons ignorés)`
+        : `✅ ${totalImported} articles importés`;
       
       toast.success(message);
 
     } catch (error: any) {
-      console.error("Erreur import:", error);
       toast.error(`Erreur: ${error.message}`);
     }
 
     e.target.value = '';
   };
 
-  // ✅ Configuration des colonnes du tableau
   const columns = [
-    { key: "sku", label: "SKU" },
-    { key: "tus", label: "Type" },
-    { key: "designation", label: "Désignation" },
-    { key: "qty_per_pallet", label: "Qté/palette" },
-    { key: "poids_brut", label: "Poids brut (kg)" },
-    { key: "nb_couches", label: "Couches" },
+    { key: "sku", label: "SKU", sortable: true },
+    { key: "tus", label: "Type", sortable: true },
+    { key: "designation", label: "Désignation", sortable: true },
+    { key: "qty_per_pallet", label: "Qté/palette", sortable: true },
+    { key: "poids_brut", label: "Poids brut (kg)", sortable: true },
+    { key: "nb_couches", label: "Couches", sortable: true },
     { 
       key: "stackable", 
-      label: "Gerbable", 
+      label: "Gerbable",
+      sortable: true,
       render: (val: boolean) => (
-        <span className={val ? "text-green-600 font-semibold" : "text-gray-400"}>
+        <span className={val ? "text-green-600 dark:text-green-400 font-semibold" : "text-gray-400 dark:text-gray-500"}>
           {val ? "✓ Oui" : "✗ Non"}
         </span>
       )
     },
   ];
 
-  // ✅ Affichage erreur si pas de company_id
   if (!user?.company_id) {
     return (
-      <div className="p-6 flex items-center justify-center min-h-screen">
+      <div className="p-6 flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-gray-900 mb-2">
+          <AlertCircle size={48} className="text-red-500 dark:text-red-400 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
             Erreur de configuration
           </h2>
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-gray-400">
             Votre compte n'est pas associé à une entreprise.
           </p>
         </div>
@@ -310,60 +437,238 @@ export default function MasterData() {
     );
   }
 
-  // ✅ Rendu principal
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">MasterData</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            {products.length} articles • {user.company_name}
-          </p>
+    <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Package className="text-blue-600 dark:text-blue-500" size={28} />
+              MasterData
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">
+              Gestion du catalogue produits
+            </p>
+          </div>
+          
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={handleDownloadTemplate}
+              className="px-3 py-2 bg-gray-600 dark:bg-gray-500 text-white rounded-lg hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
+            >
+              <FileText size={16} />
+              Template
+            </button>
+            <label className="cursor-pointer px-3 py-2 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors flex items-center gap-2 text-sm">
+              <Upload size={16} />
+              <span className="hidden sm:inline">Importer</span>
+              <input
+                type="file"
+                accept=".csv,.xlsx"
+                onChange={handleImport}
+                className="hidden"
+              />
+            </label>
+            <button
+              onClick={handleAdd}
+              className="px-3 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors flex items-center gap-2 text-sm"
+            >
+              <Plus size={16} />
+              <span className="hidden sm:inline">Ajouter</span>
+            </button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <label className="cursor-pointer px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2">
-            <Upload size={18} />
-            <span className="hidden sm:inline">Importer</span>
-            <input
-              type="file"
-              accept=".csv,.xlsx"
-              onChange={handleImport}
-              className="hidden"
+
+        {/* KPI Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 border-l-4 border-blue-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Total produits</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalProducts}</p>
+              </div>
+              <Package className="text-blue-500" size={32} />
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 border-l-4 border-green-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Gerbables</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stackableProducts}</p>
+              </div>
+              <Layers className="text-green-500" size={32} />
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 border-l-4 border-purple-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Poids total</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{Math.round(totalWeight)} kg</p>
+              </div>
+              <Weight className="text-purple-500" size={32} />
+            </div>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 border-l-4 border-orange-500">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Types</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{uniqueTypes.length}</p>
+              </div>
+              <TrendingUp className="text-orange-500" size={32} />
+            </div>
+          </div>
+        </div>
+
+        {/* Barre de recherche et filtres */}
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 mb-6">
+          <div className="flex flex-col sm:flex-row gap-4">
+            {/* Recherche */}
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <input
+                type="text"
+                placeholder="Rechercher par SKU, désignation, EAN..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+
+            {/* Boutons */}
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              <Filter size={20} />
+              Filtres
+              {(filterType !== "Tous" || filterStackable !== "Tous") && (
+                <span className="bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                  {(filterType !== "Tous" ? 1 : 0) + (filterStackable !== "Tous" ? 1 : 0)}
+                </span>
+              )}
+            </button>
+
+            <button
+              onClick={handleExportCSV}
+              disabled={sortedProducts.length === 0}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+            >
+              <Download size={20} />
+              <span className="hidden sm:inline">Export</span>
+              {selectedIds.size > 0 && ` (${selectedIds.size})`}
+            </button>
+
+            {selectedIds.size > 0 && (
+              <button
+                onClick={handleDeleteSelected}
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              >
+                <Trash2 size={20} />
+                <span className="hidden sm:inline">Supprimer</span>
+                {` (${selectedIds.size})`}
+              </button>
+            )}
+          </div>
+
+          {/* Panel filtres */}
+          {showFilters && (
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Type
+                  </label>
+                  <select
+                    value={filterType}
+                    onChange={(e) => setFilterType(e.target.value)}
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="Tous">Tous les types</option>
+                    {uniqueTypes.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Gerbable
+                  </label>
+                  <select
+                    value={filterStackable}
+                    onChange={(e) => setFilterStackable(e.target.value)}
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    <option value="Tous">Tous</option>
+                    <option value="Oui">Oui</option>
+                    <option value="Non">Non</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Résultats */}
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={toggleSelectAll}
+                className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
+                title={selectedIds.size === sortedProducts.length ? "Tout désélectionner" : "Tout sélectionner"}
+              >
+                {selectedIds.size === sortedProducts.length ? (
+                  <CheckSquare size={20} className="text-blue-600" />
+                ) : (
+                  <Square size={20} className="text-gray-400" />
+                )}
+              </button>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                {sortedProducts.length} résultat{sortedProducts.length > 1 ? "s" : ""}
+                {search && ` pour "${search}"`}
+                {selectedIds.size > 0 && ` • ${selectedIds.size} sélectionné(s)`}
+              </p>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            </div>
+          ) : sortedProducts.length === 0 ? (
+            <div className="text-center py-12">
+              <Package size={48} className="text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                {products.length === 0 ? "Aucun article dans votre MasterData" : "Aucun résultat"}
+              </p>
+              {products.length === 0 && (
+                <button
+                  onClick={handleAdd}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  Ajouter votre premier article
+                </button>
+              )}
+            </div>
+          ) : (
+            <MasterDataTable
+              data={sortedProducts}
+              columns={columns}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              selectedIds={selectedIds}
+              onSelect={toggleSelect}
+              sortConfig={sortConfig}
+              onSort={handleSort}
             />
-          </label>
-          <button
-            onClick={handleAdd}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-          >
-            <Plus size={18} />
-            <span className="hidden sm:inline">Ajouter</span>
-          </button>
+          )}
         </div>
       </div>
-
-      {loading ? (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        </div>
-      ) : products.length === 0 ? (
-        <div className="text-center py-12 bg-gray-50 rounded-lg">
-          <Package size={48} className="text-gray-400 mx-auto mb-4" />
-          <p className="text-gray-600 mb-4">Aucun article dans votre MasterData</p>
-          <button
-            onClick={handleAdd}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Ajouter votre premier article
-          </button>
-        </div>
-      ) : (
-        <MasterDataTable
-          data={products}
-          columns={columns}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-        />
-      )}
       
       {showModal && (
         <MasterDataFormModal

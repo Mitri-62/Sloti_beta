@@ -274,20 +274,20 @@ export default function StockEntrees() {
   };
 
   return (
-    <div className="p-4 sm:p-6 bg-gray-50 min-h-screen">
+    <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
-            <Package className="text-green-600" size={28} />
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <Package className="text-green-600 dark:text-green-500" size={28} />
             Entrées Stock
           </h1>
-          <p className="text-gray-600 mt-1">Enregistrez vos réceptions de marchandises</p>
+          <p className="text-gray-600 dark:text-gray-400 mt-1">Enregistrez vos réceptions de marchandises</p>
         </div>
 
         {/* Tabs */}
-        <div className="bg-white rounded-lg shadow mb-6">
-          <div className="border-b">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow mb-6">
+          <div className="border-b border-gray-200 dark:border-gray-700">
             <nav className="flex" aria-label="Tabs">
               {[
                 { id: "manual", label: "Saisie manuelle", icon: Edit },
@@ -299,8 +299,8 @@ export default function StockEntrees() {
                   onClick={() => setActiveTab(tab.id as any)}
                   className={`flex items-center gap-2 px-6 py-4 font-medium border-b-2 transition-colors ${
                     activeTab === tab.id
-                      ? "border-green-600 text-green-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                      ? "border-green-600 dark:border-green-500 text-green-600 dark:text-green-500"
+                      : "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600"
                   }`}
                 >
                   <tab.icon size={20} />
@@ -313,7 +313,7 @@ export default function StockEntrees() {
           {/* Content */}
           <div className="p-6">
             {error && (
-              <div className="mb-4 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg flex items-center gap-2">
+              <div className="mb-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300 px-4 py-3 rounded-lg flex items-center gap-2">
                 <AlertCircle size={20} />
                 <span>{error}</span>
               </div>
@@ -327,55 +327,55 @@ export default function StockEntrees() {
                   value={formData.movementName}
                   onChange={(e) => setFormData({ ...formData, movementName: e.target.value })}
                   placeholder="Nom de la réception (ex: NSF01) *"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"
+                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-green-500 focus:outline-none"
                 />
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <input
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-green-500 focus:outline-none"
                     placeholder="Article *"
                     value={formData.article}
                     onChange={(e) => setFormData({ ...formData, article: e.target.value })}
                   />
                   <input
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-green-500 focus:outline-none"
                     placeholder="Nom produit"
                     value={formData.nom}
                     onChange={(e) => setFormData({ ...formData, nom: e.target.value })}
                   />
                   <input
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-green-500 focus:outline-none"
                     placeholder="Quantité *"
                     type="number"
                     value={formData.quantite}
                     onChange={(e) => setFormData({ ...formData, quantite: e.target.value })}
                   />
                   <input
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-green-500 focus:outline-none"
                     placeholder="Unité (PCE, KG...)"
                     value={formData.type}
                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                   />
                   <input
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-green-500 focus:outline-none"
                     placeholder="Code128 (EAN)"
                     value={formData.code128}
                     onChange={(e) => setFormData({ ...formData, code128: e.target.value })}
                   />
                   <input
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-green-500 focus:outline-none"
                     placeholder="Lot"
                     value={formData.lot}
                     onChange={(e) => setFormData({ ...formData, lot: e.target.value })}
                   />
                   <input
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:outline-none"
                     type="date"
                     value={formData.dlc}
                     onChange={(e) => setFormData({ ...formData, dlc: e.target.value })}
                   />
                   <input
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-green-500 focus:outline-none"
                     placeholder="Emplacement Prenant"
                     value={formData.emplacementPrenant}
                     onChange={(e) => setFormData({ ...formData, emplacementPrenant: e.target.value })}
@@ -384,7 +384,7 @@ export default function StockEntrees() {
 
                 <button
                   onClick={handleManualAdd}
-                  className="w-full sm:w-auto bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-medium transition-colors flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto bg-green-600 dark:bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-700 dark:hover:bg-green-600 font-medium transition-colors flex items-center justify-center gap-2"
                 >
                   <CheckCircle size={20} />
                   Ajouter l'entrée
@@ -395,16 +395,18 @@ export default function StockEntrees() {
             {/* Scanner */}
             {activeTab === "scan" && (
               <div className="space-y-4">
-                <video id="video-entrees" className="w-full max-w-md mx-auto border rounded-lg" />
+                <video id="video-entrees" className="w-full max-w-md mx-auto border border-gray-300 dark:border-gray-600 rounded-lg bg-black" />
                 <button
                   onClick={startScan}
-                  className="w-full sm:w-auto bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-medium transition-colors flex items-center justify-center gap-2 mx-auto"
+                  className="w-full sm:w-auto bg-blue-600 dark:bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 font-medium transition-colors flex items-center justify-center gap-2 mx-auto"
                 >
                   <Camera size={20} />
                   Lancer le scan
                 </button>
                 {lastScan && (
-                  <p className="text-center text-gray-600">Dernier scan : <span className="font-mono font-bold">{lastScan}</span></p>
+                  <p className="text-center text-gray-600 dark:text-gray-400">
+                    Dernier scan : <span className="font-mono font-bold text-gray-900 dark:text-white">{lastScan}</span>
+                  </p>
                 )}
               </div>
             )}
@@ -412,7 +414,7 @@ export default function StockEntrees() {
             {/* Import Excel */}
             {activeTab === "excel" && (
               <div className="space-y-4">
-                <label className="flex items-center justify-center gap-2 cursor-pointer bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 font-medium transition-colors w-full sm:w-auto">
+                <label className="flex items-center justify-center gap-2 cursor-pointer bg-blue-600 dark:bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 font-medium transition-colors w-full sm:w-auto">
                   <Upload size={20} />
                   Sélectionner un fichier
                   <input
@@ -426,8 +428,8 @@ export default function StockEntrees() {
 
                 {previewData.length > 0 && (
                   <div className="space-y-4">
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <p className="text-sm font-medium text-blue-900">
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                      <p className="text-sm font-medium text-blue-900 dark:text-blue-300">
                         <XCircle className="inline mr-2" size={16} />
                         {summary.existantes} palettes existantes | 
                         <CheckCircle className="inline mx-2" size={16} />
@@ -440,33 +442,39 @@ export default function StockEntrees() {
                       value={formData.movementName}
                       onChange={(e) => setFormData({ ...formData, movementName: e.target.value })}
                       placeholder="Nom de la réception (ex: NSF01) *"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-green-500 focus:outline-none"
                     />
 
-                    <div className="border rounded-lg overflow-hidden">
+                    <div className="border border-gray-300 dark:border-gray-700 rounded-lg overflow-hidden">
                       <div className="overflow-x-auto max-h-96">
                         <table className="w-full text-sm">
-                          <thead className="bg-gray-100 sticky top-0">
+                          <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
                             <tr>
-                              <th className="px-4 py-2 text-left font-semibold">Article</th>
-                              <th className="px-4 py-2 text-left font-semibold">Quantité</th>
-                              <th className="px-4 py-2 text-left font-semibold">Lot</th>
-                              <th className="px-4 py-2 text-left font-semibold">DLC</th>
-                              <th className="px-4 py-2 text-left font-semibold">Statut</th>
+                              <th className="px-4 py-2 text-left font-semibold text-gray-900 dark:text-white">Article</th>
+                              <th className="px-4 py-2 text-left font-semibold text-gray-900 dark:text-white">Quantité</th>
+                              <th className="px-4 py-2 text-left font-semibold text-gray-900 dark:text-white">Lot</th>
+                              <th className="px-4 py-2 text-left font-semibold text-gray-900 dark:text-white">DLC</th>
+                              <th className="px-4 py-2 text-left font-semibold text-gray-900 dark:text-white">Statut</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y">
+                          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                             {previewData.map((row, i) => (
-                              <tr key={i} className={row.status === "existante" ? "bg-red-50" : "bg-green-50"}>
-                                <td className="px-4 py-2">{row.article}</td>
-                                <td className="px-4 py-2 font-bold">{row.qte_theorique_cedant}</td>
-                                <td className="px-4 py-2">{row.lot || "-"}</td>
-                                <td className="px-4 py-2">{row.expiration_date || "-"}</td>
+                              <tr 
+                                key={i} 
+                                className={row.status === "existante" 
+                                  ? "bg-red-50 dark:bg-red-900/20" 
+                                  : "bg-green-50 dark:bg-green-900/20"
+                                }
+                              >
+                                <td className="px-4 py-2 text-gray-900 dark:text-white">{row.article}</td>
+                                <td className="px-4 py-2 font-bold text-gray-900 dark:text-white">{row.qte_theorique_cedant}</td>
+                                <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{row.lot || "-"}</td>
+                                <td className="px-4 py-2 text-gray-600 dark:text-gray-400">{row.expiration_date || "-"}</td>
                                 <td className="px-4 py-2">
                                   <span className={`px-2 py-1 rounded text-xs font-medium ${
                                     row.status === "existante" 
-                                      ? "bg-red-200 text-red-800" 
-                                      : "bg-green-200 text-green-800"
+                                      ? "bg-red-200 dark:bg-red-900/40 text-red-800 dark:text-red-300" 
+                                      : "bg-green-200 dark:bg-green-900/40 text-green-800 dark:text-green-300"
                                   }`}>
                                     {row.status}
                                   </span>
@@ -482,7 +490,7 @@ export default function StockEntrees() {
                       <button
                         onClick={confirmImport}
                         disabled={loading}
-                        className="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="flex-1 bg-green-600 dark:bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-green-700 dark:hover:bg-green-600 font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         {loading ? (
                           <>
@@ -499,7 +507,7 @@ export default function StockEntrees() {
                       <button
                         onClick={handleCancelImport}
                         disabled={loading}
-                        className="flex-1 bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                        className="flex-1 bg-red-600 dark:bg-red-500 text-white px-6 py-3 rounded-lg hover:bg-red-700 dark:hover:bg-red-600 font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                         <XCircle size={20} />
                         Annuler

@@ -1,4 +1,4 @@
-// src/pages/Dashboard.tsx - VERSION OPTIMISÉE AVEC CACHE
+// src/pages/Dashboard.tsx - VERSION OPTIMISÉE AVEC CACHE + DARK MODE
 import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../contexts/AuthContext";
@@ -84,14 +84,12 @@ export default function Dashboard() {
     const loadStats = async () => {
       if (!user?.company_id) return;
       
-      // Ne pas activer le loading si on a déjà des données en cache
       const hasCache = stats.stocks > 0 || stats.chargements > 0 || stats.tours > 0;
       if (!hasCache) {
         setLoading(true);
       }
 
       try {
-        // Lancer toutes les requêtes en parallèle avec Promise.all
         const [
           { data: stockData, error: stockError },
           { data: oldStockData },
@@ -99,46 +97,17 @@ export default function Dashboard() {
           { data: toursData, error: toursError },
           { data: planningsData, error: planningsError }
         ] = await Promise.all([
-          // Stocks actuels
-          supabase
-            .from("stocks")
-            .select("ean, quantity")
-            .eq("company_id", user.company_id),
-          
-          // Stocks il y a 7 jours
-          supabase
-            .from("stock_movements")
-            .select("quantity")
-            .eq("company_id", user.company_id)
-            .lt("created_at", subDays(new Date(), 7).toISOString()),
-          
-          // Utilisateurs
-          supabase
-            .from("users")
-            .select("*", { count: "exact", head: true })
-            .eq("company_id", user.company_id),
-          
-          // Tournées
-          supabase
-            .from("tours")
-            .select("status")
-            .eq("company_id", user.company_id)
-            .gte("date", subDays(new Date(), 30).toISOString().split('T')[0]),
-          
-          // Plannings pour chargements/réceptions
-          supabase
-            .from("plannings")
-            .select("type")
-            .eq("company_id", user.company_id)
-            .gte("date", startOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 1 }).toISOString().split("T")[0])
-            .lte("date", endOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 1 }).toISOString().split("T")[0])
+          supabase.from("stocks").select("ean, quantity").eq("company_id", user.company_id),
+          supabase.from("stock_movements").select("quantity").eq("company_id", user.company_id).lt("created_at", subDays(new Date(), 7).toISOString()),
+          supabase.from("users").select("*", { count: "exact", head: true }).eq("company_id", user.company_id),
+          supabase.from("tours").select("status").eq("company_id", user.company_id).gte("date", subDays(new Date(), 30).toISOString().split('T')[0]),
+          supabase.from("plannings").select("type").eq("company_id", user.company_id).gte("date", startOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 1 }).toISOString().split("T")[0]).lte("date", endOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 1 }).toISOString().split("T")[0])
         ]);
 
         if (stockError) throw stockError;
         if (toursError) throw toursError;
         if (planningsError) throw planningsError;
 
-        // Calculs
         const uniqueSkus = stockData ? new Set(stockData.map((s) => s.ean)).size : 0;
         const totalQuantity = stockData?.reduce((sum, s) => sum + (s.quantity || 0), 0) || 0;
         const oldTotal = oldStockData?.reduce((sum, s) => sum + Math.abs(s.quantity || 0), 0) || 0;
@@ -160,8 +129,6 @@ export default function Dashboard() {
         };
 
         setStats(newStats);
-        
-        // Sauvegarder en cache pour le prochain chargement
         localStorage.setItem(`dashboard_stats_${user.company_id}`, JSON.stringify(newStats));
 
         const newTrends = {
@@ -173,7 +140,6 @@ export default function Dashboard() {
         setTrends(newTrends);
         localStorage.setItem(`dashboard_trends_${user.company_id}`, JSON.stringify(newTrends));
 
-        // Stats par statut de tournée
         const toursByStatus = [
           { status: 'Planifiée', count: toursData?.filter(t => t.status === 'planned').length || 0 },
           { status: 'En cours', count: toursData?.filter(t => t.status === 'in_progress').length || 0 },
@@ -388,8 +354,8 @@ export default function Dashboard() {
 
   const KPISkeleton = () => (
     <div className="p-6 bg-white dark:bg-gray-800 rounded-2xl shadow animate-pulse">
-      <div className="h-4 bg-gray-200 rounded w-2/3 mb-3"></div>
-      <div className="h-8 bg-gray-200 rounded w-1/2"></div>
+      <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-2/3 mb-3"></div>
+      <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
     </div>
   );
 
@@ -440,7 +406,7 @@ export default function Dashboard() {
               </div>
               <div className="flex items-center gap-1 text-xs">
                 {getTrendIcon(trends.stocksTrend)}
-                <span className={trends.stocksTrend >= 0 ? "text-green-700" : "text-red-700"}>
+                <span className={trends.stocksTrend >= 0 ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}>
                   {Math.abs(trends.stocksTrend)}% vs semaine dernière
                 </span>
               </div>
@@ -503,14 +469,14 @@ export default function Dashboard() {
         <div className="lg:col-span-2 p-6 bg-white dark:bg-gray-800 rounded-2xl shadow">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
             <div>
-              <h2 className="text-lg font-semibold">Flux logistiques</h2>
-              <p className="text-sm text-gray-500">{weekRange}</p>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Flux logistiques</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{weekRange}</p>
             </div>
             
             <div className="flex gap-2">
               <button
                 onClick={() => setWeekOffset((prev) => prev - 1)}
-                className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 transition-colors"
+                className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
               >
                 ← Précédente
               </button>
@@ -522,7 +488,7 @@ export default function Dashboard() {
               </button>
               <button
                 onClick={() => setWeekOffset((prev) => prev + 1)}
-                className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 rounded hover:bg-gray-300 transition-colors"
+                className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white rounded hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
               >
                 Suivante →
               </button>
@@ -556,7 +522,7 @@ export default function Dashboard() {
 
         {/* Distribution des stocks */}
         <div className="p-6 bg-white dark:bg-gray-800 rounded-2xl shadow">
-          <h2 className="text-lg font-semibold mb-4">Distribution des stocks</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Distribution des stocks</h2>
           {stockByLocation.length > 0 ? (
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
@@ -578,7 +544,7 @@ export default function Dashboard() {
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[300px] flex items-center justify-center text-gray-500">
+            <div className="h-[300px] flex items-center justify-center text-gray-500 dark:text-gray-400">
               Aucune donnée disponible
             </div>
           )}
@@ -590,7 +556,7 @@ export default function Dashboard() {
         
         {/* Stats tournées */}
         <div className="p-6 bg-white dark:bg-gray-800 rounded-2xl shadow">
-          <h2 className="text-lg font-semibold mb-4">État des tournées (30 derniers jours)</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">État des tournées (30 derniers jours)</h2>
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={tourStats} layout="vertical">
               <XAxis type="number" stroke="#6B7280" style={{ fontSize: 12 }} />
@@ -610,7 +576,7 @@ export default function Dashboard() {
 
         {/* Activité récente */}
         <div className="p-6 bg-white dark:bg-gray-800 rounded-2xl shadow">
-          <h2 className="text-lg font-semibold mb-4">Activité récente</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Activité récente</h2>
           <div className="space-y-3 max-h-[250px] overflow-y-auto">
             {activity.map((item) => (
               <div 
@@ -618,12 +584,12 @@ export default function Dashboard() {
                 className="flex items-center gap-3 text-sm p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
                 {getActivityIcon(item.text, item.type)}
-                <span className="flex-1">{item.text}</span>
-                <span className="text-gray-500 text-xs whitespace-nowrap">{item.time}</span>
+                <span className="flex-1 text-gray-700 dark:text-gray-300">{item.text}</span>
+                <span className="text-gray-500 dark:text-gray-400 text-xs whitespace-nowrap">{item.time}</span>
               </div>
             ))}
             {activity.length === 0 && (
-              <div className="text-center text-gray-500 py-8">
+              <div className="text-center text-gray-500 dark:text-gray-400 py-8">
                 Aucune activité récente
               </div>
             )}
@@ -633,15 +599,15 @@ export default function Dashboard() {
 
       {/* Accès rapide */}
       <div>
-        <h2 className="text-lg font-semibold mb-4">Accès rapide</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Accès rapide</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {quickLinks.map((link) => (
             <Link
               key={link.path}
               to={link.path}
-              className="group flex flex-col items-center justify-center p-6 bg-white dark:bg-gray-800 rounded-2xl shadow hover:shadow-xl transition-all hover:scale-105 border-2 border-transparent hover:border-blue-500"
+              className="group flex flex-col items-center justify-center p-6 bg-white dark:bg-gray-800 rounded-2xl shadow hover:shadow-xl transition-all hover:scale-105 border-2 border-transparent hover:border-blue-500 dark:hover:border-blue-400"
             >
-              <div className="p-4 bg-blue-50 dark:bg-blue-900 rounded-xl mb-3 group-hover:bg-blue-100 transition-colors">
+              <div className="p-4 bg-blue-50 dark:bg-blue-900 rounded-xl mb-3 group-hover:bg-blue-100 dark:group-hover:bg-blue-800 transition-colors">
                 <link.icon size={32} className="text-blue-600 dark:text-blue-300" />
               </div>
               <span className="font-medium text-center text-gray-900 dark:text-white">{link.label}</span>

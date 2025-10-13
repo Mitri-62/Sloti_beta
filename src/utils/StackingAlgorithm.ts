@@ -231,34 +231,46 @@ interface MasterDataItem {
     return placed;
   }
   
-  /**
-   * Statistiques du chargement
-   */
-  export function computeLoadingStats(
-    stackedUnits: StackedUnit[],
-    truck: { length: number; width: number; height: number }
-  ) {
-    const totalPallets = stackedUnits.reduce(
-      (sum, u) => sum + 1 + u.stacked_pallets.length,
-      0
-    );
-    const totalWeight = stackedUnits.reduce((sum, u) => sum + u.total_weight, 0);
-    const totalVolume = stackedUnits.reduce(
-      (sum, u) => sum + u.dimensions.l * u.dimensions.w * u.total_height,
-      0
-    );
-  
-    const truckVolume = truck.length * truck.width * truck.height;
-    const volumeUtilization = (totalVolume / truckVolume) * 100;
-  
-    const stackedCount = stackedUnits.filter(u => u.stacked_pallets.length > 0).length;
-  
-    return {
-      totalPallets,
-      totalWeight,
-      totalVolume,
-      volumeUtilization,
-      stackedCount,
-      truckVolume,
-    };
-  }
+  /*
+ Statistiques du chargement
+  */
+ export function computeLoadingStats(
+   stackedUnits: StackedUnit[],
+   truck: { length: number; width: number; height: number }
+ ) {
+   const totalPallets = stackedUnits.reduce(
+     (sum, u) => sum + 1 + u.stacked_pallets.length,
+     0
+   );
+   const totalWeight = stackedUnits.reduce((sum, u) => sum + u.total_weight, 0);
+   const totalVolume = stackedUnits.reduce(
+     (sum, u) => sum + u.dimensions.l * u.dimensions.w * u.total_height,
+     0
+   );
+ 
+   const truckVolume = truck.length * truck.width * truck.height;
+   const volumeUtilization = (totalVolume / truckVolume) * 100;
+ 
+   // NOUVEAU : Calcul du taux de remplissage au sol
+   const totalFloorArea = stackedUnits.reduce(
+     (sum, u) => sum + u.dimensions.l * u.dimensions.w,
+     0
+   );
+   
+   const truckFloorArea = truck.length * truck.width;
+   const floorUtilization = (totalFloorArea / truckFloorArea) * 100;
+ 
+   const stackedCount = stackedUnits.filter(u => u.stacked_pallets.length > 0).length;
+ 
+   return {
+     totalPallets,
+     totalWeight,
+     totalVolume,
+     volumeUtilization,
+     floorUtilization,  // NOUVEAU
+     totalFloorArea,    // NOUVEAU
+     truckFloorArea,    // NOUVEAU
+     stackedCount,
+     truckVolume,
+   };
+ }

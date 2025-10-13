@@ -1,90 +1,105 @@
-import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../supabaseClient';
-import { RealtimeChannel } from '@supabase/supabase-js';
+// src/hooks/useChatMessages.ts
+import { useEffect, useState, useCallback } from "react";
+import { supabase } from "../supabaseClient";
 
-const PAGE_SIZE = 50;
+const MESSAGES_PER_PAGE = 50;
 
-export function useChatMessages(userId: string | undefined, companyId: string) {
+export function useChatMessages(channelIdOrUserId: string, companyId: string) {
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(true);
-  const [page, setPage] = useState(0);
+  const [offset, setOffset] = useState(0);
 
-  // Charger les messages avec pagination
-  const loadMessages = useCallback(async (pageNum: number = 0) => {
-    setLoading(true);
+  // Déterminer si c'est un canal ou un DM
+  const isChannel = channelIdOrUserId !== 'general' && channelIdOrUserId.length > 20;
+
+  const loadMessages = useCallback(async (loadOffset = 0) => {
+    if (!companyId) return;
+
     try {
       let query = supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('company_id', companyId)
-        .order('created_at', { ascending: false })
-        .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
+        .from("chat_messages")
+        .select("*")
+        .order("created_at", { ascending: true })
+        .range(loadOffset, loadOffset + MESSAGES_PER_PAGE - 1);
 
-      // Filtre pour conversations privées
-      if (userId) {
-        query = query.or(`and(user_id.eq.${userId},receiver_id.eq.${supabase.auth.getUser().then(r => r.data.user?.id)}),and(user_id.eq.${supabase.auth.getUser().then(r => r.data.user?.id)},receiver_id.eq.${userId})`);
+      if (isChannel) {
+        // Messages d'un canal spécifique
+        query = query.eq("channel_id", channelIdOrUserId);
       } else {
-        query = query.is('receiver_id', null);
+        // Messages généraux de l'entreprise (sans canal)
+        query = query.eq("company_id", companyId).is("channel_id", null);
       }
 
       const { data, error } = await query;
 
       if (error) throw error;
 
-      setMessages(prev => 
-        pageNum === 0 
-          ? data.reverse() 
-          : [...data.reverse(), ...prev]
-      );
-      setHasMore(data.length === PAGE_SIZE);
-      setPage(pageNum);
+      if (data) {
+        if (loadOffset === 0) {
+          setMessages(data);
+        } else {
+          setMessages((prev) => [...data, ...prev]);
+        }
+        setHasMore(data.length === MESSAGES_PER_PAGE);
+      }
     } catch (error) {
-      console.error('Error loading messages:', error);
+      console.error("Erreur chargement messages:", error);
     } finally {
       setLoading(false);
     }
-  }, [userId, companyId]);
+  }, [channelIdOrUserId, companyId, isChannel]);
 
-  // Charger plus de messages (scroll vers le haut)
   const loadMore = useCallback(() => {
-    if (!loading && hasMore) {
-      loadMessages(page + 1);
-    }
-  }, [loading, hasMore, page, loadMessages]);
+    if (!hasMore || loading) return;
+    const newOffset = offset + MESSAGES_PER_PAGE;
+    setOffset(newOffset);
+    loadMessages(newOffset);
+  }, [hasMore, loading, offset, loadMessages]);
 
-  // Temps réel
   useEffect(() => {
+    setOffset(0);
+    setHasMore(true);
+    setLoading(true);
     loadMessages(0);
 
-    const channel: RealtimeChannel = supabase
-      .channel('chat_messages_channel')
+    // Subscription en temps réel
+    const channel = supabase
+      .channel(`messages:${channelIdOrUserId}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'chat_messages',
-          filter: `company_id=eq.${companyId}`,
+          event: "*",
+          schema: "public",
+          table: "chat_messages",
+          filter: isChannel 
+            ? `channel_id=eq.${channelIdOrUserId}`
+            : `company_id=eq.${companyId}`,
         },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setMessages(prev => [...prev, payload.new]);
-          } else if (payload.eventType === 'UPDATE') {
-            setMessages(prev =>
-              prev.map(m => (m.id === payload.new.id ? payload.new : m))
+          if (payload.eventType === "INSERT") {
+            setMessages((prev) => {
+              // Éviter les doublons
+              if (prev.find((m) => m.id === payload.new.id)) {
+                return prev;
+              }
+              return [...prev, payload.new];
+            });
+          } else if (payload.eventType === "UPDATE") {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === payload.new.id ? payload.new : m))
             );
-          } else if (payload.eventType === 'DELETE') {
-            setMessages(prev => prev.filter(m => m.id !== payload.old.id));
+          } else if (payload.eventType === "DELETE") {
+            setMessages((prev) => prev.filter((m) => m.id !== payload.old.id));
           }
         }
       )
       .subscribe();
 
     return () => {
-      channel.unsubscribe();
+      supabase.removeChannel(channel);
     };
-  }, [companyId, loadMessages]);
+  }, [channelIdOrUserId, companyId, isChannel, loadMessages]);
 
   return { messages, loading, hasMore, loadMore };
 }

@@ -1,3 +1,4 @@
+// src/pages/LoadingView.tsx - AVEC DARK MODE
 import { useState, useMemo } from "react";
 import Truck3D, { computePacking } from "../components/Truck3D";
 import { Plus, Trash2, Download, Search, Truck, Package2, Settings, AlertCircle, Info } from "lucide-react";
@@ -116,21 +117,21 @@ export default function LoadingView() {
   };
 
   return (
-    <div className="p-4 sm:p-6 bg-gray-50 min-h-screen">
+    <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 flex items-center gap-2">
-              <Truck className="text-blue-600" size={28} />
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Truck className="text-blue-600 dark:text-blue-400" size={28} />
               Plan de Chargement 3D
             </h1>
-            <p className="text-gray-600 mt-1">Optimisez le chargement de vos camions</p>
+            <p className="text-gray-600 dark:text-gray-400 mt-1">Optimisez le chargement de vos camions</p>
           </div>
 
           <button
             onClick={() => setShowConfig(!showConfig)}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-gray-900 dark:text-white"
           >
             <Settings size={18} />
             <span className="hidden sm:inline">{showConfig ? "Masquer" : "Afficher"} config</span>
@@ -139,8 +140,8 @@ export default function LoadingView() {
 
         {/* Configuration */}
         {showConfig && (
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6 space-y-4">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 sm:p-6 space-y-4 border border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-white">
               <Settings size={20} />
               Configuration
             </h2>
@@ -148,13 +149,13 @@ export default function LoadingView() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Type de camion */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Type de camion
                 </label>
                 <select
                   value={truckType}
                   onChange={(e) => setTruckType(e.target.value as keyof typeof TRUCK_TYPES)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
                   {Object.keys(TRUCK_TYPES).map((t) => (
                     <option key={t}>{t}</option>
@@ -164,13 +165,13 @@ export default function LoadingView() {
 
               {/* Type de palette */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Type de palette
                 </label>
                 <select
                   value={palletType}
                   onChange={(e) => setPalletType(e.target.value as keyof typeof PALLET_TYPES)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
                   {Object.keys(PALLET_TYPES).map((t) => (
                     <option key={t}>{t}</option>
@@ -181,13 +182,13 @@ export default function LoadingView() {
               {/* Orientation */}
               {!optimized && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Orientation
                   </label>
                   <select
                     value={orientation}
                     onChange={(e) => setOrientation(e.target.value as "long" | "large")}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="long">En long</option>
                     <option value="large">En large</option>
@@ -197,7 +198,7 @@ export default function LoadingView() {
 
               {/* Options */}
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Options
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -207,7 +208,7 @@ export default function LoadingView() {
                     onChange={(e) => setDoubleStack(e.target.checked)}
                     className="rounded"
                   />
-                  <span className="text-sm">Double étage</span>
+                  <span className="text-sm text-gray-900 dark:text-gray-200">Double étage</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -216,19 +217,19 @@ export default function LoadingView() {
                     onChange={(e) => setOptimized(e.target.checked)}
                     className="rounded"
                   />
-                  <span className="text-sm">Optimisation auto</span>
+                  <span className="text-sm text-gray-900 dark:text-gray-200">Optimisation auto</span>
                 </label>
               </div>
             </div>
 
             {/* Actions */}
-            <div className="flex flex-wrap gap-2 pt-4 border-t">
+            <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-200 dark:border-gray-700">
               <button
                 onClick={addPallet}
                 disabled={!optimized && palettes.length >= maxCapacity}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
                   !optimized && palettes.length >= maxCapacity
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                     : 'bg-green-600 text-white hover:bg-green-700'
                 }`}
               >
@@ -240,7 +241,7 @@ export default function LoadingView() {
                 disabled={palettes.length === 0}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
                   palettes.length === 0
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                     : 'bg-red-600 text-white hover:bg-red-700'
                 }`}
               >
@@ -252,7 +253,7 @@ export default function LoadingView() {
                 disabled={palettes.length === 0}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
                   palettes.length === 0
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    ? 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
                     : 'bg-blue-600 text-white hover:bg-blue-700'
                 }`}
               >
@@ -263,13 +264,13 @@ export default function LoadingView() {
         )}
 
         {/* Barre de progression */}
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-gray-700">Taux de remplissage</span>
-            <span className="text-lg font-bold text-gray-900">{percent.toFixed(1)}%</span>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Taux de remplissage</span>
+            <span className="text-lg font-bold text-gray-900 dark:text-white">{percent.toFixed(1)}%</span>
           </div>
           
-          <div className="w-full h-4 bg-gray-200 rounded-full overflow-hidden">
+          <div className="w-full h-4 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
             <div
               className={`h-4 transition-all duration-500 ${
                 percent < 70
@@ -283,7 +284,7 @@ export default function LoadingView() {
           </div>
 
           <div className="flex flex-wrap justify-between items-center mt-3 gap-2">
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               <span className="font-semibold">{palettes.length}</span> / {maxCapacity} palettes
               {doubleStack && " (double étage)"}
               {optimized && " (optimisé)"}
@@ -293,8 +294,8 @@ export default function LoadingView() {
             <div className="flex flex-wrap gap-3">
               {Object.entries(PALETTE_COLORS).map(([name, color]) => (
                 <div key={name} className="flex items-center gap-1.5">
-                  <span className="w-4 h-4 rounded-sm border border-gray-300" style={{ backgroundColor: color }} />
-                  <span className="text-xs text-gray-600">{name}</span>
+                  <span className="w-4 h-4 rounded-sm border border-gray-300 dark:border-gray-600" style={{ backgroundColor: color }} />
+                  <span className="text-xs text-gray-600 dark:text-gray-400">{name}</span>
                 </div>
               ))}
             </div>
@@ -302,7 +303,7 @@ export default function LoadingView() {
 
           {/* Alerte capacité max */}
           {!optimized && percent >= 100 && (
-            <div className="mt-3 bg-red-50 border border-red-200 text-red-800 px-3 py-2 rounded-lg flex items-center gap-2 text-sm">
+            <div className="mt-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 text-red-800 dark:text-red-200 px-3 py-2 rounded-lg flex items-center gap-2 text-sm">
               <AlertCircle size={16} />
               <span>Capacité maximale atteinte</span>
             </div>
@@ -310,7 +311,7 @@ export default function LoadingView() {
 
           {/* Info optimisation */}
           {optimized && (
-            <div className="mt-3 bg-blue-50 border border-blue-200 text-blue-800 px-3 py-2 rounded-lg flex items-center gap-2 text-sm">
+            <div className="mt-3 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 text-blue-800 dark:text-blue-200 px-3 py-2 rounded-lg flex items-center gap-2 text-sm">
               <Info size={16} />
               <span>Mode optimisation : les palettes seront placées automatiquement</span>
             </div>
@@ -321,7 +322,7 @@ export default function LoadingView() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Vue 3D */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden border border-gray-200 dark:border-gray-700">
               <Truck3D
                 palettes={palettes}
                 truck={TRUCK}
@@ -334,9 +335,9 @@ export default function LoadingView() {
           </div>
 
           {/* Liste des palettes */}
-          <div className="bg-white rounded-lg shadow p-4 flex flex-col h-[600px]">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex flex-col h-[600px] border border-gray-200 dark:border-gray-700">
             <div className="flex justify-between items-center mb-3">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
+              <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-900 dark:text-white">
                 <Package2 size={20} />
                 Palettes ({palettes.length})
               </h3>
@@ -350,22 +351,22 @@ export default function LoadingView() {
                 placeholder="Rechercher..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
               />
             </div>
 
             {/* Liste scrollable */}
             <div className="flex-1 overflow-y-auto space-y-2">
               {filteredPalettes.length === 0 && searchTerm && (
-                <div className="text-center text-sm text-gray-500 py-8">
+                <div className="text-center text-sm text-gray-500 dark:text-gray-400 py-8">
                   Aucun résultat pour "{searchTerm}"
                 </div>
               )}
               {filteredPalettes.length === 0 && !searchTerm && (
-                <div className="text-center text-gray-500 py-8">
-                  <Package2 size={48} className="mx-auto mb-3 text-gray-300" />
+                <div className="text-center text-gray-500 dark:text-gray-400 py-8">
+                  <Package2 size={48} className="mx-auto mb-3 text-gray-300 dark:text-gray-600" />
                   <p className="text-sm">Aucune palette chargée</p>
-                  <p className="text-xs text-gray-400 mt-1">Cliquez sur "Ajouter palette" pour commencer</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Cliquez sur "Ajouter palette" pour commencer</p>
                 </div>
               )}
               {filteredPalettes.map((p) => (
@@ -373,8 +374,8 @@ export default function LoadingView() {
                   key={p.index}
                   className={`flex justify-between items-center border rounded-lg px-3 py-3 transition-all cursor-pointer ${
                     highlightedIndex === p.index 
-                      ? 'bg-yellow-50 border-yellow-400 shadow-md' 
-                      : 'bg-gray-50 hover:bg-gray-100 border-gray-200'
+                      ? 'bg-yellow-50 dark:bg-yellow-900/30 border-yellow-400 dark:border-yellow-600 shadow-md' 
+                      : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 border-gray-200 dark:border-gray-600'
                   }`}
                   onMouseEnter={() => setHighlightedIndex(p.index)}
                   onMouseLeave={() => setHighlightedIndex(null)}
@@ -382,21 +383,21 @@ export default function LoadingView() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
                       <span 
-                        className="w-3 h-3 rounded-full border border-gray-300" 
+                        className="w-3 h-3 rounded-full border border-gray-300 dark:border-gray-600" 
                         style={{ backgroundColor: PALETTE_COLORS[p.type] }}
                       />
-                      <span className="text-xs font-semibold text-gray-700">#{p.index + 1}</span>
+                      <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">#{p.index + 1}</span>
                     </div>
-                    <p className="text-xs text-gray-600">
+                    <p className="text-xs text-gray-600 dark:text-gray-400">
                       {p.type} • {p.l}×{p.w}×{p.h}m
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 dark:text-gray-500">
                       {p.orientation === "long" ? "En long" : "En large"}
                     </p>
                   </div>
                   <button
                     onClick={() => removePallet(p.index)}
-                    className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 rounded-lg transition-colors"
+                    className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30 p-2 rounded-lg transition-colors"
                     aria-label="Supprimer la palette"
                   >
                     <Trash2 size={16} />

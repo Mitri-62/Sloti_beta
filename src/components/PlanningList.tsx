@@ -1,4 +1,4 @@
-// src/components/PlanningList.tsx
+// src/components/PlanningList.tsx - AVEC DARK MODE
 import { Calendar, Package, Truck, Check, Undo2, Trash2, Copy, FileText } from "lucide-react";
 import type { Planning } from "../hooks/usePlannings";
 import { useRef, useEffect, useState, useMemo } from "react";
@@ -94,15 +94,15 @@ export default function PlanningList({
   }, [grouped]);
 
   const statusColors: Record<string, string> = {
-    Prévu: "bg-blue-100 text-blue-800",
-    "En cours": "bg-yellow-100 text-yellow-800",
-    Chargé: "bg-purple-100 text-purple-800",
-    Terminé: "bg-green-100 text-green-800",
+    Prévu: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
+    "En cours": "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
+    Chargé: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
+    Terminé: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
   };
 
   const typeColors: Record<string, string> = {
-    Réception: "bg-blue-50 text-blue-700 border-blue-200",
-    Expédition: "bg-orange-50 text-orange-700 border-orange-200",
+    Réception: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700",
+    Expédition: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900 dark:text-orange-200 dark:border-orange-700",
   };
 
   // Bouton rapide "Aujourd'hui"
@@ -119,6 +119,43 @@ export default function PlanningList({
 
   return (
     <div className="space-y-6">
+      {/* Style pour le DatePicker en dark mode */}
+      <style>{`
+        .react-datepicker {
+          background-color: #1f2937;
+          border-color: #374151;
+        }
+        
+        .dark .react-datepicker {
+          background-color: #1f2937;
+          border-color: #374151;
+        }
+        
+        .react-datepicker__header {
+          background-color: #374151;
+          border-bottom-color: #4b5563;
+        }
+        
+        .react-datepicker__current-month,
+        .react-datepicker__day-name,
+        .react-datepicker__day {
+          color: #ffffff;
+        }
+        
+        .react-datepicker__day:hover {
+          background-color: #3b82f6;
+        }
+        
+        .react-datepicker__day--selected,
+        .react-datepicker__day--in-range {
+          background-color: #3b82f6;
+        }
+        
+        .react-datepicker__day--disabled {
+          color: #6b7280;
+        }
+      `}</style>
+
       {/* Barre filtres */}
       <div className="flex flex-wrap items-center justify-end gap-3">
         <DatePicker
@@ -129,24 +166,27 @@ export default function PlanningList({
           isClearable
           dateFormat="dd/MM/yyyy"
           placeholderText="Filtrer par période"
-          className="border rounded-lg px-3 py-2 text-sm w-60"
+          className="border rounded-lg px-3 py-2 text-sm w-60 dark:bg-gray-800 dark:border-gray-600 dark:text-white"
           aria-label="Sélectionner une plage de dates"
         />
         <button
           onClick={setToday}
-          className="px-3 py-2 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 text-sm font-medium border border-blue-300"
+          className="px-3 py-2 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 text-sm font-medium border border-blue-300 
+                     dark:bg-blue-900 dark:text-blue-200 dark:hover:bg-blue-800 dark:border-blue-700"
         >
           Aujourd'hui
         </button>
         <button
           onClick={setThisWeek}
-          className="px-3 py-2 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 text-sm font-medium border border-purple-300"
+          className="px-3 py-2 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 text-sm font-medium border border-purple-300
+                     dark:bg-purple-900 dark:text-purple-200 dark:hover:bg-purple-800 dark:border-purple-700"
         >
           Cette semaine
         </button>
         <button
           onClick={() => setDateRange([null, null])}
-          className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 text-sm font-medium border border-gray-300"
+          className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 text-sm font-medium border border-gray-300
+                     dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:border-gray-600"
         >
           Tout afficher
         </button>
@@ -154,7 +194,7 @@ export default function PlanningList({
 
       {/* Message si vide */}
       {sortedDates.length === 0 && (
-        <div className="text-center py-12 text-gray-500">
+        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
           <Calendar size={48} className="mx-auto mb-4 opacity-50" />
           <p className="text-lg font-medium">Aucun événement</p>
           <p className="text-sm">
@@ -176,17 +216,17 @@ export default function PlanningList({
         });
 
         return (
-          <div key={date} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div key={date} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
             {/* En-tête de date */}
-            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-4">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-700 dark:to-indigo-700 px-6 py-4">
               <h3 className="text-white font-bold text-lg capitalize">
                 {dayName}
               </h3>
-              <p className="text-blue-100 text-sm">{formattedDate}</p>
+              <p className="text-blue-100 dark:text-blue-200 text-sm">{formattedDate}</p>
             </div>
 
             {/* Événements du jour */}
-            <div className="divide-y divide-gray-100">
+            <div className="divide-y divide-gray-100 dark:divide-gray-700">
               <AnimatePresence mode="popLayout">
                 {grouped[date].map((ev) => (
                   <motion.div
@@ -196,12 +236,12 @@ export default function PlanningList({
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, x: -100 }}
                     transition={{ duration: 0.3 }}
-                    className="p-4 hover:bg-gray-50 transition-colors"
+                    className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   >
                     <div className="flex flex-col lg:flex-row lg:items-center gap-4">
                       {/* Heure et type */}
                       <div className="flex items-center gap-3 lg:w-48">
-                        <div className="flex items-center gap-2 font-semibold text-gray-900">
+                        <div className="flex items-center gap-2 font-semibold text-gray-900 dark:text-white">
                           <span className="text-2xl">{ev.hour}</span>
                         </div>
                         <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${typeColors[ev.type]}`}>
@@ -216,11 +256,11 @@ export default function PlanningList({
 
                       {/* Informations */}
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 text-lg">
+                        <p className="font-bold text-gray-900 dark:text-white text-lg">
                           {ev.transporter}
                         </p>
                         {ev.products && (
-                          <p className="text-sm text-gray-600 mt-1 line-clamp-2">
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
                             {ev.products}
                           </p>
                         )}
@@ -229,7 +269,7 @@ export default function PlanningList({
                             {ev.status}
                           </span>
                           {ev.duration && (
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
                               Durée: {ev.duration} min
                             </span>
                           )}
@@ -242,14 +282,14 @@ export default function PlanningList({
                           onClick={() => openDocumentsModal(ev.id!)}
                           className={`flex items-center gap-1 px-3 py-1.5 rounded-full border text-sm font-medium transition-colors ${
                             ev.documents && ev.documents.length > 0
-                              ? "bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200"
-                              : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200"
+                              ? "bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700 dark:hover:bg-blue-800"
+                              : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-600"
                           }`}
                         >
                           <FileText size={16} />
                           Docs
                           {ev.documents && ev.documents.length > 0 && (
-                            <span className="ml-1 text-xs font-semibold bg-blue-200 px-1.5 py-0.5 rounded-full">
+                            <span className="ml-1 text-xs font-semibold bg-blue-200 dark:bg-blue-800 px-1.5 py-0.5 rounded-full">
                               {ev.documents.length}
                             </span>
                           )}
@@ -262,7 +302,8 @@ export default function PlanningList({
                           }}
                           className="flex items-center gap-1 px-3 py-1.5 rounded-full 
                                     bg-indigo-100 text-indigo-700 hover:bg-indigo-200 
-                                    border border-indigo-300 text-sm font-medium transition-colors"
+                                    border border-indigo-300 text-sm font-medium transition-colors
+                                    dark:bg-indigo-900 dark:text-indigo-200 dark:hover:bg-indigo-800 dark:border-indigo-700"
                         >
                           <Copy size={16} /> Dupliquer
                         </button>
@@ -275,7 +316,8 @@ export default function PlanningList({
                             }}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-full 
                                       bg-green-100 text-green-700 hover:bg-green-200 
-                                      border border-green-300 text-sm font-medium transition-colors"
+                                      border border-green-300 text-sm font-medium transition-colors
+                                      dark:bg-green-900 dark:text-green-200 dark:hover:bg-green-800 dark:border-green-700"
                           >
                             <Check size={16} /> Valider
                           </button>
@@ -289,7 +331,8 @@ export default function PlanningList({
                             }}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-full 
                                       bg-gray-100 text-gray-700 hover:bg-gray-200 
-                                      border border-gray-300 text-sm font-medium transition-colors"
+                                      border border-gray-300 text-sm font-medium transition-colors
+                                      dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 dark:border-gray-600"
                           >
                             <Undo2 size={16} /> Retour
                           </button>
@@ -302,7 +345,8 @@ export default function PlanningList({
                           }}
                           className="flex items-center gap-1 px-3 py-1.5 rounded-full 
                                     bg-red-100 text-red-700 hover:bg-red-200 
-                                    border border-red-300 text-sm font-medium transition-colors"
+                                    border border-red-300 text-sm font-medium transition-colors
+                                    dark:bg-red-900 dark:text-red-200 dark:hover:bg-red-800 dark:border-red-700"
                         >
                           <Trash2 size={16} /> Supprimer
                         </button>
