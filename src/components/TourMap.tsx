@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef} from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-routing-machine';
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
-import { CheckCircle, Navigation } from 'lucide-react';
+
 
 interface Stop {
   id: string;
@@ -41,7 +41,6 @@ export default function TourMap({ stops, showRoute = true, onStopClick, height =
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<L.Marker[]>([]);
   const routingControlRef = useRef<any>(null);
-  const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
 
   // Initialiser la carte
   useEffect(() => {
@@ -159,7 +158,6 @@ export default function TourMap({ stops, showRoute = true, onStopClick, height =
       marker.bindPopup(createPopupContent(stop));
 
       marker.on('click', () => {
-        setSelectedStop(stop);
         if (onStopClick) onStopClick(stop);
       });
 

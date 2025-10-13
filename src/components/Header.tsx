@@ -31,7 +31,7 @@ export default function Header() {
   const [notifFilter, setNotifFilter] = useState<'all' | 'messages' | 'activity'>('all');
   
   const [focusMode, setFocusMode] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('synced');
+
 
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -106,16 +106,15 @@ export default function Header() {
 
     const fetchAllNotifications = async () => {
       try {
-        setSyncStatus('syncing');
         
         // Messages
         const { data: messages } = await supabase
-          .from("chat_messages")
-          .select("id, user_id, username, content, created_at")
-          .eq("company_id", user.company_id)
-          .neq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(10);
+        .from("chat_messages")
+        .select("id, user_id, username, content, created_at")
+        .eq("company_id", user.company_id)
+        .neq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
 
         // Activités
         const { data: activities } = await supabase
@@ -133,10 +132,8 @@ export default function Header() {
         );
 
         setAllNotifications(allNotifs);
-        setSyncStatus('synced');
       } catch (error) {
         console.error('Erreur chargement notifications:', error);
-        setSyncStatus('error');
       }
     };
 

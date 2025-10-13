@@ -99,7 +99,7 @@ export default function ChannelSettingsModal({
     }
   };
 
-  const removeMember = async (memberId: string, memberUserId: string) => {
+  const removeMember = async (memberUserId: string) => {
     if (!confirm("Voulez-vous vraiment retirer ce membre ?")) return;
 
     try {
@@ -344,7 +344,7 @@ export default function ChannelSettingsModal({
                         <option value="guest">Invité</option>
                       </select>
                       <button
-                        onClick={() => removeMember(member.id, member.user_id)}
+                        onClick={() => removeMember(member.id)}
                         className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                         title="Retirer"
                       >

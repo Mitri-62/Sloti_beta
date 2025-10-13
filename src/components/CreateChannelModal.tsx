@@ -23,7 +23,7 @@ export default function CreateChannelModal({ onClose, onSuccess }: CreateChannel
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.rpc("create_channel", {
+      const {error } = await supabase.rpc("create_channel", {
         p_name: name.trim(),
         p_description: description.trim() || null,
         p_type: type,

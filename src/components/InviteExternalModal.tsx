@@ -1,7 +1,7 @@
 // src/components/InviteExternalModal.tsx
 import { useState } from "react";
 import { supabase } from "../supabaseClient";
-import { Mail, Link as LinkIcon, Copy, Check, X, Calendar, Shield } from "lucide-react";
+import { Mail, Link as LinkIcon, Copy, Check, X, Calendar} from "lucide-react";
 import { toast } from "sonner";
 
 interface InviteExternalModalProps {

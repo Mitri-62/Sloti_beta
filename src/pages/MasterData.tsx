@@ -1,5 +1,5 @@
-// src/pages/MasterData.tsx - VERSION AMÉLIORÉE
-import { useState, useEffect } from "react";
+// src/pages/MasterData.tsx - VERSION OPTIMISÉE
+import { useState, useMemo, useCallback } from "react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../contexts/AuthContext";
 import MasterDataTable from "../components/MasterDataTable";
@@ -10,15 +10,56 @@ import {
   CheckSquare, Square, Trash2
 } from "lucide-react";
 import { toast } from "sonner";
+import { useOptimizedQuery } from "../hooks/useOptimizedQuery";
+import { withErrorHandling, errorService } from "../services/errorService";
+import { queryCache } from "../services/queryCache";
+
+// ✅ Type strict pour MasterData
+interface MasterDataRow {
+  id: string;
+  company_id: string;
+  sku: string;
+  designation: string;
+  tus: 'FEU' | 'CAR' | 'BAC';
+  qty_per_pallet: number;
+  poids_net: number;
+  poids_brut: number;
+  longueur: number;
+  largeur: number;
+  hauteur: number;
+  hauteur_couche: number;
+  nb_couches: number;
+  ean: string;
+  stackable: boolean;
+  max_stack_height: number;
+  max_stack_weight: number;
+  unite_mesure?: string;
+  unite?: string;
+  created_at?: string;
+  updated_at?: string;
+}
 
 export default function MasterData() {
   const { user } = useAuth();
-  const [products, setProducts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editProduct, setEditProduct] = useState<any | null>(null);
   
-  // Nouveaux états pour les améliorations
+  // ✅ Hook optimisé avec cache et realtime
+  const { 
+    data: products, 
+    loading, 
+    refresh 
+  } = useOptimizedQuery<MasterDataRow>('masterdata', {
+    cache: true,
+    cacheTTL: 10 * 60 * 1000, // 10 minutes (données rarement modifiées)
+    realtime: true,
+    filter: { company_id: user?.company_id },
+    orderBy: { column: 'sku', ascending: true },
+    deps: [user?.company_id],
+  });
+
+  const [showModal, setShowModal] = useState(false);
+  const [editProduct, setEditProduct] = useState<MasterDataRow | null>(null);
+  
+  // États UI
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<string>("Tous");
   const [filterStackable, setFilterStackable] = useState<string>("Tous");
@@ -26,66 +67,53 @@ export default function MasterData() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
-  // Chargement des produits
-  const loadProducts = async () => {
-    if (!user?.company_id) {
-      setLoading(false);
-      return;
-    }
+  // ✅ Filtrage optimisé avec useMemo
+  const filteredProducts = useMemo(() => {
+    return products.filter(product => {
+      const searchLower = search.toLowerCase();
+      const matchSearch = 
+        product.sku?.toLowerCase().includes(searchLower) ||
+        product.designation?.toLowerCase().includes(searchLower) ||
+        product.ean?.toLowerCase().includes(searchLower);
+      
+      const matchType = filterType === "Tous" || product.tus === filterType;
+      const matchStackable = 
+        filterStackable === "Tous" || 
+        (filterStackable === "Oui" && product.stackable) ||
+        (filterStackable === "Non" && !product.stackable);
+      
+      return matchSearch && matchType && matchStackable;
+    });
+  }, [products, search, filterType, filterStackable]);
 
-    setLoading(true);
+  // ✅ Tri optimisé avec useMemo
+  const sortedProducts = useMemo(() => {
+    if (!sortConfig) return filteredProducts;
     
-    const { data, error } = await supabase
-      .from("masterdata")
-      .select("*")
-      .eq("company_id", user.company_id)
-      .order("sku");
+    return [...filteredProducts].sort((a, b) => {
+      const aVal = a[sortConfig.key as keyof MasterDataRow];
+      const bVal = b[sortConfig.key as keyof MasterDataRow];
+      
+      // Gestion des valeurs nulles/undefined
+      if (aVal == null) return 1;
+      if (bVal == null) return -1;
+      
+      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [filteredProducts, sortConfig]);
 
-    if (error) {
-      console.error("Erreur chargement MasterData:", error);
-      toast.error("Erreur de chargement");
-    } else {
-      setProducts(data || []);
-    }
-    
-    setLoading(false);
-  };
+  // ✅ KPI optimisés avec useMemo
+  const kpis = useMemo(() => ({
+    totalProducts: products.length,
+    stackableProducts: products.filter(p => p.stackable).length,
+    totalWeight: products.reduce((sum, p) => sum + (p.poids_brut || 0) * (p.qty_per_pallet || 0), 0),
+    uniqueTypes: [...new Set(products.map(p => p.tus))].filter(Boolean),
+  }), [products]);
 
-  useEffect(() => {
-    loadProducts();
-  }, [user?.company_id]);
-
-  // Filtrage et recherche
-  const filteredProducts = products.filter(product => {
-    const searchLower = search.toLowerCase();
-    const matchSearch = 
-      product.sku?.toLowerCase().includes(searchLower) ||
-      product.designation?.toLowerCase().includes(searchLower) ||
-      product.ean?.toLowerCase().includes(searchLower);
-    
-    const matchType = filterType === "Tous" || product.tus === filterType;
-    const matchStackable = 
-      filterStackable === "Tous" || 
-      (filterStackable === "Oui" && product.stackable) ||
-      (filterStackable === "Non" && !product.stackable);
-    
-    return matchSearch && matchType && matchStackable;
-  });
-
-  // Tri
-  const sortedProducts = [...filteredProducts].sort((a, b) => {
-    if (!sortConfig) return 0;
-    
-    const aVal = a[sortConfig.key];
-    const bVal = b[sortConfig.key];
-    
-    if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
-    if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
-    return 0;
-  });
-
-  // Gestion du tri
-  const handleSort = (key: string) => {
+  // ✅ Handlers optimisés avec useCallback
+  const handleSort = useCallback((key: string) => {
     setSortConfig(current => {
       if (!current || current.key !== key) {
         return { key, direction: 'asc' };
@@ -95,34 +123,29 @@ export default function MasterData() {
       }
       return null;
     });
-  };
+  }, []);
 
-  // KPI
-  const totalProducts = products.length;
-  const stackableProducts = products.filter(p => p.stackable).length;
-  const totalWeight = products.reduce((sum, p) => sum + (p.poids_brut || 0) * (p.qty_per_pallet || 0), 0);
-  const uniqueTypes = [...new Set(products.map(p => p.tus))].filter(Boolean);
-
-  // Sélection
-  const toggleSelectAll = () => {
+  const toggleSelectAll = useCallback(() => {
     if (selectedIds.size === sortedProducts.length) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(sortedProducts.map(p => p.id)));
     }
-  };
+  }, [selectedIds.size, sortedProducts]);
 
-  const toggleSelect = (id: string) => {
-    const newSelected = new Set(selectedIds);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
-    } else {
-      newSelected.add(id);
-    }
-    setSelectedIds(newSelected);
-  };
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const newSelected = new Set(prev);
+      if (newSelected.has(id)) {
+        newSelected.delete(id);
+      } else {
+        newSelected.add(id);
+      }
+      return newSelected;
+    });
+  }, []);
 
-  // Suppression en masse
+  // ✅ Suppression en masse avec gestion d'erreur
   const handleDeleteSelected = async () => {
     if (selectedIds.size === 0) {
       toast.warning("Aucun produit sélectionné");
@@ -131,23 +154,30 @@ export default function MasterData() {
 
     if (!confirm(`Supprimer ${selectedIds.size} produit(s) ?`)) return;
 
-    const { error } = await supabase
-      .from("masterdata")
-      .delete()
-      .in("id", Array.from(selectedIds))
-      .eq("company_id", user?.company_id);
+    const result = await withErrorHandling(async () => {
+      const { error } = await supabase
+        .from("masterdata")
+        .delete()
+        .in("id", Array.from(selectedIds))
+        .eq("company_id", user?.company_id);
 
-    if (error) {
-      toast.error("Erreur lors de la suppression");
-    } else {
+      if (error) throw error;
+
+      // ✅ Invalider le cache et recharger
+      queryCache.invalidate('masterdata_*');
+      await refresh();
+      
+      return true;
+    }, 'Suppression produits');
+
+    if (result) {
       toast.success(`${selectedIds.size} produit(s) supprimé(s)`);
       setSelectedIds(new Set());
-      loadProducts();
     }
   };
 
-  // Export CSV avec sélection
-  const handleExportCSV = () => {
+  // ✅ Export CSV optimisé
+  const handleExportCSV = useCallback(() => {
     const dataToExport = selectedIds.size > 0 
       ? sortedProducts.filter(p => selectedIds.has(p.id))
       : sortedProducts;
@@ -180,10 +210,10 @@ export default function MasterData() {
     link.click();
     
     toast.success(`${dataToExport.length} produit(s) exporté(s)`);
-  };
+  }, [sortedProducts, selectedIds]);
 
-  // Télécharger template
-  const handleDownloadTemplate = () => {
+  // ✅ Template avec gestion d'erreur
+  const handleDownloadTemplate = useCallback(() => {
     const headers = [
       "Article", "Désignation article", "TUS", "Qté EqpCh.", 
       "Poids net", "Poids brut", "Longueur", "Largeur", "Hauteur",
@@ -207,42 +237,54 @@ export default function MasterData() {
     link.click();
     
     toast.success("Template téléchargé");
-  };
+  }, []);
 
-  const handleAdd = () => {
+  const handleAdd = useCallback(() => {
     setEditProduct(null);
     setShowModal(true);
-  };
+  }, []);
 
-  const handleEdit = (row: any) => {
+  const handleEdit = useCallback((row: MasterDataRow) => {
     setEditProduct(row);
     setShowModal(true);
-  };
+  }, []);
 
-  const handleDelete = async (row: any) => {
+  // ✅ Suppression avec gestion d'erreur centralisée
+  const handleDelete = async (row: MasterDataRow) => {
     if (!confirm("Supprimer cet article ?")) return;
     
-    const { error } = await supabase
-      .from("masterdata")
-      .delete()
-      .eq("id", row.id)
-      .eq("company_id", user?.company_id);
+    const result = await withErrorHandling(async () => {
+      const { error } = await supabase
+        .from("masterdata")
+        .delete()
+        .eq("id", row.id)
+        .eq("company_id", user?.company_id);
 
-    if (error) {
-      toast.error("Erreur lors de la suppression");
-    } else {
+      if (error) throw error;
+
+      // ✅ Invalider le cache
+      queryCache.invalidate('masterdata_*');
+      await refresh();
+      
+      return true;
+    }, 'Suppression article');
+
+    if (result) {
       toast.success("Article supprimé");
-      loadProducts();
     }
   };
 
+  // ✅ Sauvegarde avec gestion d'erreur
   const handleSave = async (formData: any) => {
     if (!user?.company_id) {
-      toast.error("Erreur: company_id manquant");
+      errorService.handle(
+        errorService.validation("ID entreprise manquant"),
+        'Sauvegarde article'
+      );
       return;
     }
 
-    try {
+    const result = await withErrorHandling(async () => {
       const dataWithCompany = {
         ...formData,
         company_id: user.company_id
@@ -256,46 +298,53 @@ export default function MasterData() {
           .eq("company_id", user.company_id);
 
         if (error) throw error;
-        toast.success("Article mis à jour");
       } else {
         const { error } = await supabase
           .from("masterdata")
           .insert([dataWithCompany]);
 
         if (error) throw error;
-        toast.success("Article ajouté");
       }
 
+      // ✅ Invalider le cache
+      queryCache.invalidate('masterdata_*');
+      await refresh();
+      
+      return true;
+    }, editProduct ? 'Mise à jour article' : 'Ajout article');
+
+    if (result) {
+      toast.success(editProduct ? "Article mis à jour" : "Article ajouté");
       setShowModal(false);
-      loadProducts();
-    } catch (error: any) {
-      console.error("Erreur sauvegarde:", error);
-      toast.error(`Erreur: ${error.message}`);
     }
   };
 
+  // ✅ Import avec gestion d'erreur complète
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     if (!user?.company_id) {
-      toast.error("Erreur: Pas de company_id");
+      errorService.handle(
+        errorService.validation("ID entreprise manquant"),
+        'Import MasterData'
+      );
       return;
     }
 
     toast.info("📥 Import en cours...");
 
-    try {
+    const result = await withErrorHandling(async () => {
       let parsedData: any[] = [];
       const fileName = file.name.toLowerCase();
 
+      // Parsing CSV ou Excel
       if (fileName.endsWith('.csv')) {
         const text = await file.text();
         const lines = text.split("\n").filter(l => l.trim());
         
         if (lines.length < 2) {
-          toast.error("Fichier CSV vide");
-          return;
+          throw errorService.validation("Fichier CSV vide");
         }
 
         const separator = lines[0].includes(';') ? ';' : ',';
@@ -319,10 +368,10 @@ export default function MasterData() {
         parsedData = XLSX.utils.sheet_to_json(worksheet);
       } 
       else {
-        toast.error("Format non supporté (.csv, .xlsx uniquement)");
-        return;
+        throw errorService.validation("Format non supporté (.csv, .xlsx uniquement)");
       }
 
+      // Validation et mapping
       const validEntries = parsedData
         .filter((row: any) => {
           return (row.Article || row.sku) && (row['Qté EqpCh.'] || row.qty_per_pallet);
@@ -349,10 +398,10 @@ export default function MasterData() {
         .filter((entry: any) => entry.sku && entry.qty_per_pallet > 0);
 
       if (validEntries.length === 0) {
-        toast.warning("Aucune donnée valide trouvée");
-        return;
+        throw errorService.validation("Aucune donnée valide trouvée dans le fichier");
       }
 
+      // Vérifier doublons
       const skus = validEntries.map((e: any) => e.sku);
       const { data: existing } = await supabase
         .from("masterdata")
@@ -365,10 +414,10 @@ export default function MasterData() {
       const duplicates = validEntries.length - newEntries.length;
 
       if (newEntries.length === 0) {
-        toast.warning(`Tous les ${validEntries.length} SKU existent déjà`);
-        return;
+        throw errorService.validation(`Tous les ${validEntries.length} SKU existent déjà`);
       }
 
+      // Import par batch
       const batchSize = 100;
       let totalImported = 0;
       
@@ -379,29 +428,29 @@ export default function MasterData() {
           .from("masterdata")
           .insert(batch);
 
-        if (error) {
-          toast.error(`Erreur au lot ${Math.floor(i / batchSize) + 1}`);
-          break;
-        }
-        
+        if (error) throw error;
         totalImported += batch.length;
       }
 
-      await loadProducts();
+      // ✅ Invalider le cache et recharger
+      queryCache.invalidate('masterdata_*');
+      await refresh();
 
-      const message = duplicates > 0 
-        ? `✅ ${totalImported} nouveaux articles (${duplicates} doublons ignorés)`
-        : `✅ ${totalImported} articles importés`;
+      return { totalImported, duplicates };
+    }, 'Import MasterData');
+
+    if (result) {
+      const message = result.duplicates > 0 
+        ? `✅ ${result.totalImported} nouveaux articles (${result.duplicates} doublons ignorés)`
+        : `✅ ${result.totalImported} articles importés`;
       
       toast.success(message);
-
-    } catch (error: any) {
-      toast.error(`Erreur: ${error.message}`);
     }
 
     e.target.value = '';
   };
 
+  // Colonnes du tableau
   const columns = [
     { key: "sku", label: "SKU", sortable: true },
     { key: "tus", label: "Type", sortable: true },
@@ -421,6 +470,7 @@ export default function MasterData() {
     },
   ];
 
+  // ✅ Guard clause pour company_id
   if (!user?.company_id) {
     return (
       <div className="p-6 flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -486,7 +536,7 @@ export default function MasterData() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Total produits</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalProducts}</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{kpis.totalProducts}</p>
               </div>
               <Package className="text-blue-500" size={32} />
             </div>
@@ -496,7 +546,7 @@ export default function MasterData() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Gerbables</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{stackableProducts}</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{kpis.stackableProducts}</p>
               </div>
               <Layers className="text-green-500" size={32} />
             </div>
@@ -506,7 +556,7 @@ export default function MasterData() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Poids total</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{Math.round(totalWeight)} kg</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{Math.round(kpis.totalWeight)} kg</p>
               </div>
               <Weight className="text-purple-500" size={32} />
             </div>
@@ -516,7 +566,7 @@ export default function MasterData() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">Types</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{uniqueTypes.length}</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{kpis.uniqueTypes.length}</p>
               </div>
               <TrendingUp className="text-orange-500" size={32} />
             </div>
@@ -588,7 +638,7 @@ export default function MasterData() {
                     className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
                     <option value="Tous">Tous les types</option>
-                    {uniqueTypes.map(type => (
+                    {kpis.uniqueTypes.map(type => (
                       <option key={type} value={type}>{type}</option>
                     ))}
                   </select>

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../contexts/AuthContext";
 
-export function useTypingIndicator(channelId: string, username: string) {
+export function useTypingIndicator(channelId: string) {
   const { user } = useAuth();
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
 

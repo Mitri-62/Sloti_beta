@@ -39,7 +39,6 @@ export default function PlanningAgenda({
   onDelete,
   onValidate,
   onReset,
-  companyId,
   onUpdate,
   onOpenAddModal,
 }: Props) {

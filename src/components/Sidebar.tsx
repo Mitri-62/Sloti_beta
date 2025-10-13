@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect} from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -118,11 +118,10 @@ export default function Sidebar() {
     const fetchUnreadMessages = async () => {
       try {
         const { data } = await supabase
-          .from("chat_messages")
-          .select("id")
-          .eq("company_id", user.company_id)
-          .neq("user_id", user.id)
-          .is("read", false);
+        .from("chat_messages")
+        .select("id")
+        .eq("company_id", user.company_id)
+        .neq("user_id", user.id);
 
         setUnreadMessages(data?.length || 0);
       } catch (error) {

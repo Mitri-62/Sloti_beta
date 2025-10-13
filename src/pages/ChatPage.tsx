@@ -3,7 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { 
   Send, Paperclip, Smile, Hash, AlertCircle, 
   Edit2, Trash2, Check, X, Search, Loader, Image as ImageIcon,
-  File, Download, Users, Settings
+  File, Download, Settings
 } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../contexts/AuthContext";
@@ -32,7 +32,6 @@ export default function ChatPage() {
   
   const { typingUsers, notifyTyping } = useTypingIndicator(
     channelId || 'general',
-    user?.name || user?.email || 'Anonymous'
   );
   
   const { uploadFile, uploading: fileUploading, progress } = useFileUpload();
