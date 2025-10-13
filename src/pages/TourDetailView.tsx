@@ -237,7 +237,7 @@ export default function TourDetailView() {
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => navigate(`/tour-planning/${tour.id}`)}
+              onClick={() => navigate('/app/tour-planning')}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-900 dark:text-white"
             >
               <ArrowLeft size={20} />
@@ -381,40 +381,64 @@ export default function TourDetailView() {
       {/* Carte */}
       {showMap && stops.length > 0 && (
         <div className="mx-6 mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <MapPin size={18} />
-              Itinéraire de la tournée
-            </h3>
-            {driverLocation && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  Position chauffeur mise à jour il y a {
-                    Math.floor((Date.now() - new Date(driverLocation.last_update).getTime()) / 60000)
-                  } min
-                </span>
-                {!tracking && (
-                  <button
-                    onClick={startTracking}
-                    className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
-                  >
-                    Activer suivi
-                  </button>
-                )}
-                {tracking && (
-                  <button
-                    onClick={stopTracking}
-                    className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
-                  >
-                    Arrêter suivi
-                  </button>
-                )}
-              </div>
-            )}
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <MapPin size={18} />
+                Itinéraire de la tournée
+              </h3>
+              
+              {/* ✅ Afficher les contrôles si un chauffeur est assigné */}
+              {tour.driver && (
+                <div className="flex items-center gap-3">
+                  {/* Indicateur de position */}
+                  {driverLocation && (
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 rounded-lg border border-blue-200 dark:border-blue-700">
+                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                      <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
+                        Mis à jour il y a {
+                          Math.floor((Date.now() - new Date(driverLocation.last_update).getTime()) / 60000)
+                        } min
+                      </span>
+                    </div>
+                  )}
+                  
+                  {/* Bouton de contrôle du tracking */}
+                  {!tracking ? (
+                    <button
+                      onClick={startTracking}
+                      className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 flex items-center gap-2 transition-colors shadow-sm"
+                    >
+                      <Navigation size={16} />
+                      {driverLocation ? 'Réactiver suivi' : 'Activer suivi GPS'}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={stopTracking}
+                      className="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 flex items-center gap-2 transition-colors shadow-sm"
+                    >
+                      <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+                      Arrêter suivi
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* ✅ Message si pas de chauffeur assigné */}
+              {!tour.driver && (
+                <div className="text-sm text-yellow-600 dark:text-yellow-400 flex items-center gap-2 bg-yellow-50 dark:bg-yellow-900/30 px-3 py-2 rounded-lg">
+                  <AlertCircle size={16} />
+                  Assignez un chauffeur pour activer le suivi GPS
+                </div>
+              )}
+            </div>
           </div>
+          
           <TourMap 
             stops={stops}
             showRoute={true}
+            driverLocation={driverLocation}
+            tourId={tourId}
             onStopClick={(stop) => {
               toast.success(`Arrêt ${stop.sequence_order}: ${stop.customer_name}`);
             }}

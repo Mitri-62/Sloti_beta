@@ -14,6 +14,7 @@ import {
   Layers,
   TrendingDown,
   TrendingUp,
+  ClipboardCheck,
   X,
   Moon,
   Sun,
@@ -308,6 +309,14 @@ export default function Sidebar() {
           to="/app/stock/synoptique"
           icon={Package}
           label="Vue Synoptique"
+          isCollapsed={isCollapsed}
+        />
+
+        {/* ✅ NOUVEAU : Inventaire */}
+        <TooltipNavLink
+          to="/app/inventaire"
+          icon={ClipboardCheck}
+          label="Inventaires"
           isCollapsed={isCollapsed}
         />
 

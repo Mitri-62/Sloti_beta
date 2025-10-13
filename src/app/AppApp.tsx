@@ -25,6 +25,7 @@ import Profile from "../pages/Profile";
 import Settings from "../pages/Settings";
 import Notifications from "../pages/Notifications";
 import InvitePage from "../pages/InvitePage"; // NOUVEAU
+import Inventaire from "../pages/Inventaire";
 
 function AppContent() {
   return (
@@ -42,6 +43,7 @@ function AppContent() {
         <Route path="stock/entrees" element={<PrivateRoute><StockEntrees /></PrivateRoute>} />
         <Route path="stock/sorties" element={<PrivateRoute><StockSorties /></PrivateRoute>} />
         <Route path="stock/synoptique" element={<PrivateRoute><StockSynoptique /></PrivateRoute>} />
+        <Route path="inventaire" element={<PrivateRoute><Inventaire /></PrivateRoute>} />
         <Route path="masterdata" element={<PrivateRoute><MasterData /></PrivateRoute>} />
         
         {/* Chargement 3D */}
