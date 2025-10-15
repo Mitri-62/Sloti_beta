@@ -426,7 +426,17 @@ export default function DriverApp() {
                 className="flex-1 px-4 py-3 bg-white/20 hover:bg-white/30 rounded-xl transition-colors font-semibold text-center flex items-center justify-center gap-2"
               >
                 <MapPin size={18} />
-                GPS
+                Maps
+              </a>
+
+              <a
+                href={`https://waze.com/ul?q=${encodeURIComponent(currentStop.address)}&navigate=yes`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 px-4 py-3 bg-white/20 hover:bg-white/30 rounded-xl transition-colors font-semibold text-center flex items-center justify-center gap-2"
+              >
+                <Navigation size={18} />
+                Waze
               </a>
             </div>
 
