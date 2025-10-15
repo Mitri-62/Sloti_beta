@@ -18,6 +18,7 @@ import {
   X,
   Moon,
   Sun,
+  Book,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../supabaseClient";
@@ -345,6 +346,24 @@ export default function Sidebar() {
         />
       </nav>
 
+      {/* Section centre d'aide */}
+      {!isCollapsed && (
+          <div className="px-3 mb-2 mt-4">
+            <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              Centre d'aide
+            </span>
+          </div>
+        )}
+
+        <div className="relative">
+          <TooltipNavLink
+            to="/app/help"
+            icon={Book}
+            label="Centre d'aide"
+            isCollapsed={isCollapsed}
+          />
+        </div>
+        
       {/* Footer - Profil utilisateur */}
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3">

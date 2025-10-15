@@ -26,6 +26,8 @@ import Settings from "../pages/Settings";
 import Notifications from "../pages/Notifications";
 import InvitePage from "../pages/InvitePage"; // NOUVEAU
 import Inventaire from "../pages/Inventaire";
+import HelpCenter from "../pages/HelpCenter";
+import DriverApp from "../pages/DriverApp";
 
 function AppContent() {
   return (
@@ -53,11 +55,16 @@ function AppContent() {
         {/* Tournées */}
         <Route path="tour-planning" element={<PrivateRoute><TourPlanning /></PrivateRoute>} />
         <Route path="tour-planning/:tourId" element={<PrivateRoute><TourDetailView /></PrivateRoute>} />
-        
+        <Route path="driver-app/:tourId" element={<DriverApp />} />
+
         {/* Paramètres et profil */}
         <Route path="profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
         <Route path="settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
         <Route path="notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />
+
+        {/* centre d'aide */}
+        <Route path="help" element={<PrivateRoute><HelpCenter /></PrivateRoute>} />
+        <Route path="help/:guideId" element={<PrivateRoute><HelpCenter /></PrivateRoute>} />
 
         {/* Communication - ROUTES MISES À JOUR */}
         <Route path="chat" element={<PrivateRoute><ChatPage /></PrivateRoute>} />

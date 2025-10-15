@@ -1,9 +1,10 @@
-// src/components/TourMap.tsx - AVEC CLEANUP COMPLET
+// src/components/TourMap.tsx - AVEC CHOIX DE PROVIDERS
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-routing-machine';
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
+import { Layers } from 'lucide-react';
 
 interface Stop {
   id: string;
@@ -30,6 +31,64 @@ interface TourMapProps {
   driverLocation?: DriverLocation | null;
   tourId?: string;
 }
+
+// 🗺️ DIFFÉRENTS FOURNISSEURS DE CARTES
+const MAP_PROVIDERS = {
+  osm: {
+    name: 'OpenStreetMap',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  },
+  carto_light: {
+    name: 'Carto Light',
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    attribution: '© OpenStreetMap © CARTO',
+    maxZoom: 19
+  },
+  carto_dark: {
+    name: 'Carto Dark',
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution: '© OpenStreetMap © CARTO',
+    maxZoom: 19
+  },
+  esri_world: {
+    name: 'ESRI World Imagery',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: '© ESRI',
+    maxZoom: 18
+  },
+  google_streets: {
+    name: 'Google Streets',
+    url: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+    attribution: '© Google',
+    maxZoom: 20
+  },
+  google_satellite: {
+    name: 'Google Satellite',
+    url: 'https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+    attribution: '© Google',
+    maxZoom: 20
+  },
+  google_hybrid: {
+    name: 'Google Hybrid',
+    url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+    attribution: '© Google',
+    maxZoom: 20
+  },
+  stadia_smooth: {
+    name: 'Stadia Smooth',
+    url: 'https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png',
+    attribution: '© Stadia Maps © OpenStreetMap',
+    maxZoom: 20
+  },
+  stadia_dark: {
+    name: 'Stadia Dark',
+    url: 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
+    attribution: '© Stadia Maps © OpenStreetMap',
+    maxZoom: 20
+  }
+};
 
 const markerColors = {
   pending: '#6B7280',
@@ -59,9 +118,20 @@ export default function TourMap({
   const driverMarkerRef = useRef<L.Marker | null>(null);
   const routingControlRef = useRef<any>(null);
   const driverPathRef = useRef<L.Polyline | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
   
   const [driverPath, setDriverPath] = useState<[number, number][]>([]);
   const [pathDistance, setPathDistance] = useState(0);
+  const [showProviderMenu, setShowProviderMenu] = useState(false);
+  const [currentProvider, setCurrentProvider] = useState<keyof typeof MAP_PROVIDERS>('carto_light');
+
+  // Charger le fournisseur sauvegardé
+  useEffect(() => {
+    const saved = localStorage.getItem('map-provider');
+    if (saved && MAP_PROVIDERS[saved as keyof typeof MAP_PROVIDERS]) {
+      setCurrentProvider(saved as keyof typeof MAP_PROVIDERS);
+    }
+  }, []);
 
   // Charger le parcours depuis localStorage
   useEffect(() => {
@@ -114,24 +184,67 @@ export default function TourMap({
       attributionControl: true
     }).setView([48.8566, 2.3522], 12);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap',
-      maxZoom: 19
+    const provider = MAP_PROVIDERS[currentProvider];
+    const tileLayer = L.tileLayer(provider.url, {
+      attribution: provider.attribution,
+      maxZoom: provider.maxZoom
     }).addTo(map);
 
+    tileLayerRef.current = tileLayer;
     mapRef.current = map;
   }, []);
 
-  // Créer l'icône personnalisée
+  // Changer de fournisseur de tuiles
+  const changeProvider = (providerId: keyof typeof MAP_PROVIDERS) => {
+    if (!mapRef.current) return;
+
+    // Supprimer l'ancienne couche
+    if (tileLayerRef.current) {
+      mapRef.current.removeLayer(tileLayerRef.current);
+    }
+
+    // Ajouter la nouvelle couche
+    const provider = MAP_PROVIDERS[providerId];
+    const newTileLayer = L.tileLayer(provider.url, {
+      attribution: provider.attribution,
+      maxZoom: provider.maxZoom
+    }).addTo(mapRef.current);
+
+    tileLayerRef.current = newTileLayer;
+    setCurrentProvider(providerId);
+    localStorage.setItem('map-provider', providerId);
+    setShowProviderMenu(false);
+  };
+
+  // Créer l'icône personnalisée avec meilleure visibilité
   const createCustomIcon = (stop: Stop) => {
     const color = markerColors[stop.status as keyof typeof markerColors] || markerColors.pending;
     
     const svgIcon = `
-      <svg width="40" height="50" viewBox="0 0 40 50" xmlns="http://www.w3.org/2000/svg">
-        <path d="M20 0C8.954 0 0 8.954 0 20c0 14 20 30 20 30s20-16 20-30C40 8.954 31.046 0 20 0z" 
-              fill="${color}" stroke="#FFFFFF" stroke-width="2"/>
-        <circle cx="20" cy="20" r="12" fill="${color}" stroke="#FFFFFF" stroke-width="2"/>
-        <text x="20" y="26" font-size="14" font-weight="bold" fill="#FFFFFF" text-anchor="middle">
+      <svg width="50" height="60" viewBox="0 0 50 60" xmlns="http://www.w3.org/2000/svg">
+        <!-- Ombre portée -->
+        <ellipse cx="25" cy="56" rx="8" ry="3" fill="rgba(0,0,0,0.3)" />
+        
+        <!-- Contour blanc épais pour visibilité -->
+        <path d="M25 2C13.954 2 5 10.954 5 22c0 14 20 35 20 35s20-21 20-35C45 10.954 36.046 2 25 2z" 
+              fill="white" />
+        
+        <!-- Marqueur principal -->
+        <path d="M25 5C15.611 5 8 12.611 8 22c0 12 17 30 17 30s17-18 17-30C42 12.611 34.389 5 25 5z" 
+              fill="${color}" stroke="white" stroke-width="2.5"/>
+        
+        <!-- Cercle intérieur blanc -->
+        <circle cx="25" cy="22" r="13" fill="white" opacity="0.95"/>
+        
+        <!-- Cercle de couleur -->
+        <circle cx="25" cy="22" r="11" fill="${color}"/>
+        
+        <!-- Numéro avec contour -->
+        <text x="25" y="29" font-size="16" font-weight="900" fill="white" text-anchor="middle" 
+              stroke="rgba(0,0,0,0.3)" stroke-width="3" paint-order="stroke">
+          ${stop.sequence_order}
+        </text>
+        <text x="25" y="29" font-size="16" font-weight="900" fill="white" text-anchor="middle">
           ${stop.sequence_order}
         </text>
       </svg>
@@ -140,9 +253,9 @@ export default function TourMap({
     return L.divIcon({
       html: svgIcon,
       className: 'custom-marker',
-      iconSize: [40, 50],
-      iconAnchor: [20, 50],
-      popupAnchor: [0, -50]
+      iconSize: [50, 60],
+      iconAnchor: [25, 60],
+      popupAnchor: [0, -60]
     });
   };
 
@@ -208,88 +321,100 @@ export default function TourMap({
     }
   }, [stops, onStopClick]);
 
-  // Ajouter un point au parcours
+  // Dessiner le parcours réel du chauffeur
   useEffect(() => {
-    if (!driverLocation) return;
+    if (!mapRef.current || !driverLocation) return;
 
     const newPoint: [number, number] = [driverLocation.latitude, driverLocation.longitude];
-
+    
     setDriverPath(prev => {
-      if (prev.length === 0) return [newPoint];
-
-      const lastPoint = prev[prev.length - 1];
-      const distance = calculateDistance(
-        lastPoint[0], lastPoint[1],
-        newPoint[0], newPoint[1]
-      );
-
-      if (distance > 0.01) {
-        setPathDistance(prevDist => prevDist + distance);
-        return [...prev, newPoint];
+      const updated = [...prev, newPoint];
+      
+      if (updated.length > 1) {
+        const lastPoint = updated[updated.length - 2];
+        const distance = calculateDistance(lastPoint[0], lastPoint[1], newPoint[0], newPoint[1]);
+        setPathDistance(prev => prev + distance);
       }
-
-      return prev;
+      
+      return updated;
     });
   }, [driverLocation]);
 
-  // Afficher le parcours du chauffeur
+  // Afficher la polyline du parcours
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || driverPath.length < 2) return;
 
     if (driverPathRef.current) {
-      driverPathRef.current.remove();
-      driverPathRef.current = null;
-    }
-
-    if (driverPath.length >= 2) {
-      const polyline = L.polyline(driverPath, {
+      driverPathRef.current.setLatLngs(driverPath);
+    } else {
+      driverPathRef.current = L.polyline(driverPath, {
         color: '#10B981',
         weight: 4,
         opacity: 0.7,
-        smoothFactor: 1,
-        dashArray: '5, 10',
+        smoothFactor: 1
       }).addTo(mapRef.current);
-
-      polyline.bindTooltip(
-        `Parcours réel: ${pathDistance.toFixed(2)} km`,
-        { permanent: false, direction: 'center' }
-      );
-
-      driverPathRef.current = polyline;
     }
-  }, [driverPath, pathDistance]);
+  }, [driverPath]);
 
-  // Marker du chauffeur
+  // Afficher le marker du chauffeur avec meilleure visibilité
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || !driverLocation) return;
 
     if (driverMarkerRef.current) {
-      driverMarkerRef.current.remove();
-      driverMarkerRef.current = null;
-    }
-
-    if (driverLocation) {
+      driverMarkerRef.current.setLatLng([driverLocation.latitude, driverLocation.longitude]);
+    } else {
       const driverIcon = L.divIcon({
         html: `
-          <div style="position: relative;">
-            <svg width="50" height="50" viewBox="0 0 50 50">
-              <circle cx="25" cy="25" r="22" fill="#3B82F6" stroke="white" stroke-width="4"/>
-              <text x="25" y="32" font-size="24" fill="white" text-anchor="middle">🚛</text>
-            </svg>
+          <div style="position: relative; width: 60px; height: 60px;">
+            <!-- Cercle pulsant blanc -->
+            <div style="
+              position: absolute; top: 50%; left: 50%; 
+              transform: translate(-50%, -50%);
+              width: 65px; height: 65px; 
+              background: rgba(255, 255, 255, 0.4); 
+              border-radius: 50%;
+              animation: pulse-ring 2s ease-in-out infinite;">
+            </div>
+            
+            <!-- Cercle principal avec ombre -->
+            <div style="
+              position: absolute; top: 50%; left: 50%; 
+              transform: translate(-50%, -50%);
+              width: 56px; height: 56px; 
+              background: white;
+              border-radius: 50%;
+              box-shadow: 0 6px 20px rgba(0,0,0,0.4);">
+            </div>
+            
+            <!-- Cercle de couleur -->
+            <div style="
+              position: absolute; top: 50%; left: 50%; 
+              transform: translate(-50%, -50%);
+              width: 50px; height: 50px; 
+              background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+              border-radius: 50%; border: 3px solid white;
+              box-shadow: 0 4px 12px rgba(16, 185, 129, 0.5);
+              display: flex; align-items: center; justify-content: center;
+              font-size: 26px;">
+              🚚
+            </div>
+            
             ${pathDistance > 0 ? `
               <div style="
-                position: absolute; bottom: -30px; left: 50%;
+                position: absolute; bottom: -35px; left: 50%;
                 transform: translateX(-50%); white-space: nowrap;
-                background: white; padding: 4px 8px; border-radius: 6px;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.15); font-size: 11px;">
+                background: white; padding: 6px 12px; border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.25); 
+                font-size: 12px; font-weight: 700;
+                color: #10B981; border: 2px solid #10B981;">
                 📍 ${pathDistance.toFixed(2)} km
               </div>
             ` : ''}
           </div>
         `,
         className: 'driver-marker',
-        iconSize: [50, 50],
-        iconAnchor: [25, 25]
+        iconSize: [60, 60],
+        iconAnchor: [30, 30]
       });
 
       const marker = L.marker([driverLocation.latitude, driverLocation.longitude], {
@@ -360,12 +485,11 @@ export default function TourMap({
     }
   };
 
-  // 🔥 CLEANUP COMPLET - LE PLUS IMPORTANT
+  // CLEANUP COMPLET
   useEffect(() => {
     return () => {
       console.log('🧹 Cleanup TourMap');
 
-      // 1. Supprimer le routingControl
       if (routingControlRef.current && mapRef.current) {
         try {
           mapRef.current.removeControl(routingControlRef.current);
@@ -375,7 +499,6 @@ export default function TourMap({
         routingControlRef.current = null;
       }
 
-      // 2. Supprimer tous les markers
       markersRef.current.forEach(marker => {
         try {
           marker.remove();
@@ -385,7 +508,6 @@ export default function TourMap({
       });
       markersRef.current = [];
 
-      // 3. Supprimer le marker du chauffeur
       if (driverMarkerRef.current) {
         try {
           driverMarkerRef.current.remove();
@@ -395,7 +517,6 @@ export default function TourMap({
         driverMarkerRef.current = null;
       }
 
-      // 4. Supprimer la polyline du parcours
       if (driverPathRef.current && mapRef.current) {
         try {
           mapRef.current.removeLayer(driverPathRef.current);
@@ -405,7 +526,15 @@ export default function TourMap({
         driverPathRef.current = null;
       }
 
-      // 5. Détruire la carte Leaflet
+      if (tileLayerRef.current && mapRef.current) {
+        try {
+          mapRef.current.removeLayer(tileLayerRef.current);
+        } catch (e) {
+          console.warn('Erreur cleanup tileLayer:', e);
+        }
+        tileLayerRef.current = null;
+      }
+
       if (mapRef.current) {
         try {
           mapRef.current.remove();
@@ -417,10 +546,63 @@ export default function TourMap({
 
       console.log('✅ TourMap cleanup terminé');
     };
-  }, []); // 🎯 Dépendances vides = se déclenche uniquement au démontage
+  }, []);
 
   return (
     <div style={{ position: 'relative', height }}>
+      {/* Sélecteur de fournisseur de carte */}
+      <div style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 1000 }}>
+        <button
+          onClick={() => setShowProviderMenu(!showProviderMenu)}
+          style={{
+            background: 'white', padding: '10px 14px', borderRadius: '8px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)', border: 'none',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+            fontSize: '14px', fontWeight: 500
+          }}
+        >
+          <Layers size={18} />
+          {MAP_PROVIDERS[currentProvider].name}
+        </button>
+
+        {showProviderMenu && (
+          <div style={{
+            position: 'absolute', top: '50px', left: 0,
+            background: 'white', borderRadius: '8px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            overflow: 'hidden', minWidth: '200px'
+          }}>
+            {Object.entries(MAP_PROVIDERS).map(([id, provider]) => (
+              <button
+                key={id}
+                onClick={() => changeProvider(id as keyof typeof MAP_PROVIDERS)}
+                style={{
+                  width: '100%', padding: '12px 16px', border: 'none',
+                  background: currentProvider === id ? '#EFF6FF' : 'white',
+                  color: currentProvider === id ? '#2563EB' : '#374151',
+                  textAlign: 'left', cursor: 'pointer',
+                  fontSize: '14px', fontWeight: currentProvider === id ? 600 : 400,
+                  transition: 'all 0.2s'
+                }}
+                onMouseOver={(e) => {
+                  if (currentProvider !== id) {
+                    e.currentTarget.style.background = '#F9FAFB';
+                  }
+                }}
+                onMouseOut={(e) => {
+                  if (currentProvider !== id) {
+                    e.currentTarget.style.background = 'white';
+                  }
+                }}
+              >
+                {provider.name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Indicateur de distance parcourue */}
       {pathDistance > 0 && (
         <div style={{
           position: 'absolute', top: '10px', right: '10px', zIndex: 1000,
@@ -477,12 +659,13 @@ export default function TourMap({
         .custom-marker {
           background: transparent !important;
           border: none !important;
+          filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
         }
         
         .driver-marker {
           background: transparent !important;
           border: none !important;
-          animation: pulse 2s ease-in-out infinite;
+          filter: drop-shadow(0 6px 12px rgba(0,0,0,0.5));
         }
         
         @keyframes pulse {
@@ -493,6 +676,17 @@ export default function TourMap({
           50% {
             transform: scale(1.08);
             opacity: 0.85;
+          }
+        }
+        
+        @keyframes pulse-ring {
+          0% {
+            transform: translate(-50%, -50%) scale(0.8);
+            opacity: 1;
+          }
+          100% {
+            transform: translate(-50%, -50%) scale(1.3);
+            opacity: 0;
           }
         }
         
