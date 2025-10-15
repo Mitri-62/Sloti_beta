@@ -53,13 +53,13 @@ export default function DriverApp() {
           .from('tours')
           .select('id, name, driver_id')
           .eq('id', tourId)
-          .single();
+          .maybeSingle(); // ✅ Utilise maybeSingle au lieu de single
 
         console.log('📊 Résultat:', { tourData, error });
 
         if (error) {
           console.error('❌ Erreur chargement tournée:', error);
-          toast.error(`Tournée introuvable: ${error.message}`);
+          toast.error(`Erreur Supabase: ${error.message}`);
           setLoading(false);
           return;
         }
@@ -196,7 +196,7 @@ export default function DriverApp() {
     }
 
     setTracking(true);
-    toast.loading('Activation du GPS...', { id: 'gps' });
+    toast.loading('Demande d\'accès au GPS...', { id: 'gps' });
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (position) => {
@@ -210,13 +210,28 @@ export default function DriverApp() {
       },
       (error) => {
         console.error('Erreur GPS:', error);
-        toast.error('Impossible d\'obtenir votre position', { id: 'gps' });
+        
+        let errorMessage = 'Impossible d\'obtenir votre position';
+        
+        switch(error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Permission GPS refusée. Autorisez la localisation dans les réglages de Safari.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Position GPS indisponible. Vérifiez votre connexion.';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Délai GPS dépassé. Réessayez.';
+            break;
+        }
+        
+        toast.error(errorMessage, { id: 'gps', duration: 5000 });
         setTracking(false);
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 5000
+        timeout: 15000, // 15 secondes au lieu de 10
+        maximumAge: 0 // Toujours demander une position fraîche
       }
     );
   };
@@ -497,9 +512,18 @@ export default function DriverApp() {
               <p className="font-semibold text-yellow-900 text-sm mb-1">
                 GPS non activé
               </p>
-              <p className="text-xs text-yellow-800">
+              <p className="text-xs text-yellow-800 mb-2">
                 Activez le GPS pour que le dispatching puisse suivre votre position en temps réel.
               </p>
+              <details className="text-xs text-yellow-700">
+                <summary className="cursor-pointer font-medium">📱 Problème d'autorisation ?</summary>
+                <ol className="list-decimal list-inside mt-2 space-y-1">
+                  <li>Tapez sur "aA" dans la barre d'adresse Safari</li>
+                  <li>Sélectionnez "Réglages du site web"</li>
+                  <li>Activez "Localisation"</li>
+                  <li>Rechargez la page et réessayez</li>
+                </ol>
+              </details>
             </div>
           </div>
         </div>
