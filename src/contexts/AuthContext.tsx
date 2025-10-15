@@ -1,9 +1,8 @@
-// src/contexts/AuthContext.tsx - VERSION OPTIMISÉE
+// src/contexts/AuthContext.tsx - VERSION CORRIGÉE
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { User } from "../types";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
 
 interface UserWithCompany extends User {
   full_name?: string;
@@ -25,7 +24,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<UserWithCompany | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const navigate = useNavigate();
   
   // ✅ Ref pour éviter de vérifier la session trop souvent
   const lastCheckRef = useRef<number>(0);
@@ -101,7 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setUser(null);
         setIsLoading(false);
-        navigate("/login");
+        // ❌ PAS de navigate() ici
       }
     };
 
@@ -116,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await checkUser(true);
       } else if (event === "SIGNED_OUT") {
         setUser(null);
-        navigate("/login");
+        // ❌ PAS de navigate() ici
       }
     });
     
@@ -126,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (msg.data.event === "SIGNED_IN") await checkUser(true);
       if (msg.data.event === "SIGNED_OUT") {
         setUser(null);
-        navigate("/login");
+        // ❌ PAS de navigate() ici
       }
     };
 
@@ -143,7 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       supabase.auth.stopAutoRefresh();
       window.removeEventListener("focus", handleFocus);
     };
-  }, [checkUser, navigate]);
+  }, [checkUser]);
 
   /**
    * 🔹 Connexion
@@ -159,7 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data.user) {
         await checkUser(true);
         toast.success("Connexion réussie");
-        navigate("/app");
+        // ✅ La redirection se fera dans le composant Login après l'appel
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Erreur de connexion";
@@ -181,7 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       sessionStorage.clear();
       toast.success("Déconnexion réussie");
-      navigate("/login");
+      // ✅ La redirection se fera dans le composant qui appelle logout
     } catch (err) {
       console.error("Logout error:", err);
       toast.error("Erreur lors de la déconnexion");
