@@ -1,9 +1,8 @@
-// src/pages/DriverApp.tsx - VERSION CONNECTÉE
+// src/pages/DriverApp.tsx - VERSION CORRIGÉE COMPLÈTE
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { Navigation, MapPin, Package, CheckCircle, AlertCircle, Phone, Clock } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'sonner';
 
 interface Stop {
@@ -26,7 +25,6 @@ interface Tour {
 
 export default function DriverApp() {
   const { tourId } = useParams();
-  const { user } = useAuth();
   
   const [tracking, setTracking] = useState(false);
   const [tour, setTour] = useState<Tour | null>(null);
@@ -42,32 +40,38 @@ export default function DriverApp() {
     if (!tourId) return;
 
     const loadTour = async () => {
-      const { data: tourData, error } = await supabase
-        .from('tours')
-        .select('id, name, driver_id')
-        .eq('id', tourId)
-        .single();
+      try {
+        const { data: tourData, error } = await supabase
+          .from('tours')
+          .select('id, name, driver_id')
+          .eq('id', tourId)
+          .single();
 
-      if (error) {
-        console.error('Erreur chargement tournée:', error);
-        toast.error('Tournée introuvable');
-        return;
+        if (error) {
+          console.error('Erreur chargement tournée:', error);
+          toast.error('Tournée introuvable');
+          return;
+        }
+
+        setTour(tourData);
+
+        // Charger les stops
+        const { data: stopsData } = await supabase
+          .from('delivery_stops')
+          .select('*')
+          .eq('tour_id', tourId)
+          .order('sequence_order', { ascending: true });
+
+        if (stopsData) {
+          setStops(stopsData);
+        }
+
+        setLoading(false);
+      } catch (err) {
+        console.error('Erreur:', err);
+        toast.error('Erreur lors du chargement');
+        setLoading(false);
       }
-
-      setTour(tourData);
-
-      // Charger les stops
-      const { data: stopsData } = await supabase
-        .from('delivery_stops')
-        .select('*')
-        .eq('tour_id', tourId)
-        .order('sequence_order', { ascending: true });
-
-      if (stopsData) {
-        setStops(stopsData);
-      }
-
-      setLoading(false);
     };
 
     loadTour();
@@ -392,17 +396,17 @@ export default function DriverApp() {
             {currentStop.status === 'arrived' ? (
               <button
                 onClick={() => markCompleted(currentStop.id)}
-                className="w-full mt-3 px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-semibold flex items-center justify-center gap-2 shadow-lg"
+                className="w-full mt-3 px-4 py-3 bg-green-500 hover:bg-green-600 rounded-xl transition-colors font-semibold flex items-center justify-center gap-2"
               >
-                <CheckCircle size={20} />
-                Marquer comme livré
+                <CheckCircle size={18} />
+                Valider la livraison
               </button>
             ) : (
               <button
                 onClick={() => markArrived(currentStop.id)}
-                className="w-full mt-3 px-4 py-3 bg-white/20 hover:bg-white/30 rounded-xl font-semibold flex items-center justify-center gap-2"
+                className="w-full mt-3 px-4 py-3 bg-white/20 hover:bg-white/30 rounded-xl transition-colors font-semibold flex items-center justify-center gap-2"
               >
-                <MapPin size={20} />
+                <MapPin size={18} />
                 Je suis arrivé
               </button>
             )}
@@ -410,15 +414,15 @@ export default function DriverApp() {
         </div>
       )}
 
-      {/* Liste de tous les arrêts */}
-      <div className="px-4 pb-6">
+      {/* Liste des arrêts */}
+      <div className="px-4 pb-20">
         <h2 className="text-lg font-bold text-gray-900 mb-3">Tous les arrêts</h2>
         <div className="space-y-3">
           {stops.map((stop) => (
             <div
               key={stop.id}
-              className={`bg-white rounded-xl shadow-sm border-2 p-4 transition-all ${
-                stop.status === 'completed' 
+              className={`bg-white rounded-xl shadow-sm p-4 border-2 transition-all ${
+                stop.status === 'completed'
                   ? 'border-green-200 bg-green-50'
                   : stop.status === 'arrived'
                   ? 'border-blue-200 bg-blue-50'
