@@ -1,4 +1,4 @@
-// src/app/AppApp.tsx - VERSION COMPLÈTE AVEC CANAUX
+// src/app/AppApp.tsx - VERSION AVEC DRIVER-APP EN DEHORS DU LAYOUT
 import { Routes, Route } from "react-router-dom";
 import { AuthProvider } from "../contexts/AuthContext";
 import { ThemeProvider } from "../contexts/ThemeContext";
@@ -24,7 +24,7 @@ import ToastProvider from '../components/ToastProvider';
 import Profile from "../pages/Profile";
 import Settings from "../pages/Settings";
 import Notifications from "../pages/Notifications";
-import InvitePage from "../pages/InvitePage"; // NOUVEAU
+import InvitePage from "../pages/InvitePage";
 import Inventaire from "../pages/Inventaire";
 import HelpCenter from "../pages/HelpCenter";
 import DriverApp from "../pages/DriverApp";
@@ -32,10 +32,11 @@ import DriverApp from "../pages/DriverApp";
 function AppContent() {
   return (
     <Routes>
-      {/* Route publique pour les invitations - EN DEHORS du Layout */}
+      {/* Routes SANS Layout (standalone) */}
       <Route path="/invite/:token" element={<InvitePage />} />
+      <Route path="/driver-app/:tourId" element={<DriverApp />} />
 
-      {/* Routes avec Layout */}
+      {/* Routes AVEC Layout (interface principale) */}
       <Route element={<Layout />}>
         {/* Home */}
         <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
@@ -55,18 +56,17 @@ function AppContent() {
         {/* Tournées */}
         <Route path="tour-planning" element={<PrivateRoute><TourPlanning /></PrivateRoute>} />
         <Route path="tour-planning/:tourId" element={<PrivateRoute><TourDetailView /></PrivateRoute>} />
-        <Route path="driver-app/:tourId" element={<DriverApp />} />
 
         {/* Paramètres et profil */}
         <Route path="profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
         <Route path="settings" element={<PrivateRoute><Settings /></PrivateRoute>} />
         <Route path="notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />
 
-        {/* centre d'aide */}
+        {/* Centre d'aide */}
         <Route path="help" element={<PrivateRoute><HelpCenter /></PrivateRoute>} />
         <Route path="help/:guideId" element={<PrivateRoute><HelpCenter /></PrivateRoute>} />
 
-        {/* Communication - ROUTES MISES À JOUR */}
+        {/* Communication */}
         <Route path="chat" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
         <Route path="chat/channel/:channelId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
         <Route path="chat/dm/:userId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
