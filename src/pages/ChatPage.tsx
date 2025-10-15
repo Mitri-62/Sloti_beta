@@ -1,4 +1,4 @@
-// src/pages/ChatPage.tsx - VERSION MISE À JOUR AVEC CANAUX
+// src/pages/ChatPage.tsx - VERSION COMPLÈTE AVEC DM
 import { useState, useRef, useEffect } from "react";
 import { 
   Send, Paperclip, Smile, Hash, AlertCircle, 
@@ -22,12 +22,16 @@ const EMOJI_LIST = ["👍", "❤️", "😂", "😮", "🎉", "🚀"];
 
 export default function ChatPage() {
   const { user } = useAuth();
-  const { channelId } = useParams();
+  const { channelId, userId: dmUserId } = useParams();
   const navigate = useNavigate();
   
+  const conversationId = dmUserId || channelId || 'general';
+  
   const { messages, loading: messagesLoading, hasMore, loadMore } = useChatMessages(
-    channelId || 'general', 
-    user?.company_id || ''
+    conversationId, 
+    user?.company_id || '',
+    user?.id, // ✅ currentUserId pour filtrer les DM
+    !!dmUserId // ✅ isDM flag
   );
   
   const { typingUsers, notifyTyping } = useTypingIndicator(
@@ -193,12 +197,15 @@ export default function ChatPage() {
         username: user.name || user.email?.split("@")[0] || "Anonyme",
         company_id: user.company_id,
         channel_id: channelId || null,
+        receiver_id: dmUserId || null, // ✅ Pour les DM
       };
 
       if (attachmentUrl) {
         messageData.attachment_url = attachmentUrl;
         messageData.attachment_type = attachmentType;
       }
+
+      console.log("📤 Envoi message:", messageData);
 
       const { error } = await supabase.from("chat_messages").insert([messageData]);
       
@@ -213,6 +220,7 @@ export default function ChatPage() {
         inputRef.current.focus();
       }
     } catch (err: any) {
+      console.error("❌ Erreur envoi:", err);
       setError(err.message || "Impossible d'envoyer le message.");
     } finally {
       setSending(false);
@@ -370,75 +378,76 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 dark:bg-gray-900">
-      {/* Header avec info canal */}
-      <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            {channel ? (
-              <>
-                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Hash size={20} className="text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h2 className="font-bold text-gray-900 dark:text-white truncate">
-                    #{channel.name}
-                  </h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                    {channel.description || "Aucune description"}
-                  </p>
-                </div>
-                {channel.userRole === 'guest' && (
-                  <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded-full">
-                    Lecture seule
-                  </span>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Hash size={20} className="text-white" />
-                </div>
-                <div>
-                  <h2 className="font-bold text-gray-900 dark:text-white">
-                    Chat général
-                  </h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {user?.company_name}
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
+    <div className="flex flex-col h-full w-full bg-white dark:bg-gray-900">
+      {/* HEADER FIXE */}
+      <div className="flex-shrink-0 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm z-30">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              {channel ? (
+                <>
+                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Hash size={20} className="text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="font-bold text-gray-900 dark:text-white truncate">
+                      #{channel.name}
+                    </h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                      {channel.description || "Aucune description"}
+                    </p>
+                  </div>
+                  {channel.userRole === 'guest' && (
+                    <span className="px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 text-xs rounded-full">
+                      Lecture seule
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Hash size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-gray-900 dark:text-white">
+                      {dmUserId ? "Message privé" : "Chat général"}
+                    </h2>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {user?.company_name}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
 
-          <div className="flex items-center gap-2">
-            {channel && channel.userRole === 'admin' && (
-              <button
-                onClick={() => setShowSettings(true)}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                title="Paramètres du canal"
-              >
-                <Settings size={20} />
-              </button>
-            )}
-            
-            <div className="relative flex-1 max-w-xs">
-              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
-              <input
-                type="text"
-                placeholder="Rechercher..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-              />
+            <div className="flex items-center gap-2">
+              {channel && channel.userRole === 'admin' && (
+                <button
+                  onClick={() => setShowSettings(true)}
+                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  title="Paramètres du canal"
+                >
+                  <Settings size={20} />
+                </button>
+              )}
+              
+              <div className="relative flex-1 max-w-xs">
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500" />
+                <input
+                  type="text"
+                  placeholder="Rechercher..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                />
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Messages - Zone scrollable */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {/* Indicateur de chargement en haut */}
+      {/* ZONE DE MESSAGES */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-gray-50 dark:bg-gray-900">
         <div ref={topRef} className="h-4 flex items-center justify-center">
           {messagesLoading && hasMore && (
             <Loader size={20} className="text-gray-400 dark:text-gray-500 animate-spin" />
@@ -539,7 +548,6 @@ export default function ChatPage() {
                             )}
                           </div>
 
-                          {/* Actions rapides */}
                           <div
                             className={`absolute ${isCurrentUser ? "-left-28" : "-right-28"} top-1/2 -translate-y-1/2 opacity-0 group-hover/message:opacity-100 transition-opacity flex gap-1`}
                           >
@@ -577,7 +585,6 @@ export default function ChatPage() {
                             )}
                           </div>
 
-                          {/* Emoji picker */}
                           {showEmojiPicker === m.id && (
                             <div
                               ref={emojiPickerRef}
@@ -600,7 +607,6 @@ export default function ChatPage() {
                       )}
                     </div>
 
-                    {/* Réactions */}
                     {m.reactions && m.reactions.length > 0 && (
                       <div className={`flex gap-1 mt-1 flex-wrap ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
                         {m.reactions.map((reaction: any, idx: number) => (
@@ -632,7 +638,6 @@ export default function ChatPage() {
           })
         )}
 
-        {/* Indicateur de frappe */}
         {typingUsers.length > 0 && (
           <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 px-1">
             <div className="flex gap-1">
@@ -647,10 +652,10 @@ export default function ChatPage() {
         <div ref={bottomRef} />
       </div>
 
-      {/* Zone saisie FIXE */}
-      <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-4">
+      {/* ZONE D'INPUT */}
+      <div className="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 z-30">
         {error && (
-          <div className="mb-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300 px-3 py-2 rounded-lg flex items-center gap-2 text-sm animate-in fade-in slide-in-from-top-2">
+          <div className="mb-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-300 px-3 py-2 rounded-lg flex items-center gap-2 text-sm">
             <AlertCircle size={16} />
             <span>{error}</span>
             <button onClick={() => setError(null)} className="ml-auto hover:opacity-70">
@@ -670,13 +675,12 @@ export default function ChatPage() {
           <div className="mb-3 flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
             <ImageIcon size={16} className="text-gray-600 dark:text-gray-400" />
             <span className="text-sm text-gray-700 dark:text-gray-300 flex-1">Fichier prêt à envoyer</span>
-            <button onClick={() => setAttachmentUrl(null)} className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300">
+            <button onClick={() => { setAttachmentUrl(null); setAttachmentType(null); }} className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300">
               <X size={16} />
             </button>
           </div>
         )}
 
-        {/* Avertissement lecture seule */}
         {channel && !channel.canWrite && (
           <div className="mb-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-300 px-3 py-2 rounded-lg flex items-center gap-2 text-sm">
             <AlertCircle size={16} />
@@ -738,7 +742,6 @@ export default function ChatPage() {
         </p>
       </div>
 
-      {/* Modal paramètres canal */}
       {showSettings && channel && (
         <ChannelSettingsModal
           channelId={channel.id}

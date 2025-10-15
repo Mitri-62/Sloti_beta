@@ -1,3 +1,4 @@
+// src/components/Sidebar.tsx - VERSION COMPLÈTE CORRIGÉE
 import { useState, useEffect} from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
@@ -443,9 +444,9 @@ export default function Sidebar() {
         />
       )}
 
-      {/* Sidebar Desktop */}
+      {/* Sidebar Desktop - ✅ CORRECTION ICI : flex-shrink-0 ajouté */}
       <aside
-        className={`hidden lg:flex bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-screen flex-col transition-all duration-300 ease-in-out ${
+        className={`hidden lg:flex flex-shrink-0 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 h-screen flex-col transition-all duration-300 ease-in-out ${
           isCollapsed ? "w-20" : "w-64"
         }`}
       >

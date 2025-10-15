@@ -51,10 +51,13 @@ export default function InviteExternalModal({ channelId, onClose }: InviteExtern
       if (fetchError) throw fetchError;
 
       if (invitation) {
-        const link = `${window.location.origin}/invite/${invitation.token}`;
+        // Nettoyer le token ET ajouter /app
+        const cleanToken = invitation.token.replace(/\//g, '');
+        const link = `${window.location.origin}/app/invite/${cleanToken}`;
         setInvitationLink(link);
         toast.success("Invitation créée !");
       }
+      
     } catch (error: any) {
       console.error("Erreur création invitation:", error);
       toast.error(error.message || "Erreur lors de la création");

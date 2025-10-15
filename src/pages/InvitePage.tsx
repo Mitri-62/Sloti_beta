@@ -1,5 +1,5 @@
-// src/pages/InvitePage.tsx
-import { useEffect, useState } from "react";
+// src/pages/InvitePage.tsx - VERSION CORRIGÉE
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../contexts/AuthContext";
@@ -20,74 +20,103 @@ export default function InvitePage() {
   const [error, setError] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
 
-  useEffect(() => {
-    if (token) {
-      loadInvitation();
-    }
-  }, [token]);
-
-  const loadInvitation = async () => {
+  const loadInvitation = useCallback(async () => {
+    console.log("🚀 loadInvitation appelée");
+    console.log("🔍 Token reçu:", token);
+    console.log("🔑 Supabase URL:", import.meta.env.VITE_SUPABASE_URL);
+    console.log("🔑 Anon Key exists:", !!import.meta.env.VITE_SUPABASE_ANON_KEY);
+    
     setLoading(true);
     setError(null);
-
+  
     try {
-      // Charger l'invitation (accès public pour validation)
-      const { data: invitationData, error: invitationError } = await supabase
+      console.log("📡 Requête Supabase...");
+      
+      // Timeout de 15 secondes
+      const timeoutPromise = new Promise<never>((_, reject) => 
+        setTimeout(() => reject(new Error("⏱️ Timeout - La requête a pris plus de 15 secondes")), 15000)
+      );
+      
+      const queryPromise = supabase
         .from("external_invitations")
         .select("*")
         .eq("token", token)
         .single();
-
+      
+      console.log("⏳ En attente de la réponse (timeout 15s)...");
+      
+      const { data: invitationData, error: invitationError } = await Promise.race([
+        queryPromise,
+        timeoutPromise
+      ]) as any;
+  
+      console.log("📊 Résultat:", { invitationData, invitationError });
+  
       if (invitationError) {
+        console.error("❌ Erreur:", invitationError);
         setError("Invitation introuvable");
         setLoading(false);
         return;
       }
-
+      
       // Vérifications
       if (invitationData.revoked_at) {
+        console.log("⚠️ Invitation révoquée");
         setError("Cette invitation a été révoquée");
         setLoading(false);
         return;
       }
 
       if (invitationData.used_at) {
+        console.log("⚠️ Invitation déjà utilisée");
         setError("Cette invitation a déjà été utilisée");
         setLoading(false);
         return;
       }
 
       if (new Date(invitationData.expires_at) < new Date()) {
+        console.log("⚠️ Invitation expirée");
         setError("Cette invitation a expiré");
         setLoading(false);
         return;
       }
 
+      console.log("✅ Invitation valide");
       setInvitation(invitationData);
 
-      // Charger les infos du canal (accès public limité)
+      // Charger les infos du canal
+      console.log("📡 Requête channels...");
       const { data: channelData, error: channelError } = await supabase
         .from("channels")
         .select("id, name, description, type, company_id")
         .eq("id", invitationData.channel_id)
         .single();
 
+      console.log("📊 Canal:", { channelData, channelError });
+
       if (channelError) throw channelError;
       setChannel(channelData);
 
+      console.log("✅ Chargement terminé");
+
     } catch (error: any) {
-      console.error("Erreur chargement invitation:", error);
+      console.error("❌ Erreur chargement invitation:", error);
       setError("Erreur lors du chargement de l'invitation");
     } finally {
       setLoading(false);
     }
-  };
+  }, [token]);
+
+  useEffect(() => {
+    if (token) {
+      loadInvitation();
+    }
+  }, [token, loadInvitation]);
 
   const acceptInvitation = async () => {
     if (!user) {
       toast.info("Vous devez être connecté pour accepter l'invitation");
-      // Rediriger vers login avec retour sur cette page
-      navigate(`/login?redirect=/invite/${token}`);
+      navigate(`/login?redirect=/app/invite/${token}`);
       return;
     }
 
@@ -99,9 +128,13 @@ export default function InvitePage() {
 
     setAccepting(true);
     try {
+      console.log("🎯 Acceptation de l'invitation...");
+      
       const { data, error } = await supabase.rpc("accept_external_invitation", {
         p_token: token,
       });
+
+      console.log("📊 Résultat acceptation:", { data, error });
 
       if (error) throw error;
 
@@ -113,7 +146,7 @@ export default function InvitePage() {
       }, 1000);
 
     } catch (error: any) {
-      console.error("Erreur acceptation invitation:", error);
+      console.error("❌ Erreur acceptation invitation:", error);
       toast.error(error.message || "Erreur lors de l'acceptation");
     } finally {
       setAccepting(false);
@@ -282,9 +315,8 @@ export default function InvitePage() {
                   </p>
                   <button
                     onClick={() => {
-                      // Déconnexion et redirection vers login
                       supabase.auth.signOut();
-                      navigate(`/login?redirect=/invite/${token}`);
+                      navigate(`/login?redirect=/app/invite/${token}`);
                     }}
                     className="text-xs bg-yellow-600 text-white px-3 py-1.5 rounded hover:bg-yellow-700 transition-colors"
                   >
@@ -297,14 +329,14 @@ export default function InvitePage() {
         ) : (
           <div className="space-y-3">
             <button
-              onClick={() => navigate(`/login?redirect=/invite/${token}`)}
+              onClick={() => navigate(`/login?redirect=/app/invite/${token}`)}
               className="w-full px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all font-semibold flex items-center justify-center gap-2"
             >
               <LogIn size={20} />
               Se connecter pour accepter
             </button>
             <button
-              onClick={() => navigate(`/register?redirect=/invite/${token}`)}
+              onClick={() => navigate(`/signup?redirect=/app/invite/${token}`)}
               className="w-full px-6 py-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors font-semibold flex items-center justify-center gap-2"
             >
               <UserPlus size={20} />
