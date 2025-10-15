@@ -1,5 +1,5 @@
-// src/pages/MasterData.tsx - VERSION OPTIMISÉE
-import { useState, useMemo, useCallback } from "react";
+// src/pages/MasterData.tsx - VERSION ULTRA-OPTIMISÉE
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../contexts/AuthContext";
 import MasterDataTable from "../components/MasterDataTable";
@@ -42,18 +42,19 @@ interface MasterDataRow {
 export default function MasterData() {
   const { user } = useAuth();
   
-  // ✅ Hook optimisé avec cache et realtime
+  // ✅ Hook ULTRA-OPTIMISÉ
   const { 
     data: products, 
     loading, 
     refresh 
   } = useOptimizedQuery<MasterDataRow>('masterdata', {
     cache: true,
-    cacheTTL: 10 * 60 * 1000, // 10 minutes (données rarement modifiées)
-    realtime: true,
+    cacheTTL: 5 * 60 * 1000, // ✅ 5 minutes au lieu de 10
+    realtime: false, // ✅ CRITIQUE : Désactivé (MasterData change rarement)
+    select: 'id,company_id,sku,designation,tus,qty_per_pallet,poids_brut,nb_couches,stackable,ean,poids_net', // ✅ Colonnes essentielles uniquement
     filter: { company_id: user?.company_id },
     orderBy: { column: 'sku', ascending: true },
-    deps: [user?.company_id],
+    deps: [], // ✅ Vide, le filter suffit !
   });
 
   const [showModal, setShowModal] = useState(false);
@@ -61,16 +62,28 @@ export default function MasterData() {
   
   // États UI
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState(""); // ✅ Nouveau : debounce
   const [filterType, setFilterType] = useState<string>("Tous");
   const [filterStackable, setFilterStackable] = useState<string>("Tous");
   const [showFilters, setShowFilters] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
+  
+  // ✅ Pagination virtuelle (nouveau)
+  const [visibleCount, setVisibleCount] = useState(100);
 
-  // ✅ Filtrage optimisé avec useMemo
+  // ✅ DEBOUNCE de la recherche (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // ✅ Filtrage optimisé avec debounce
   const filteredProducts = useMemo(() => {
     return products.filter(product => {
-      const searchLower = search.toLowerCase();
+      const searchLower = debouncedSearch.toLowerCase(); // ✅ Utilise debouncedSearch
       const matchSearch = 
         product.sku?.toLowerCase().includes(searchLower) ||
         product.designation?.toLowerCase().includes(searchLower) ||
@@ -84,7 +97,7 @@ export default function MasterData() {
       
       return matchSearch && matchType && matchStackable;
     });
-  }, [products, search, filterType, filterStackable]);
+  }, [products, debouncedSearch, filterType, filterStackable]); // ✅ debouncedSearch au lieu de search
 
   // ✅ Tri optimisé avec useMemo
   const sortedProducts = useMemo(() => {
@@ -94,7 +107,6 @@ export default function MasterData() {
       const aVal = a[sortConfig.key as keyof MasterDataRow];
       const bVal = b[sortConfig.key as keyof MasterDataRow];
       
-      // Gestion des valeurs nulles/undefined
       if (aVal == null) return 1;
       if (bVal == null) return -1;
       
@@ -103,6 +115,11 @@ export default function MasterData() {
       return 0;
     });
   }, [filteredProducts, sortConfig]);
+
+  // ✅ Produits visibles (pagination virtuelle)
+  const visibleProducts = useMemo(() => {
+    return sortedProducts.slice(0, visibleCount);
+  }, [sortedProducts, visibleCount]);
 
   // ✅ KPI optimisés avec useMemo
   const kpis = useMemo(() => ({
@@ -126,12 +143,12 @@ export default function MasterData() {
   }, []);
 
   const toggleSelectAll = useCallback(() => {
-    if (selectedIds.size === sortedProducts.length) {
+    if (selectedIds.size === visibleProducts.length) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(sortedProducts.map(p => p.id)));
+      setSelectedIds(new Set(visibleProducts.map(p => p.id)));
     }
-  }, [selectedIds.size, sortedProducts]);
+  }, [selectedIds.size, visibleProducts]);
 
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds(prev => {
@@ -145,7 +162,12 @@ export default function MasterData() {
     });
   }, []);
 
-  // ✅ Suppression en masse avec gestion d'erreur
+  // ✅ Charger plus de résultats
+  const loadMore = useCallback(() => {
+    setVisibleCount(prev => Math.min(prev + 100, sortedProducts.length));
+  }, [sortedProducts.length]);
+
+  // ✅ Suppression en masse avec invalidation précise
   const handleDeleteSelected = async () => {
     if (selectedIds.size === 0) {
       toast.warning("Aucun produit sélectionné");
@@ -163,8 +185,8 @@ export default function MasterData() {
 
       if (error) throw error;
 
-      // ✅ Invalider le cache et recharger
-      queryCache.invalidate('masterdata_*');
+      // ✅ Invalidation précise
+      queryCache.invalidate(`masterdata_${user?.company_id}`);
       await refresh();
       
       return true;
@@ -189,14 +211,12 @@ export default function MasterData() {
 
     const headers = [
       "SKU", "Type", "Désignation", "EAN", "Qté/palette",
-      "Poids net", "Poids brut", "Longueur", "Largeur", "Hauteur",
-      "Nb couches", "Hauteur couche", "Gerbable", "Poids max"
+      "Poids net", "Poids brut", "Nb couches", "Gerbable"
     ];
 
     const rows = dataToExport.map(p => [
       p.sku, p.tus, p.designation, p.ean, p.qty_per_pallet,
-      p.poids_net, p.poids_brut, p.longueur, p.largeur, p.hauteur,
-      p.nb_couches, p.hauteur_couche, p.stackable ? "Oui" : "Non", p.max_stack_weight
+      p.poids_net, p.poids_brut, p.nb_couches, p.stackable ? "Oui" : "Non"
     ]);
 
     const csvContent = [headers, ...rows]
@@ -249,7 +269,7 @@ export default function MasterData() {
     setShowModal(true);
   }, []);
 
-  // ✅ Suppression avec gestion d'erreur centralisée
+  // ✅ Suppression avec invalidation précise
   const handleDelete = async (row: MasterDataRow) => {
     if (!confirm("Supprimer cet article ?")) return;
     
@@ -262,8 +282,8 @@ export default function MasterData() {
 
       if (error) throw error;
 
-      // ✅ Invalider le cache
-      queryCache.invalidate('masterdata_*');
+      // ✅ Invalidation précise
+      queryCache.invalidate(`masterdata_${user?.company_id}`);
       await refresh();
       
       return true;
@@ -274,7 +294,7 @@ export default function MasterData() {
     }
   };
 
-  // ✅ Sauvegarde avec gestion d'erreur
+  // ✅ Sauvegarde avec invalidation précise
   const handleSave = async (formData: any) => {
     if (!user?.company_id) {
       errorService.handle(
@@ -306,8 +326,8 @@ export default function MasterData() {
         if (error) throw error;
       }
 
-      // ✅ Invalider le cache
-      queryCache.invalidate('masterdata_*');
+      // ✅ Invalidation précise
+      queryCache.invalidate(`masterdata_${user?.company_id}`);
       await refresh();
       
       return true;
@@ -319,7 +339,7 @@ export default function MasterData() {
     }
   };
 
-  // ✅ Import avec gestion d'erreur complète
+  // ✅ Import avec invalidation précise
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -432,8 +452,8 @@ export default function MasterData() {
         totalImported += batch.length;
       }
 
-      // ✅ Invalider le cache et recharger
-      queryCache.invalidate('masterdata_*');
+      // ✅ Invalidation précise
+      queryCache.invalidate(`masterdata_${user?.company_id}`);
       await refresh();
 
       return { totalImported, duplicates };
@@ -576,7 +596,7 @@ export default function MasterData() {
         {/* Barre de recherche et filtres */}
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 mb-6">
           <div className="flex flex-col sm:flex-row gap-4">
-            {/* Recherche */}
+            {/* Recherche avec indicateur de debounce */}
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
               <input
@@ -584,8 +604,14 @@ export default function MasterData() {
                 placeholder="Rechercher par SKU, désignation, EAN..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
               />
+              {/* ✅ Indicateur de recherche active */}
+              {search && debouncedSearch !== search && (
+                <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" title="Recherche en cours...">
+                  ⏳
+                </span>
+              )}
             </div>
 
             {/* Boutons */}
@@ -670,17 +696,18 @@ export default function MasterData() {
               <button
                 onClick={toggleSelectAll}
                 className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
-                title={selectedIds.size === sortedProducts.length ? "Tout désélectionner" : "Tout sélectionner"}
+                title={selectedIds.size === visibleProducts.length ? "Tout désélectionner" : "Tout sélectionner"}
               >
-                {selectedIds.size === sortedProducts.length ? (
+                {selectedIds.size === visibleProducts.length ? (
                   <CheckSquare size={20} className="text-blue-600" />
                 ) : (
                   <Square size={20} className="text-gray-400" />
                 )}
               </button>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                {sortedProducts.length} résultat{sortedProducts.length > 1 ? "s" : ""}
-                {search && ` pour "${search}"`}
+                {/* ✅ Affichage des résultats visibles */}
+                Affichage de {visibleProducts.length} / {sortedProducts.length} résultat{sortedProducts.length > 1 ? "s" : ""}
+                {search && ` pour "${debouncedSearch}"`}
                 {selectedIds.size > 0 && ` • ${selectedIds.size} sélectionné(s)`}
               </p>
             </div>
@@ -706,16 +733,30 @@ export default function MasterData() {
               )}
             </div>
           ) : (
-            <MasterDataTable
-              data={sortedProducts}
-              columns={columns}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-              selectedIds={selectedIds}
-              onSelect={toggleSelect}
-              sortConfig={sortConfig}
-              onSort={handleSort}
-            />
+            <>
+              <MasterDataTable
+                data={visibleProducts} // ✅ Affiche uniquement les produits visibles
+                columns={columns}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                selectedIds={selectedIds}
+                onSelect={toggleSelect}
+                sortConfig={sortConfig}
+                onSort={handleSort}
+              />
+              
+              {/* ✅ Bouton "Charger plus" */}
+              {visibleCount < sortedProducts.length && (
+                <div className="p-4 border-t border-gray-200 dark:border-gray-700 text-center">
+                  <button
+                    onClick={loadMore}
+                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Charger plus ({sortedProducts.length - visibleCount} restants)
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

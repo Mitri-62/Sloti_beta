@@ -205,7 +205,7 @@ export default function Truck3D({
       {/* Contour camion */}
       <mesh position={[truck.length / 2, truck.height / 2, truck.width / 2]}>
         <boxGeometry args={[truck.length, truck.height, truck.width]} />
-        <meshBasicMaterial color="transparent" opacity={0} transparent />
+        <meshBasicMaterial opacity={0} transparent />
         <Edges color="black" linewidth={2} />
       </mesh>
 

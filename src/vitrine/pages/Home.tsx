@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import Navbar from "../components/Navbar";
 import Hero from "../components/Hero";
+import About from "../components/About"; // 👈 AJOUTE ÇA (pas de lazy pour About car léger)
 import News from "../components/News";
 
 // Lazy loading des composants lourds pour optimiser les performances
@@ -23,6 +24,11 @@ export default function Home() {
       <Navbar />
       <main className="min-h-screen">
         <Hero />
+
+        {/* Section About - Pas de lazy car contenu léger et important pour SEO */}
+        <section id="about" aria-labelledby="about-title">
+          <About />
+        </section>
 
         {/* Section Features avec lazy loading */}
         <section id="features" aria-labelledby="features-title">

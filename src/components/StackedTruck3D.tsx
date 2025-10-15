@@ -190,7 +190,7 @@ export default function StackedTruck3D({
       {/* Contour du camion */}
       <mesh position={[truck.length / 2, truck.height / 2, truck.width / 2]}>
         <boxGeometry args={[truck.length, truck.height, truck.width]} />
-        <meshBasicMaterial color="transparent" opacity={0} transparent />
+        <meshBasicMaterial opacity={0} transparent />
         <Edges color={isDarkMode ? "#9ca3af" : "black"} linewidth={2} />
       </mesh>
 

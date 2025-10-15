@@ -1,6 +1,7 @@
-// src/components/Layout.tsx - VERSION CORRIGÉE
+// src/components/Layout.tsx - VERSION OPTIMISÉE
 import { Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useMemo } from "react";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 import ChatSidebar from "./ChatSidebar";
@@ -9,11 +10,17 @@ export default function Layout() {
   const { user } = useAuth();
   const location = useLocation();
   
-  // ✅ Correction : vérifier /app/chat au lieu de /chat
-  const isChatPage = location.pathname.includes("/chat");
+  // ✅ Mémoriser le calcul de isChatPage
+  const isChatPage = useMemo(() => {
+    return location.pathname.includes("/chat");
+  }, [location.pathname]);
 
-  console.log("📍 location:", location.pathname);
-  console.log("💬 isChatPage:", isChatPage);
+  // ✅ Logger uniquement en mode dev et de manière throttlée
+  if (import.meta.env.DEV) {
+    // Ne logger que si nécessaire pour debug
+    // console.log("📍 location:", location.pathname);
+    // console.log("💬 isChatPage:", isChatPage);
+  }
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-900">

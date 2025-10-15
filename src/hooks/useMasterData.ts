@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+// src/hooks/useMasterData.ts - VERSION OPTIMISÉE AVEC FILTRE
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../supabaseClient";
 
 export interface MasterDataItem {
   id?: number;
   sku: string;
   designation: string;
-  tus?: string; // Type d'unité de stock (FEU, FCH, DPH...)
+  tus?: string;
   qty_per_pallet: number;
   poids_net: number;
   poids_brut: number;
@@ -21,20 +22,54 @@ export interface MasterDataItem {
   ean?: string;
 }
 
-export function useMasterData() {
+interface UseMasterDataOptions {
+  /** Liste des SKU à charger (si vide, charge tout) */
+  skuFilter?: string[];
+  /** Company ID pour filtrer */
+  companyId?: string;
+}
+
+export function useMasterData(options: UseMasterDataOptions = {}) {
+  const { skuFilter, companyId } = options;
+  
   const [masterData, setMasterData] = useState<Map<string, MasterDataItem>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // ✅ Mémoriser le filtre pour éviter re-fetch
+  const skuFilterString = useMemo(() => 
+    skuFilter ? JSON.stringify(skuFilter.sort()) : null, 
+    [skuFilter]
+  );
 
   const loadMasterData = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const { data, error: fetchError } = await supabase
+      // ✅ AJOUTE CETTE CONDITION ICI, TOUT AU DÉBUT
+      if (skuFilter && skuFilter.length === 0) {
+        setMasterData(new Map());
+        console.log("✅ Aucun SKU à charger (liste vide)");
+        setLoading(false);
+        return;
+      }
+      let query = supabase
         .from("masterdata")
         .select("*")
         .order("sku");
+
+      // ✅ Filtrer par company_id si fourni
+      if (companyId) {
+        query = query.eq("company_id", companyId);
+      }
+
+      // ✅ Filtrer par SKU si liste fournie
+      if (skuFilter && skuFilter.length > 0) {
+        query = query.in("sku", skuFilter);
+      }
+
+      const { data, error: fetchError } = await query;
 
       if (fetchError) throw fetchError;
 
@@ -46,29 +81,26 @@ export function useMasterData() {
         let largeurPalette = 0.8;
         
         switch(item.tus) {
-          case "FEU": // Format Europe
+          case "FEU":
             longueurPalette = 1.2;
             largeurPalette = 0.8;
             break;
-          case "FCH": // Format CHEP (US)
+          case "FCH":
             longueurPalette = 1.2;
             largeurPalette = 1.0;
             break;
-          case "DPH": // Demi-palette
+          case "DPH":
             longueurPalette = 0.8;
             largeurPalette = 0.6;
             break;
           default:
-            // Par défaut, utiliser FEU
             longueurPalette = 1.2;
             largeurPalette = 0.8;
         }
         
-        // Hauteur palette = hauteur d'un carton × nombre de couches
         const nbCouches = parseInt(item.nb_couches || item.compteur) || 8;
-        const hauteurCarton = parseFloat(item.hauteur) || 150; // en MM
-        const hauteurPalette = (hauteurCarton * nbCouches) / 1000; // Conversion en mètres
-
+        const hauteurCarton = parseFloat(item.hauteur) || 150;
+        const hauteurPalette = (hauteurCarton * nbCouches) / 1000;
         const hauteur_couche = item.hauteur_couche || hauteurCarton;
 
         mdMap.set(item.sku, {
@@ -93,7 +125,13 @@ export function useMasterData() {
       });
 
       setMasterData(mdMap);
-      console.log(`✅ ${mdMap.size} SKU chargés depuis Supabase`);
+      
+      // ✅ Log plus informatif
+      if (skuFilter && skuFilter.length > 0) {
+        console.log(`✅ ${mdMap.size}/${skuFilter.length} SKU chargés depuis Supabase`);
+      } else {
+        console.log(`✅ ${mdMap.size} SKU chargés depuis Supabase`);
+      }
     } catch (err: any) {
       setError(err.message);
       console.error("Erreur chargement MasterData:", err);
@@ -104,7 +142,7 @@ export function useMasterData() {
 
   useEffect(() => {
     loadMasterData();
-  }, []);
+  }, [skuFilterString, companyId]); // ✅ Recharge seulement si filtre change
 
   const upsertSKU = async (item: Partial<MasterDataItem>) => {
     try {

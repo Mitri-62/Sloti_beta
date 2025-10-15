@@ -1,16 +1,10 @@
-// src/pages/AdvancedLoadingSystem.tsx - AVEC DARK MODE COMPLET
+// src/views/AdvancedLoadingSystem.tsx - VERSION OPTIMISÉE COMPLÈTE
 import { 
   useState, 
   useMemo, 
-  useEffect, 
-  JSXElementConstructor, 
-  Key, 
-  ReactElement, 
-  ReactNode, 
-  ReactPortal 
+  useEffect
 } from "react";
-import { 
-  Truck, 
+import {  
   Package, 
   Layers, 
   Upload, 
@@ -27,6 +21,8 @@ import {
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Edges, Grid, Text } from "@react-three/drei";
 import { useMasterData } from "../hooks/useMasterData";
+import { useAuth } from "../contexts/AuthContext";
+import { supabase } from "../supabaseClient"; 
 
 interface PalletInstance {
   sscc: string;
@@ -344,15 +340,23 @@ function placeUnitsOptimized(units: StackedUnit[], truck: any) {
 }
 
 export default function AdvancedLoadingSystem() {
-  const { masterData, loading: mdLoading } = useMasterData();
+  const { user } = useAuth();
+  
   const [truckType, setTruckType] = useState<keyof typeof TRUCK_TYPES>("Semi 13.6m");
   const [palletListing, setPalletListing] = useState<Array<{ sscc: string; sku: string; quantity: number }>>([]);
   const [enableStacking, setEnableStacking] = useState(true);
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
   const [view3D, setView3D] = useState(false);
-  
-  // Détection du dark mode pour la scène 3D
   const [isDarkMode, setIsDarkMode] = useState(false);
+
+  const uniqueSKUs = useMemo(() => {
+    return [...new Set(palletListing.map(p => p.sku))];
+  }, [palletListing]);
+
+  const { masterData, loading: mdLoading } = useMasterData({
+    skuFilter: uniqueSKUs.length > 0 ? uniqueSKUs : [],
+    companyId: user?.company_id
+  });
 
   const truck = TRUCK_TYPES[truckType];
 
@@ -419,6 +423,45 @@ export default function AdvancedLoadingSystem() {
           quantity: parseFloat(quantity) || 0,
         };
       }).filter(p => p.sscc && p.sku && p.quantity > 0);
+
+      // ✅ AJOUTE CETTE VALIDATION ICI
+    if (pallets.length === 0) {
+      alert("⚠️ Aucune palette valide trouvée dans le fichier");
+      return;
+    }
+
+    // ✅ Vérifier que les SKU existent dans MasterData
+    const skusInFile = [...new Set(pallets.map(p => p.sku))];
+    
+    const { data: existingSKUs, error } = await supabase
+      .from("masterdata")
+      .select("sku")
+      .eq("company_id", user?.company_id)
+      .in("sku", skusInFile);
+
+    if (error) {
+      console.error("Erreur vérification SKU:", error);
+      alert("Erreur lors de la vérification des SKU");
+      return;
+    }
+
+    const validSKUs = new Set(existingSKUs?.map((s: any) => s.sku) || []);
+    const missingSKUs = skusInFile.filter(sku => !validSKUs.has(sku));
+
+    if (missingSKUs.length > 0) {
+      const shouldContinue = confirm(
+        `⚠️ ATTENTION: ${missingSKUs.length} SKU n'existent pas dans MasterData:\n\n` +
+        missingSKUs.slice(0, 10).join(", ") + 
+        (missingSKUs.length > 10 ? `\n... et ${missingSKUs.length - 10} autres` : "") +
+        `\n\nVoulez-vous continuer quand même ? (Les palettes avec ces SKU ne pourront pas être chargées)`
+      );
+      
+      if (!shouldContinue) {
+        return;
+      }
+    }
+    // ✅ FIN DE LA VALIDATION
+
 
       setPalletListing(pallets);
 
@@ -721,9 +764,7 @@ export default function AdvancedLoadingSystem() {
                   <p className="text-sm text-orange-700 dark:text-orange-300 mt-1">
                     Le sol est occupé à <strong>{stats.floorUtilization.toFixed(1)}%</strong> mais le volume n'est utilisé qu'à <strong>{stats.volumeUtilization.toFixed(1)}%</strong>.
                     <br />
-                    Surface utilisée : {stats.totalFloorArea.toFixed(2)} m² / {stats.truckFloorArea.toFixed(2)} m²
-                    <br />
-                    Le gerbage automatique pourrait améliorer l'utilisation de l'espace en hauteur pour charger les {unplacedUnits.length} palette(s) restante(s).
+                    Le gerbage automatique pourrait améliorer l'utilisation de l'espace en hauteur.
                   </p>
                 </div>
               </div>
@@ -737,24 +778,8 @@ export default function AdvancedLoadingSystem() {
                     ⚠️ {unplacedUnits.length} palette(s) ne peuvent pas être chargées
                   </p>
                   <p className="text-sm text-red-700 dark:text-red-300 mt-1">
-                    Le camion est plein. {placedUnits.length} palette(s) chargée(s) sur {stackedUnits.length} au total.
+                    {placedUnits.length} palette(s) chargée(s) sur {stackedUnits.length} au total.
                   </p>
-                  <details className="mt-2">
-                    <summary className="text-sm font-medium text-red-800 dark:text-red-300 cursor-pointer hover:underline">
-                      Voir les palettes non chargées ({unplacedUnits.length})
-                    </summary>
-                    <div className="mt-2 space-y-1 pl-4 border-l-2 border-red-300 dark:border-red-600">
-                      {unplacedUnits.map((unit, idx) => (
-                        <div key={idx} className="text-xs text-red-700 dark:text-red-300 bg-red-100/50 dark:bg-red-900/20 rounded p-2">
-                          <span className="font-medium">{unit.base_pallet.sscc}</span> - {unit.base_pallet.sku} ({unit.base_pallet.quantity} unités)
-                          <br />
-                          <span className="text-red-600 dark:text-red-400">
-                            {unit.dimensions.l.toFixed(2)}m × {unit.dimensions.w.toFixed(2)}m × {unit.total_height.toFixed(2)}m • {unit.total_weight.toFixed(0)}kg
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
                 </div>
               </div>
             )}
@@ -778,8 +803,8 @@ export default function AdvancedLoadingSystem() {
                 <Canvas 
                   camera={{ position: [25, 18, 30], fov: 60 }} 
                   style={{ height: 800 }} 
-                  shadows
-                  gl={{ alpha: false, antialias: true, powerPreference: "high-performance" }}
+                  shadows={placedUnits.length < 50}
+                  gl={{ alpha: false, antialias: true, powerPreference: "high-performance", preserveDrawingBuffer: false }}
                 >
                   <Canvas3DContent />
                 </Canvas>
@@ -800,8 +825,8 @@ export default function AdvancedLoadingSystem() {
                   <Canvas 
                     camera={{ position: [25, 18, 30], fov: 60 }} 
                     style={{ height: 600 }} 
-                    shadows
-                    gl={{ alpha: false, antialias: true, powerPreference: "high-performance" }}
+                    shadows={placedUnits.length < 50}
+                    gl={{ alpha: false, antialias: true, powerPreference: "high-performance", preserveDrawingBuffer: false }}
                   >
                     <Canvas3DContent />
                   </Canvas>
@@ -810,16 +835,10 @@ export default function AdvancedLoadingSystem() {
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex flex-col h-[600px] border border-gray-200 dark:border-gray-700">
                   <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
                     Unités ({placedUnits.length}/{stackedUnits.length})
-                    {unplacedUnits.length > 0 && (
-                      <span className="ml-2 text-sm font-normal text-red-600 dark:text-red-400">
-                        ({unplacedUnits.length} non chargée{unplacedUnits.length > 1 ? 's' : ''})
-                      </span>
-                    )}
                   </h3>
                   <div className="flex-1 overflow-y-auto space-y-2">
-                    {placedUnits.map((placed, idx) => {
+                    {placedUnits.map((placed: any, idx: number) => {
                       const unit = placed.unit;
-                      const orientation = unit.dimensions.l > unit.dimensions.w ? "Long" : "Large";
                       
                       return (
                         <div
@@ -835,66 +854,25 @@ export default function AdvancedLoadingSystem() {
                           onMouseLeave={() => setHighlightedIndex(null)}
                         >
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-sm text-gray-900 dark:text-white">#{idx + 1}</span>
-                              <span className="text-xs text-gray-600 dark:text-gray-400">{unit.base_pallet.sscc}</span>
-                              {unit.base_pallet.status === "partial" && (
-                                <span className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 text-xs rounded">Incomplète</span>
-                              )}
-                            </div>
+                            <span className="font-semibold text-sm text-gray-900 dark:text-white">#{idx + 1} - {unit.base_pallet.sscc}</span>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleRemovePallet(unit.base_pallet.sscc);
                               }}
                               className="p-1 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
-                              title="Supprimer cette palette"
                             >
                               <X size={16} className="text-red-600 dark:text-red-400" />
                             </button>
                           </div>
                           <p className="text-xs text-gray-600 dark:text-gray-400">{unit.base_pallet.sku} - {unit.base_pallet.quantity} unités</p>
                           <p className="text-xs text-gray-500 dark:text-gray-500">
-                            {unit.dimensions.l.toFixed(2)}m × {unit.dimensions.w.toFixed(2)}m × {unit.total_height.toFixed(2)}m • {unit.total_weight.toFixed(0)}kg
-                          </p>
-                          <p className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
-                            {unit.pallet_type || "FEU"} - {orientation}
+                            {unit.dimensions.l.toFixed(2)}m × {unit.dimensions.w.toFixed(2)}m × {unit.total_height.toFixed(2)}m
                           </p>
                           
                           {unit.stacked_pallets.length > 0 && (
-                            <div className="mt-2 pl-3 border-l-2 border-green-500 dark:border-green-600 space-y-1">
+                            <div className="mt-2 pl-3 border-l-2 border-green-500 dark:border-green-600">
                               <p className="text-xs font-medium text-green-700 dark:text-green-400">↑ Gerbé ({unit.stacked_pallets.length})</p>
-                              {unit.stacked_pallets.map((s: PalletInstance, i: Key | null | undefined) => {
-                                const stackedMd = masterData.get(s.sku);
-                                return (
-                                  <div key={i} className="bg-white/50 dark:bg-gray-800/50 rounded p-2 space-y-1">
-                                    <div className="flex items-center justify-between">
-                                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">{s.sscc}</p>
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          handleRemovePallet(s.sscc);
-                                        }}
-                                        className="p-0.5 hover:bg-red-100 dark:hover:bg-red-900/30 rounded transition-colors"
-                                        title="Supprimer cette palette"
-                                      >
-                                        <X size={12} className="text-red-600 dark:text-red-400" />
-                                      </button>
-                                    </div>
-                                    <p className="text-xs text-gray-600 dark:text-gray-400">{s.sku} - {s.quantity} unités</p>
-                                    {stackedMd && (
-                                      <>
-                                        <p className="text-xs text-gray-500 dark:text-gray-500">
-                                          {stackedMd.longueur.toFixed(2)}m × {stackedMd.largeur.toFixed(2)}m × {s.height_actual.toFixed(2)}m
-                                        </p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-500">
-                                          {s.weight_actual.toFixed(0)}kg • {s.status === "full" ? "Complète" : "Incomplète"}
-                                        </p>
-                                      </>
-                                    )}
-                                  </div>
-                                );
-                              })}
                             </div>
                           )}
                         </div>
@@ -911,7 +889,7 @@ export default function AdvancedLoadingSystem() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-12 text-center border border-gray-200 dark:border-gray-700">
             <Package size={64} className="mx-auto mb-4 text-gray-300 dark:text-gray-600" />
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Aucune palette importée</h3>
-            <p className="text-gray-600 dark:text-gray-400">Importez un fichier CSV depuis SortiesStock</p>
+            <p className="text-gray-600 dark:text-gray-400">Importez un fichier CSV pour commencer</p>
           </div>
         )}
       </div>

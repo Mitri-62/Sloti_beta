@@ -1,57 +1,28 @@
-// src/hooks/useOptimizedQuery.ts
-import { useState, useEffect, useCallback } from 'react';
+// src/hooks/useOptimizedQuery.ts - VERSION CORRIGÉE
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '../supabaseClient';
 import { queryCache, withCache } from '../services/queryCache';
 import { errorService } from '../services/errorService';
 
 interface UseOptimizedQueryOptions {
-  /** Activer la mise en cache des résultats */
   cache?: boolean;
-  /** Durée de vie du cache en millisecondes */
   cacheTTL?: number;
-  /** Activer les mises à jour en temps réel */
   realtime?: boolean;
-  /** Filtre à appliquer sur la requête */
   filter?: Record<string, any>;
-  /** Tri des résultats */
   orderBy?: { column: string; ascending?: boolean };
-  /** Limiter le nombre de résultats */
   limit?: number;
-  /** Colonnes à sélectionner (par défaut: '*') */
   select?: string;
-  /** Dépendances pour re-fetch (comme useEffect) */
   deps?: any[];
 }
 
 interface UseOptimizedQueryResult<T> {
-  /** Les données récupérées */
   data: T[];
-  /** État de chargement */
   loading: boolean;
-  /** Erreur éventuelle */
   error: Error | null;
-  /** Recharger manuellement les données */
   refetch: () => Promise<void>;
-  /** Invalider le cache et recharger */
   refresh: () => Promise<void>;
 }
 
-/**
- * Hook optimisé pour les requêtes Supabase avec cache et gestion d'erreurs
- * 
- * @example
- * // Simple
- * const { data: products, loading } = useOptimizedQuery<Product>('masterdata');
- * 
- * @example
- * // Avec cache et filtre
- * const { data: stocks, loading, refetch } = useOptimizedQuery<Stock>('stocks', {
- *   cache: true,
- *   cacheTTL: 60000, // 1 minute
- *   filter: { company_id: user?.company_id },
- *   realtime: true,
- * });
- */
 export function useOptimizedQuery<T extends Record<string, any> = Record<string, any>>(
   table: string,
   options: UseOptimizedQueryOptions = {}
@@ -71,20 +42,26 @@ export function useOptimizedQuery<T extends Record<string, any> = Record<string,
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  // Générer une clé de cache unique basée sur les paramètres
-  const cacheKey = `${table}_${JSON.stringify(filter)}_${select}_${orderBy?.column || 'default'}`;
+  // ✅ CRITIQUE : Mémoriser le filterString pour éviter les re-renders
+  const filterString = useMemo(() => JSON.stringify(filter), [JSON.stringify(filter)]);
+  const orderByString = useMemo(() => JSON.stringify(orderBy), [JSON.stringify(orderBy)]);
 
-  /**
-   * Fonction de fetch principale
-   */
-  const fetchData = useCallback(async (skipCache = false) => {
+  // ✅ Générer une clé de cache stable
+  const cacheKey = useMemo(
+    () => `${table}_${filterString}_${select}_${orderByString}`,
+    [table, filterString, select, orderByString]
+  );
+
+  // ✅ Utiliser useRef pour éviter de recréer fetchData
+  const fetchDataRef = useRef<(skipCache?: boolean) => Promise<void>>();
+
+  fetchDataRef.current = useCallback(async (skipCache = false) => {
     setLoading(true);
     setError(null);
 
     try {
       let result: T[];
 
-      // Si cache activé et pas de skip
       if (cache && !skipCache) {
         result = await withCache<T[]>(
           cacheKey,
@@ -100,7 +77,6 @@ export function useOptimizedQuery<T extends Record<string, any> = Record<string,
           cacheTTL
         );
       } else {
-        // Fetch direct sans cache
         const { data: fetchedData, error: fetchError } = await buildQuery<T>(
           table,
           { filter, orderBy, limit, select }
@@ -109,7 +85,6 @@ export function useOptimizedQuery<T extends Record<string, any> = Record<string,
         if (fetchError) throw fetchError;
         result = fetchedData || [];
 
-        // Mettre en cache si activé
         if (cache) {
           queryCache.set(cacheKey, result);
         }
@@ -123,30 +98,30 @@ export function useOptimizedQuery<T extends Record<string, any> = Record<string,
     } finally {
       setLoading(false);
     }
-  }, [table, cacheKey, cache, cacheTTL, JSON.stringify(filter), orderBy, limit, select]);
+  }, [table, cacheKey, cache, cacheTTL, filterString, orderByString, limit, select]);
 
-  /**
-   * Recharger depuis le cache ou serveur
-   */
+  // ✅ Wrapper stable pour fetchData
+  const fetchData = useCallback(async (skipCache = false) => {
+    await fetchDataRef.current?.(skipCache);
+  }, []);
+
   const refetch = useCallback(async () => {
     await fetchData(false);
   }, [fetchData]);
 
-  /**
-   * Forcer le refresh (bypass cache)
-   */
   const refresh = useCallback(async () => {
     queryCache.invalidate(cacheKey);
     await fetchData(true);
   }, [fetchData, cacheKey]);
 
-  // Charger les données au montage et quand les deps changent
+  // ✅ CRITIQUE : useEffect stable avec depsString
+  const depsString = useMemo(() => JSON.stringify(deps), [JSON.stringify(deps)]);
+
   useEffect(() => {
     fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchData, ...deps]);
+  }, [fetchData, depsString]); // ✅ depsString au lieu de ...deps
 
-  // Gestion du realtime
+  // ✅ Realtime avec cleanup approprié
   useEffect(() => {
     if (!realtime) return;
 
@@ -167,7 +142,6 @@ export function useOptimizedQuery<T extends Record<string, any> = Record<string,
         (payload) => {
           console.log(`📡 Realtime event for ${table}:`, payload.eventType);
           
-          // Invalider le cache et recharger
           if (cache) {
             queryCache.invalidate(cacheKey);
           }
@@ -180,8 +154,7 @@ export function useOptimizedQuery<T extends Record<string, any> = Record<string,
       console.log(`🔌 Realtime désactivé pour ${table}`);
       channel.unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table, realtime, cacheKey, cache]);
+  }, [table, realtime, cacheKey, cache, fetchData, filterString]); // ✅ filterString au lieu de filter
 
   return {
     data,
@@ -192,9 +165,7 @@ export function useOptimizedQuery<T extends Record<string, any> = Record<string,
   };
 }
 
-/**
- * Helper pour construire les requêtes Supabase
- */
+// ✅ Helper pour construire les requêtes
 async function buildQuery<T>(
   table: string,
   options: {
@@ -206,7 +177,6 @@ async function buildQuery<T>(
 ) {
   let query = supabase.from(table).select(options.select || '*');
 
-  // Appliquer les filtres
   if (options.filter) {
     Object.entries(options.filter).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
@@ -215,14 +185,12 @@ async function buildQuery<T>(
     });
   }
 
-  // Appliquer le tri
   if (options.orderBy) {
     query = query.order(options.orderBy.column, {
       ascending: options.orderBy.ascending ?? true,
     });
   }
 
-  // Appliquer la limite
   if (options.limit) {
     query = query.limit(options.limit);
   }
@@ -230,9 +198,7 @@ async function buildQuery<T>(
   return query as unknown as { data: T[] | null; error: any };
 }
 
-/**
- * Hook pour une requête unique (single row)
- */
+// ✅ Hook pour requête unique
 export function useOptimizedQuerySingle<T extends Record<string, any> = Record<string, any>>(
   table: string,
   id: string | null,
