@@ -3,16 +3,23 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    dedupe: ['react', 'react-dom']
+  },
   build: {
     outDir: 'dist',
     sourcemap: false,
     chunkSizeWarningLimit: 2000,
-    // Utiliser esbuild au lieu de terser (plus rapide et déjà inclus)
     minify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            // IMPORTANT: React et React-DOM ensemble dans un seul chunk
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'react-vendor';
+            }
+            // Autres grandes librairies
             if (id.includes('xlsx')) {
               return 'xlsx';
             }
@@ -21,15 +28,6 @@ export default defineConfig({
             }
             if (id.includes('leaflet')) {
               return 'leaflet';
-            }
-            if (id.includes('react-dom')) {
-              return 'react-dom';
-            }
-            if (id.includes('react') && !id.includes('react-dom')) {
-              return 'react';
-            }
-            if (id.includes('react-router-dom')) {
-              return 'react-router';
             }
             if (id.includes('recharts')) {
               return 'recharts';
@@ -46,6 +44,7 @@ export default defineConfig({
             if (id.includes('@supabase')) {
               return 'supabase';
             }
+            // Tout le reste
             return 'vendor';
           }
         }
@@ -56,7 +55,7 @@ export default defineConfig({
     'process.env': {}
   },
   optimizeDeps: {
-    include: ['idb', '@supabase/supabase-js', 'react', 'react-dom', 'react-router-dom']
+    include: ['react', 'react-dom', 'react-router-dom', 'idb', '@supabase/supabase-js']
   },
   server: {
     port: 5173,
