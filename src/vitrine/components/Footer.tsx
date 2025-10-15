@@ -1,6 +1,6 @@
 // src/vitrine/components/Footer.tsx
 import { Globe, Twitter, Linkedin, Mail, Phone, MapPin } from "lucide-react";
-import logo from "../../assets/sloti.svg";
+import logo from "../../assets/Sloti.svg";
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();

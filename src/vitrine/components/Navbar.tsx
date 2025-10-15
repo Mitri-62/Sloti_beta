@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Menu, X } from "lucide-react";
-import logo from "../../assets/sloti.svg";
+import logo from "../../assets/Sloti.svg";
 
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);

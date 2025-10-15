@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { supabase } from "../../supabaseClient";
 import { useNavigate, Link } from "react-router-dom";
-import logo from "../../assets/sloti.svg";
+import logo from "../../assets/Sloti.svg";
 
 export default function Signup() {
   const navigate = useNavigate();

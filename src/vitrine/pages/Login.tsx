@@ -3,7 +3,7 @@ import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { User, Lock, Eye, EyeOff, Mail, AlertCircle } from "lucide-react";
 import { supabase } from "../../supabaseClient";
-import logo from "../../assets/sloti.svg";
+import logo from "../../assets/Sloti.svg";
 
 export default function Login() {
   const { login, user, isLoading } = useAuth();

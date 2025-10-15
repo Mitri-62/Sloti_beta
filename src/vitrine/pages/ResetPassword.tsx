@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Lock, Eye, EyeOff, CheckCircle2, AlertCircle } from "lucide-react";
 import { supabase } from "../../supabaseClient";
-import logo from "../../assets/sloti.svg";
+import logo from "../../assets/Sloti.svg";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
