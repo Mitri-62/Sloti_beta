@@ -1,4 +1,4 @@
-// src/pages/DriverApp.tsx - VERSION CORRIGÉE COMPLÈTE
+// src/pages/DriverApp.tsx - VERSION FINALE CORRIGÉE
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { Navigation, MapPin, Package, CheckCircle, AlertCircle, Phone, Clock } from 'lucide-react';
@@ -37,30 +37,52 @@ export default function DriverApp() {
 
   // Charger les données de la tournée
   useEffect(() => {
-    if (!tourId) return;
+    if (!tourId) {
+      console.log('❌ Pas de tourId dans l\'URL');
+      setLoading(false);
+      return;
+    }
+
+    console.log('🔍 Chargement tournée ID:', tourId);
 
     const loadTour = async () => {
       try {
+        console.log('📡 Requête Supabase pour tour:', tourId);
+        
         const { data: tourData, error } = await supabase
           .from('tours')
           .select('id, name, driver_id')
           .eq('id', tourId)
           .single();
 
+        console.log('📊 Résultat:', { tourData, error });
+
         if (error) {
-          console.error('Erreur chargement tournée:', error);
-          toast.error('Tournée introuvable');
+          console.error('❌ Erreur chargement tournée:', error);
+          toast.error(`Tournée introuvable: ${error.message}`);
+          setLoading(false);
           return;
         }
 
+        if (!tourData) {
+          console.error('❌ Aucune donnée retournée');
+          toast.error('Tournée introuvable');
+          setLoading(false);
+          return;
+        }
+
+        console.log('✅ Tournée chargée:', tourData);
         setTour(tourData);
 
         // Charger les stops
-        const { data: stopsData } = await supabase
+        console.log('📡 Chargement des stops...');
+        const { data: stopsData, error: stopsError } = await supabase
           .from('delivery_stops')
           .select('*')
           .eq('tour_id', tourId)
           .order('sequence_order', { ascending: true });
+
+        console.log('📊 Stops:', { stopsData, stopsError });
 
         if (stopsData) {
           setStops(stopsData);
@@ -68,7 +90,7 @@ export default function DriverApp() {
 
         setLoading(false);
       } catch (err) {
-        console.error('Erreur:', err);
+        console.error('💥 Exception:', err);
         toast.error('Erreur lors du chargement');
         setLoading(false);
       }
