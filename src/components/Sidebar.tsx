@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../supabaseClient";
-import logo from "../assets/sloti.svg";
+import logo from "../assets/Sloti.svg";
 
 interface TooltipNavLinkProps {
   to: string;
