@@ -1,10 +1,10 @@
-// src/pages/TourDetailView.tsx - VERSION FINALE CORRIGÉE
+// src/pages/TourDetailView.tsx - VERSION FINALE AVEC BOUTON VUE CHAUFFEUR
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, MapPin, User, Truck, Clock, Package, 
   AlertCircle, Phone, Edit2,
-  Navigation, Download, Printer
+  Navigation, Download, Printer, Smartphone
 } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../contexts/AuthContext";
@@ -263,6 +263,25 @@ export default function TourDetailView() {
     printTourPDF(tour, stops);
   };
 
+  // 🆕 Fonction pour ouvrir la vue chauffeur
+  const openDriverView = () => {
+    const driverUrl = `${window.location.origin}/app/driver-app/${tourId}`;
+    
+    // Copier le lien dans le presse-papier
+    navigator.clipboard.writeText(driverUrl).then(() => {
+      toast.success('Lien copié ! Ouvrez-le sur le téléphone du chauffeur', {
+        duration: 5000,
+      });
+    }).catch(() => {
+      toast.info('Partagez ce lien au chauffeur : ' + driverUrl, {
+        duration: 8000,
+      });
+    });
+    
+    // Ouvrir dans un nouvel onglet (utile pour tester sur desktop)
+    window.open(driverUrl, '_blank');
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-gray-900">
@@ -319,6 +338,16 @@ export default function TourDetailView() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* 🆕 Bouton Vue Chauffeur */}
+            <button
+              onClick={openDriverView}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
+              title="Ouvrir la vue chauffeur (mobile)"
+            >
+              <Smartphone size={16} />
+              <span className="hidden sm:inline">Vue Chauffeur</span>
+            </button>
+
             <button
               onClick={exportPDF}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
