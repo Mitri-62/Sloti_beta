@@ -9,6 +9,7 @@ export function useChatMessages(
   companyId: string,
   currentUserId?: string,
   isDM: boolean = false
+  
 ) {
   const [messages, setMessages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

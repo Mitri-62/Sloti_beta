@@ -1,4 +1,4 @@
-// src/pages/Planning.tsx - VERSION OPTIMISÉE
+// src/pages/Planning.tsx - VERSION OPTIMISÉE AVEC EXPORT PAR PÉRIODE
 import { useState, useMemo, useCallback } from "react";
 import { 
   Calendar as CalendarIcon, 
@@ -51,6 +51,10 @@ export default function Planning() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState("");
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportStartDate, setExportStartDate] = useState("");
+  const [exportEndDate, setExportEndDate] = useState("");
 
   const [docPlanningId, setDocPlanningId] = useState<string | null>(null);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
@@ -145,7 +149,6 @@ export default function Planning() {
       resetForm();
 
     } catch (error) {
-      // ✅ Gestion d'erreur simplifiée
       const appError = errorService.normalizeError(error);
       setSaveError(appError.message);
     }
@@ -178,8 +181,7 @@ export default function Planning() {
     }
   }, [remove]);
 
-  // ✅ UPDATE STATUS (pour Kanban)
-  // ✅ UPDATE STATUS pour Kanban (avec signature différente)
+  // ✅ UPDATE STATUS
   const handleUpdateStatusKanban = useCallback(async (id: string, updates: Partial<Planning>) => {
     try {
       await update(id, updates);
@@ -234,11 +236,29 @@ export default function Planning() {
     return ["Tous", ...new Set(plannings.map((e) => e.transporter))];
   }, [plannings]);
 
-  // 🔹 Export CSV
+  // 🔹 Filtre pour l'export par période
+  const getFilteredPlanningsForExport = useCallback(() => {
+    if (!exportStartDate || !exportEndDate) {
+      return filteredEvents;
+    }
+    
+    return filteredEvents.filter(planning => {
+      return planning.date >= exportStartDate && planning.date <= exportEndDate;
+    });
+  }, [filteredEvents, exportStartDate, exportEndDate]);
+
+  // 🔹 Export CSV avec période
   const handleExportCSV = useCallback(() => {
+    const planningsToExport = getFilteredPlanningsForExport();
+    
+    if (planningsToExport.length === 0) {
+      toast.error("Aucun événement à exporter pour cette période");
+      return;
+    }
+
     const csv = [
       "Date,Heure,Type,Transporteur,Produits,Statut",
-      ...filteredEvents.map((e) =>
+      ...planningsToExport.map((e) =>
         `${e.date},${e.hour},${e.type},${e.transporter},"${e.products}",${e.status}`
       ),
     ].join("\n");
@@ -247,43 +267,80 @@ export default function Planning() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `planning-${format(new Date(), "yyyy-MM-dd")}.csv`;
+    a.download = `planning_${exportStartDate || 'complet'}_${exportEndDate || 'complet'}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    toast.success("Export CSV réussi");
-  }, [filteredEvents]);
+    setShowExportModal(false);
+    toast.success("CSV exporté avec succès");
+  }, [getFilteredPlanningsForExport, exportStartDate, exportEndDate]);
 
-  // 🔹 Export PDF
+  // 🔹 Export PDF avec période
   const handleExportPDF = useCallback(() => {
-    const doc = new jsPDF();
-    doc.text("Planning", 14, 15);
-    (doc as any).autoTable({
-      head: [["Date", "Heure", "Type", "Transporteur", "Produits", "Statut"]],
-      body: filteredEvents.map((e) => [
-        e.date,
-        e.hour,
-        e.type,
-        e.transporter,
-        e.products,
-        e.status,
-      ]),
-      startY: 25,
-    });
-    doc.save(`planning-${format(new Date(), "yyyy-MM-dd")}.pdf`);
-    toast.success("Export PDF réussi");
-  }, [filteredEvents]);
+    const planningsToExport = getFilteredPlanningsForExport();
+    
+    if (planningsToExport.length === 0) {
+      toast.error("Aucun événement à exporter pour cette période");
+      return;
+    }
 
-  // 🔹 Envoi par email
+    const doc = new jsPDF();
+    
+    doc.setFontSize(18);
+    doc.text("Planning - Export", 14, 20);
+    
+    if (exportStartDate && exportEndDate) {
+      doc.setFontSize(10);
+      doc.text(`Période : ${format(new Date(exportStartDate), 'dd/MM/yyyy')} - ${format(new Date(exportEndDate), 'dd/MM/yyyy')}`, 14, 28);
+    }
+
+    const tableData = planningsToExport.map((p) => [
+      format(new Date(p.date), "dd/MM/yyyy"),
+      p.hour,
+      p.type,
+      p.transporter,
+      p.products || "-",
+      p.status,
+    ]);
+
+    (doc as any).autoTable({
+      startY: exportStartDate && exportEndDate ? 32 : 25,
+      head: [["Date", "Heure", "Type", "Transporteur", "Produits", "Statut"]],
+      body: tableData,
+      theme: "grid",
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [59, 130, 246] },
+    });
+
+    doc.save(`planning_${exportStartDate || 'complet'}_${exportEndDate || 'complet'}.pdf`);
+    setShowExportModal(false);
+    toast.success("PDF exporté avec succès");
+  }, [getFilteredPlanningsForExport, exportStartDate, exportEndDate]);
+
+  // 🔹 Envoi par email avec période
   const handleSendEmail = useCallback(() => {
-    const subject = encodeURIComponent("Planning - " + format(new Date(), "dd/MM/yyyy"));
-    const body = encodeURIComponent(
-      filteredEvents
-        .map((e) => `${e.date} ${e.hour} - ${e.type} - ${e.transporter} - ${e.products}`)
-        .join("\n")
-    );
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
-    toast.info("Email ouvert");
-  }, [filteredEvents]);
+    const planningsToExport = getFilteredPlanningsForExport();
+    
+    if (planningsToExport.length === 0) {
+      toast.error("Aucun événement à envoyer pour cette période");
+      return;
+    }
+
+    const subject = exportStartDate && exportEndDate 
+      ? `Planning du ${format(new Date(exportStartDate), 'dd/MM/yyyy')} au ${format(new Date(exportEndDate), 'dd/MM/yyyy')}`
+      : "Planning complet";
+      
+    const body = planningsToExport
+      .map(
+        (p) =>
+          `${format(new Date(p.date), "dd/MM/yyyy")} ${p.hour} - ${p.type} - ${p.transporter} - ${p.products || "-"} - ${p.status}`
+      )
+      .join("\n");
+
+    const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailtoLink;
+    setShowExportModal(false);
+    toast.success("Client email ouvert");
+  }, [getFilteredPlanningsForExport, exportStartDate, exportEndDate]);
 
   // 🔹 Statistiques
   const stats = useMemo(() => {
@@ -385,27 +442,11 @@ export default function Planning() {
               </button>
 
               <button
-                onClick={handleExportCSV}
-                className="flex items-center gap-2 bg-yellow-500 text-white px-4 py-2 rounded-lg shadow hover:bg-yellow-600 transition-colors disabled:opacity-50"
+                onClick={() => setShowExportModal(true)}
+                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg shadow hover:bg-green-700 transition-colors disabled:opacity-50"
                 disabled={filteredEvents.length === 0}
               >
-                <Download className="w-4 h-4" /> CSV
-              </button>
-
-              <button
-                onClick={handleExportPDF}
-                className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg shadow hover:bg-orange-600 transition-colors disabled:opacity-50"
-                disabled={filteredEvents.length === 0}
-              >
-                <Download className="w-4 h-4" /> PDF
-              </button>
-
-              <button
-                onClick={handleSendEmail}
-                className="flex items-center gap-2 bg-purple-500 text-white px-4 py-2 rounded-lg shadow hover:bg-purple-600 transition-colors disabled:opacity-50"
-                disabled={filteredEvents.length === 0}
-              >
-                <Mail className="w-4 h-4" /> Email
+                <Download className="w-4 h-4" /> Exporter
               </button>
             </>
           )}
@@ -685,6 +726,122 @@ export default function Planning() {
           </Dialog.Panel>
         </div>
       </Dialog>
+
+      {/* Modal Export avec sélection de période */}
+      {showExportModal && (
+        <Dialog open={showExportModal} onClose={() => setShowExportModal(false)} className="relative z-50">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
+          
+          <div className="fixed inset-0 flex items-center justify-center p-4">
+            <Dialog.Panel className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl">
+              <Dialog.Title className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+                Exporter le planning
+              </Dialog.Title>
+
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Date de début
+                  </label>
+                  <input
+                    type="date"
+                    value={exportStartDate}
+                    onChange={(e) => setExportStartDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Date de fin
+                  </label>
+                  <input
+                    type="date"
+                    value={exportEndDate}
+                    onChange={(e) => setExportEndDate(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      const today = new Date();
+                      setExportStartDate(format(today, 'yyyy-MM-dd'));
+                      setExportEndDate(format(today, 'yyyy-MM-dd'));
+                    }}
+                    className="px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800"
+                  >
+                    Aujourd'hui
+                  </button>
+                  <button
+                    onClick={() => {
+                      const today = new Date();
+                      const weekStart = new Date(today);
+                      weekStart.setDate(today.getDate() - today.getDay() + 1);
+                      const weekEnd = new Date(weekStart);
+                      weekEnd.setDate(weekStart.getDate() + 6);
+                      setExportStartDate(format(weekStart, 'yyyy-MM-dd'));
+                      setExportEndDate(format(weekEnd, 'yyyy-MM-dd'));
+                    }}
+                    className="px-3 py-1.5 text-sm bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800"
+                  >
+                    Cette semaine
+                  </button>
+                  <button
+                    onClick={() => {
+                      setExportStartDate("");
+                      setExportEndDate("");
+                    }}
+                    className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+                  >
+                    Tout
+                  </button>
+                </div>
+
+                {(exportStartDate || exportEndDate) && (
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    {getFilteredPlanningsForExport().length} événement(s) à exporter
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleExportCSV}
+                  className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                >
+                  <Download className="w-4 h-4" />
+                  CSV
+                </button>
+                
+                <button
+                  onClick={handleExportPDF}
+                  className="flex-1 flex items-center justify-center gap-2 bg-orange-600 text-white px-4 py-2.5 rounded-lg hover:bg-orange-700 transition-colors font-medium"
+                >
+                  <Download className="w-4 h-4" />
+                  PDF
+                </button>
+                
+                <button
+                  onClick={handleSendEmail}
+                  className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  <Mail className="w-4 h-4" />
+                  Email
+                </button>
+              </div>
+
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="w-full mt-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+              >
+                Annuler
+              </button>
+            </Dialog.Panel>
+          </div>
+        </Dialog>
+      )}
 
       {/* Documents Modal */}
       {docPlanningId && (

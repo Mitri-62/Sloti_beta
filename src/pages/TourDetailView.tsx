@@ -1,10 +1,10 @@
-// src/pages/TourDetailView.tsx - VERSION FINALE AVEC BOUTON VUE CHAUFFEUR
+// src/pages/TourDetailView.tsx - VERSION COMPLÈTE
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, MapPin, User, Truck, Clock, Package, 
   AlertCircle, Phone, Edit2,
-  Navigation, Download, Printer, Smartphone
+  Navigation, Download, Printer, Smartphone, X
 } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../contexts/AuthContext";
@@ -28,6 +28,7 @@ interface DeliveryStop {
   actual_arrival: string | null;
   latitude: number;
   longitude: number;
+  failure_reason?: string;
 }
 
 interface Tour {
@@ -121,6 +122,12 @@ export default function TourDetailView() {
   const [loading, setLoading] = useState(true);
   const [showMap, setShowMap] = useState(true);
   
+  // États pour la gestion des problèmes
+  const [showProblemModal, setShowProblemModal] = useState(false);
+  const [selectedStopForProblem, setSelectedStopForProblem] = useState<string | null>(null);
+  const [problemReason, setProblemReason] = useState('');
+  const [problemType, setProblemType] = useState<'customer_absent' | 'address_incorrect' | 'access_denied' | 'other'>('customer_absent');
+  
   // ✅ UTILISER LE HOOK POUR LA POSITION
   const driverLocation = useDriverLocationRealtime(tour?.driver?.id);
 
@@ -182,13 +189,19 @@ export default function TourDetailView() {
     };
   }, [tourId, user?.company_id]);
 
-  const updateStopStatus = async (stopId: string, newStatus: string) => {
+  const updateStopStatus = async (stopId: string, newStatus: string, failureReason?: string) => {
+    const updateData: any = { 
+      status: newStatus,
+      actual_arrival: newStatus === 'completed' ? new Date().toISOString() : null
+    };
+    
+    if (newStatus === 'failed' && failureReason) {
+      updateData.failure_reason = failureReason;
+    }
+    
     const { error } = await supabase
       .from('delivery_stops')
-      .update({ 
-        status: newStatus,
-        actual_arrival: newStatus === 'completed' ? new Date().toISOString() : null
-      })
+      .update(updateData)
       .eq('id', stopId);
 
     if (error) {
@@ -196,7 +209,58 @@ export default function TourDetailView() {
       console.error(error);
     } else {
       toast.success('Statut mis à jour');
+      
+      // ✅ Recharger immédiatement les stops
+      const { data: updatedStops, error: fetchError } = await supabase
+        .from('delivery_stops')
+        .select('*')
+        .eq('tour_id', tourId)
+        .order('sequence_order', { ascending: true });
+        
+      if (!fetchError && updatedStops) {
+        setStops(updatedStops);
+      }
     }
+  };
+
+  // Nouvelle fonction pour annuler un statut
+  const cancelStatus = async (stopId: string) => {
+    if (!confirm('Voulez-vous annuler le statut de ce point de livraison ?')) {
+      return;
+    }
+    
+    await updateStopStatus(stopId, 'pending');
+  };
+
+  // Fonction pour ouvrir le modal de problème
+  const openProblemModal = (stopId: string) => {
+    setSelectedStopForProblem(stopId);
+    setProblemReason('');
+    setProblemType('customer_absent');
+    setShowProblemModal(true);
+  };
+
+  // Fonction pour soumettre le problème
+  const submitProblem = async () => {
+    if (!selectedStopForProblem) return;
+    
+    if (!problemReason.trim()) {
+      toast.error('Veuillez indiquer la raison du problème');
+      return;
+    }
+    
+    const problemReasons: Record<string, string> = {
+      customer_absent: 'Client absent',
+      address_incorrect: 'Adresse incorrecte',
+      access_denied: 'Accès refusé',
+      other: 'Autre'
+    };
+    
+    const fullReason = `${problemReasons[problemType]}: ${problemReason}`;
+    
+    await updateStopStatus(selectedStopForProblem, 'failed', fullReason);
+    setShowProblemModal(false);
+    setSelectedStopForProblem(null);
   };
 
   const startTour = async () => {
@@ -545,30 +609,76 @@ export default function TourDetailView() {
                         )}
 
                         {/* Actions rapides */}
-                        {tour.status === 'in_progress' && stop.status !== 'completed' && (
-                          <div className="flex gap-2">
+                        {tour.status === 'in_progress' && (
+                          <div className="space-y-2">
                             {stop.status === 'pending' && (
-                              <button
-                                onClick={() => updateStopStatus(stop.id, 'arrived')}
-                                className="flex-1 px-2 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-                              >
-                                Arrivé
-                              </button>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => updateStopStatus(stop.id, 'arrived')}
+                                  className="flex-1 px-2 py-1.5 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 font-medium"
+                                >
+                                  Arrivé
+                                </button>
+                                <button
+                                  onClick={() => openProblemModal(stop.id)}
+                                  className="px-2 py-1.5 bg-red-600 text-white rounded text-xs hover:bg-red-700 font-medium"
+                                >
+                                  Problème
+                                </button>
+                              </div>
                             )}
+                            
                             {stop.status === 'arrived' && (
-                              <button
-                                onClick={() => updateStopStatus(stop.id, 'completed')}
-                                className="flex-1 px-2 py-1.5 bg-green-600 text-white rounded text-xs hover:bg-green-700"
-                              >
-                                Livré
-                              </button>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => updateStopStatus(stop.id, 'completed')}
+                                  className="flex-1 px-2 py-1.5 bg-green-600 text-white rounded text-xs hover:bg-green-700 font-medium"
+                                >
+                                  Livré
+                                </button>
+                                <button
+                                  onClick={() => openProblemModal(stop.id)}
+                                  className="px-2 py-1.5 bg-red-600 text-white rounded text-xs hover:bg-red-700 font-medium"
+                                >
+                                  Problème
+                                </button>
+                                <button
+                                  onClick={() => cancelStatus(stop.id)}
+                                  className="px-2 py-1.5 bg-gray-500 text-white rounded text-xs hover:bg-gray-600 font-medium"
+                                >
+                                  Annuler
+                                </button>
+                              </div>
                             )}
-                            <button
-                              onClick={() => updateStopStatus(stop.id, 'failed')}
-                              className="px-2 py-1.5 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-xs hover:bg-gray-300 dark:hover:bg-gray-600"
-                            >
-                              Problème
-                            </button>
+                            
+                            {stop.status === 'completed' && (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => cancelStatus(stop.id)}
+                                  className="flex-1 px-2 py-1.5 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 font-medium"
+                                >
+                                  Annuler la livraison
+                                </button>
+                              </div>
+                            )}
+                            
+                            {stop.status === 'failed' && (
+                              <div className="space-y-2">
+                                {stop.failure_reason && (
+                                  <div className="text-xs p-2 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded text-red-800 dark:text-red-200">
+                                    <strong>Raison:</strong> {stop.failure_reason}
+                                  </div>
+                                )}
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => cancelStatus(stop.id)}
+                                    className="flex-1 px-2 py-1.5 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 font-medium"
+                                  >
+                                    Réessayer
+                                  </button>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -646,6 +756,71 @@ export default function TourDetailView() {
           </div>
         )}
       </div>
+
+      {/* Modal de signalement de problème */}
+{showProblemModal && (
+  <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => {
+      setShowProblemModal(false);
+      setSelectedStopForProblem(null);
+    }}></div>
+    
+    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl relative z-10">
+      <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+        Signaler un problème
+      </h3>
+      
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Type de problème
+          </label>
+          <select
+            value={problemType}
+            onChange={(e) => setProblemType(e.target.value as any)}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="customer_absent">Client absent</option>
+            <option value="address_incorrect">Adresse incorrecte</option>
+            <option value="access_denied">Accès refusé</option>
+            <option value="other">Autre</option>
+          </select>
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Détails du problème *
+          </label>
+          <textarea
+            value={problemReason}
+            onChange={(e) => setProblemReason(e.target.value)}
+            placeholder="Décrivez le problème rencontré..."
+            rows={4}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+      
+      <div className="flex gap-3 mt-6">
+        <button
+          onClick={submitProblem}
+          className="flex-1 bg-red-600 text-white px-4 py-2.5 rounded-lg hover:bg-red-700 font-medium transition-colors"
+        >
+          Confirmer le problème
+        </button>
+        <button
+          onClick={() => {
+            setShowProblemModal(false);
+            setSelectedStopForProblem(null);
+          }}
+          className="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2.5 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 font-medium transition-colors"
+        >
+          Annuler
+        </button>
+      </div>
     </div>
+  </div>
+)}
+</div>
   );
 }

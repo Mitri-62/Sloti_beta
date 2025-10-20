@@ -5,7 +5,7 @@ import withDragAndDrop from "react-big-calendar/lib/addons/dragAndDrop";
 import { format, parse, startOfWeek, getDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Dialog } from "@headlessui/react";
-import { Check, Undo2, Trash2 } from "lucide-react";
+import { Check, Trash2 } from "lucide-react";
 import { Planning } from "../hooks/usePlannings";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
@@ -37,8 +37,6 @@ const DnDCalendar = withDragAndDrop(Calendar);
 export default function PlanningAgenda({
   events,
   onDelete,
-  onValidate,
-  onReset,
   onUpdate,
   onOpenAddModal,
 }: Props) {
@@ -73,10 +71,15 @@ export default function PlanningAgenda({
       const start = new Date(year, month - 1, day, hour, minute);
       const end = new Date(start);
       end.setMinutes(end.getMinutes() + (ev.duration || 30));
-
+  
+      // Format: "Expédition - DHL - 33 pals"
+      const title = [ev.type, ev.transporter, ev.products]
+        .filter(Boolean) // Enlève les valeurs vides
+        .join(' - ');
+  
       return {
         id: ev.id,
-        title: `${ev.type} - ${ev.transporter}`,
+        title,
         start,
         end,
         resource: ev,
@@ -85,26 +88,30 @@ export default function PlanningAgenda({
   }, [events]);
 
   const eventStyleGetter = useCallback((event: any) => {
-    const ev = event.resource as Planning;
-    
-    let backgroundColor = '#3b82f6';
-    if (ev.type === "Expédition") backgroundColor = '#f97316';
-    if (ev.status === "Terminé") backgroundColor = '#10b981';
-    if (ev.status === "En cours") backgroundColor = '#eab308';
-    if (ev.status === "Chargé") backgroundColor = '#a855f7';
+  const ev = event.resource as Planning;
+  
+  let backgroundColor = '#3b82f6';
+  if (ev.type === "Expédition") backgroundColor = '#f97316';
+  if (ev.status === "Terminé") backgroundColor = '#10b981';
+  if (ev.status === "En cours") backgroundColor = '#eab308';
+  if (ev.status === "Chargé") backgroundColor = '#a855f7';
 
-    return {
-      style: {
-        backgroundColor,
-        borderRadius: '5px',
-        opacity: 0.9,
-        color: 'white',
-        border: '0px',
-        display: 'block',
-        fontSize: '0.875rem',
-      }
-    };
-  }, []);
+  return {
+    style: {
+      backgroundColor,
+      borderRadius: '5px',
+      opacity: 0.85,
+      color: 'white',
+      border: '2px solid white',
+      display: 'block',
+      fontSize: '0.75rem',  // ✅ Réduire légèrement la taille
+      lineHeight: '1.2',    // ✅ Espacement entre les lignes
+      padding: '4px',       // ✅ Ajouter du padding
+      whiteSpace: 'pre-wrap', // ✅ Permet les sauts de ligne
+      overflow: 'hidden',   // ✅ Cache le dépassement
+    }
+  };
+}, []);
 
   const handleSelectSlot = useCallback((slotInfo: any) => {
     const startDate = slotInfo.start as Date;
@@ -559,32 +566,33 @@ export default function PlanningAgenda({
   `;
 
   return (
-    <div className="h-[700px] calendar-adaptive">
+    <div className="h-[calc(100vh-200px)] calendar-adaptive">
       <style>{calendarStyles}</style>
       
       <DnDCalendar
-        localizer={localizer}
-        events={calendarEvents}
-        startAccessor={(event: any) => event.start}
-        endAccessor={(event: any) => event.end}
-        style={{ height: '100%' }}
-        culture="fr"
-        view={view}
-        onView={setView}
-        date={date}
-        onNavigate={setDate}
-        eventPropGetter={eventStyleGetter}
-        onSelectSlot={handleSelectSlot}
-        onSelectEvent={handleSelectEvent}
-        onEventDrop={handleEventDrop}
-        onEventResize={handleEventResize}
-        selectable
-        resizable
-        step={30}
-        timeslots={2}
-        defaultView="week"
-        views={['month', 'week', 'day', 'agenda']}
-        messages={{
+  localizer={localizer}
+  events={calendarEvents}
+  startAccessor={(event: any) => event.start}
+  endAccessor={(event: any) => event.end}
+  style={{ height: '100%' }}
+  culture="fr"
+  view={view}
+  onView={setView}
+  date={date}
+  onNavigate={setDate}
+  eventPropGetter={eventStyleGetter}
+  onSelectSlot={handleSelectSlot}
+  onSelectEvent={handleSelectEvent}
+  onEventDrop={handleEventDrop}
+  onEventResize={handleEventResize}
+  selectable
+  resizable
+  step={60}
+  timeslots={1}
+  defaultView="week"
+  views={['month', 'week', 'day', 'agenda']}
+  dayLayoutAlgorithm="no-overlap"  // ✅ AJOUTEZ CETTE LIGNE
+  messages={{
           next: "Suivant",
           previous: "Précédent",
           today: "Aujourd'hui",
@@ -602,116 +610,154 @@ export default function PlanningAgenda({
 
       {/* Modal de détail */}
       {selectedEvent && (
-        <Dialog open={true} onClose={closeEventDetail} className="relative z-50">
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
-          
-          <div className="fixed inset-0 flex items-center justify-center p-4">
-            <Dialog.Panel className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl">
-              <Dialog.Title className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-                Détails de l'événement
-              </Dialog.Title>
+  <Dialog open={true} onClose={closeEventDetail} className="relative z-50">
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
+    
+    <div className="fixed inset-0 flex items-center justify-center p-4">
+      <Dialog.Panel className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl">
+        <Dialog.Title className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+          Modifier l'événement
+        </Dialog.Title>
 
-              <div className="space-y-3 mb-6">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Type:</span>
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    selectedEvent.type === "Réception"
-                      ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200"
-                      : "bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-200"
-                  }`}>
-                    {selectedEvent.type}
-                  </span>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Statut:</span>
-                  <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                    selectedEvent.status === "Prévu" ? "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200" :
-                    selectedEvent.status === "En cours" ? "bg-yellow-100 dark:bg-yellow-900 text-yellow-800 dark:text-yellow-200" :
-                    selectedEvent.status === "Chargé" ? "bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200" :
-                    "bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200"
-                  }`}>
-                    {selectedEvent.status}
-                  </span>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Date:</span>
-                  <span className="text-sm text-gray-900 dark:text-white">
-                    {selectedEvent.date} à {selectedEvent.hour}
-                  </span>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Durée:</span>
-                  <span className="text-sm text-gray-900 dark:text-white">
-                    {selectedEvent.duration || 30} minutes
-                  </span>
-                </div>
-                
-                <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Transporteur:</span>
-                  <p className="text-base font-semibold text-gray-900 dark:text-white mt-1">
-                    {selectedEvent.transporter}
-                  </p>
-                </div>
-                
-                {selectedEvent.products && (
-                  <div>
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Produits:</span>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      {selectedEvent.products}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {selectedEvent.status !== "Terminé" && (
-                  <button
-                    onClick={() => {
-                      onValidate(selectedEvent.id!);
-                      closeEventDetail();
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors"
-                  >
-                    <Check size={16} /> Valider
-                  </button>
-                )}
-                
-                {selectedEvent.status !== "Prévu" && (
-                  <button
-                    onClick={() => {
-                      onReset(selectedEvent.id!);
-                      closeEventDetail();
-                    }}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 font-medium transition-colors"
-                  >
-                    <Undo2 size={16} /> Réinitialiser
-                  </button>
-                )}
-                
-                <button
-                  onClick={() => {
-                    onDelete(selectedEvent.id!);
-                    closeEventDetail();
-                  }}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors ml-auto"
-                >
-                  <Trash2 size={16} /> Supprimer
-                </button>
-              </div>
-
-              <button
-                onClick={closeEventDetail}
-                className="w-full mt-4 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 font-medium transition-colors"
-              >
-                Fermer
-              </button>
-            </Dialog.Panel>
+        <div className="space-y-4 mb-6">
+          {/* Type */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Type
+            </label>
+            <select
+              value={selectedEvent.type}
+              onChange={(e) => setSelectedEvent({...selectedEvent, type: e.target.value as "Réception" | "Expédition"})}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            >
+              <option value="Réception">Réception</option>
+              <option value="Expédition">Expédition</option>
+            </select>
           </div>
-        </Dialog>
-      )}
+
+          {/* Transporteur */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Transporteur
+            </label>
+            <input
+              type="text"
+              value={selectedEvent.transporter}
+              onChange={(e) => setSelectedEvent({...selectedEvent, transporter: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
+
+          {/* Produits */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Produits
+            </label>
+            <input
+              type="text"
+              value={selectedEvent.products || ''}
+              onChange={(e) => setSelectedEvent({...selectedEvent, products: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
+
+          {/* Date */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Date
+            </label>
+            <input
+              type="date"
+              value={selectedEvent.date}
+              onChange={(e) => setSelectedEvent({...selectedEvent, date: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
+
+          {/* Heure */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Heure
+            </label>
+            <input
+              type="time"
+              value={selectedEvent.hour}
+              onChange={(e) => setSelectedEvent({...selectedEvent, hour: e.target.value})}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            />
+          </div>
+
+          {/* Durée */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Durée (minutes)
+            </label>
+            <input
+              type="number"
+              value={selectedEvent.duration || 30}
+              onChange={(e) => setSelectedEvent({...selectedEvent, duration: parseInt(e.target.value)})}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              min="15"
+              step="15"
+            />
+          </div>
+
+          {/* Statut */}
+          <div>
+  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+    Statut
+  </label>
+  <select
+    value={selectedEvent.status}
+    onChange={(e) => setSelectedEvent({
+      ...selectedEvent, 
+      status: e.target.value as "Prévu" | "En cours" | "Chargé" | "Terminé"
+    })}
+    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+  >
+    <option value="Prévu">Prévu</option>
+    <option value="En cours">En cours</option>
+    <option value="Chargé">Chargé</option>
+    <option value="Terminé">Terminé</option>
+  </select>
+</div>
+        </div>
+
+        {/* Boutons d'action */}
+        <div className="flex gap-3">
+          <button
+            onClick={async () => {
+              await onUpdate(selectedEvent);
+              closeEventDetail();
+            }}
+            className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+          >
+            <Check className="w-4 h-4" />
+            Enregistrer
+          </button>
+          
+          <button
+            onClick={() => {
+              if (confirm('Êtes-vous sûr de vouloir supprimer cet événement ?')) {
+                onDelete(selectedEvent.id!);
+                closeEventDetail();
+              }
+            }}
+            className="flex items-center justify-center gap-2 bg-red-600 text-white px-4 py-2.5 rounded-lg hover:bg-red-700 transition-colors font-medium"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+          
+          <button
+            onClick={closeEventDetail}
+            className="flex items-center justify-center gap-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2.5 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-medium"
+          >
+            Annuler
+          </button>
+        </div>
+      </Dialog.Panel>
     </div>
+  </Dialog>
+)}    </div>
   );
 }

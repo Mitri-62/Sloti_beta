@@ -1,4 +1,4 @@
-// src/pages/TourPlanning.tsx - AVEC DARK MODE
+// src/pages/TourPlanning.tsx - VERSION COMPLÈTE AVEC ÉDITION ET OPTIMISATION
 import { useState, useEffect } from "react";
 import { 
   Calendar, Truck, User, Plus, MapPin, Clock,
@@ -7,6 +7,7 @@ import {
   TrendingUp
 } from "lucide-react";
 import TourFormModal from "../components/TourFormModal";
+import OptimizationResultModal from "../components/OptimizationResultModal";
 import { createTour } from "../hooks/useTourData";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../supabaseClient";
@@ -27,6 +28,9 @@ interface Tour {
   estimatedEnd: string;
   total_distance_km?: number;
   estimated_duration_minutes?: number;
+  driver_id?: string;
+  vehicle_id?: string;
+  start_time?: string;
 }
 
 const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
@@ -58,11 +62,15 @@ export default function TourPlanning() {
   
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showNewTourModal, setShowNewTourModal] = useState(false);
+  const [showEditTourModal, setShowEditTourModal] = useState(false);
+  const [editingTour, setEditingTour] = useState<Tour | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [tours, setTours] = useState<Tour[]>([]);
   const [loading, setLoading] = useState(true);
   const [optimizing, setOptimizing] = useState<string | null>(null);
+  const [optimizationResult, setOptimizationResult] = useState<any>(null);
+  const [showOptimizationModal, setShowOptimizationModal] = useState(false);
 
   const loadTours = async () => {
     if (!user?.company_id) return;
@@ -111,7 +119,10 @@ export default function TourPlanning() {
             ? new Date(tour.end_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) 
             : '',
           total_distance_km: tour.total_distance_km,
-          estimated_duration_minutes: tour.estimated_duration_minutes
+          estimated_duration_minutes: tour.estimated_duration_minutes,
+          driver_id: tour.driver_id,
+          vehicle_id: tour.vehicle_id,
+          start_time: tour.start_time
         };
       })
     );
@@ -175,8 +186,72 @@ export default function TourPlanning() {
   };
 
   const handleEditTour = (tourToEdit: Tour) => {
-    console.log('Édition de:', tourToEdit.name);
-    toast.info(`Modification de "${tourToEdit.name}" à venir`);
+    setEditingTour(tourToEdit);
+    setShowEditTourModal(true);
+  };
+
+  const handleUpdateTour = async (tourData: any): Promise<void> => {
+    if (!editingTour?.id) return;
+
+    try {
+      setLoading(true);
+
+      // 1. Mettre à jour les infos de la tournée
+      const { error: tourError } = await supabase
+        .from('tours')
+        .update({
+          name: tourData.name,
+          date: tourData.date,
+          driver_id: tourData.driver_id,
+          vehicle_id: tourData.vehicle_id,
+          start_time: tourData.start_time
+        })
+        .eq('id', editingTour.id);
+
+      if (tourError) throw tourError;
+
+      // 2. Supprimer les anciens stops
+      const { error: deleteError } = await supabase
+        .from('delivery_stops')
+        .delete()
+        .eq('tour_id', editingTour.id);
+
+      if (deleteError) throw deleteError;
+
+      // 3. Créer les nouveaux stops
+      if (tourData.stops && tourData.stops.length > 0) {
+        const stopsToInsert = tourData.stops.map((stop: any, index: number) => ({
+          tour_id: editingTour.id,
+          address: stop.address,
+          customer_name: stop.customerName,
+          customer_phone: stop.customerPhone || null,
+          time_window_start: stop.timeWindowStart,
+          time_window_end: stop.timeWindowEnd,
+          weight_kg: stop.weight_kg || 0,
+          volume_m3: stop.volume_m3 || 0,
+          notes: stop.notes || null,
+          sequence_order: index + 1,
+          status: 'pending',
+          company_id: user?.company_id
+        }));
+
+        const { error: stopsError } = await supabase
+          .from('delivery_stops')
+          .insert(stopsToInsert);
+
+        if (stopsError) throw stopsError;
+      }
+
+      toast.success('Tournée modifiée avec succès !');
+      setShowEditTourModal(false);
+      setEditingTour(null);
+      await loadTours();
+    } catch (error: any) {
+      console.error('Erreur lors de la modification:', error);
+      toast.error(`Erreur: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
   };
   
   const handleDeleteTour = async (tourId: string) => {
@@ -253,12 +328,13 @@ export default function TourPlanning() {
         ? new Date(tourData.start_time).toTimeString().slice(0, 5)
         : '08:00';
 
-      toast.loading('Optimisation en cours...', { id: 'optimizing' });
+      toast.loading('🔄 Optimisation en cours...', { id: 'optimizing' });
       
       const depotLocation = { latitude: 45.7640, longitude: 4.8357 };
       
       const result = optimizeTour(stops, depotLocation, vehicle, startTime);
 
+      // Mettre à jour l'ordre des stops
       for (let i = 0; i < result.stops.length; i++) {
         await supabase
           .from('delivery_stops')
@@ -269,6 +345,7 @@ export default function TourPlanning() {
           .eq('id', result.stops[i].id);
       }
 
+      // Mettre à jour les stats de la tournée
       await supabase
         .from('tours')
         .update({
@@ -278,12 +355,30 @@ export default function TourPlanning() {
         .eq('id', tourId);
 
       toast.dismiss('optimizing');
-      toast.success(
-        `✅ Tournée optimisée ! Distance: ${result.total_distance}km | Score: ${result.feasibility_score}%`,
-        { duration: 5000 }
-      );
+      
+      // Préparer les données pour la modal
+      const savedDistance = tourData.total_distance_km 
+        ? Math.round((tourData.total_distance_km - result.total_distance) * 10) / 10
+        : 0;
+      
+      const savedPercent = tourData.total_distance_km && savedDistance > 0
+        ? Math.round((savedDistance / tourData.total_distance_km) * 100)
+        : 0;
 
-      loadTours();
+      // Afficher la modal de résultat
+      setOptimizationResult({
+        totalDistance: result.total_distance,
+        previousDistance: tourData.total_distance_km,
+        totalDuration: result.total_duration,
+        feasibilityScore: result.feasibility_score,
+        stopsCount: result.stops.length,
+        savedKm: savedDistance > 0 ? savedDistance : undefined,
+        savedPercent: savedPercent > 0 ? savedPercent : undefined,
+        tourName: tourData.name
+      });
+      setShowOptimizationModal(true);
+
+      await loadTours();
 
     } catch (error) {
       console.error('Erreur optimisation:', error);
@@ -556,10 +651,16 @@ export default function TourPlanning() {
                     <button
                       onClick={() => handleOptimizeTour(tour.id)}
                       disabled={isOptimizing || tour.stops < 2}
-                      className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      className={`flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium ${
+                        isOptimizing
+                          ? 'bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300 cursor-wait'
+                          : tour.stops < 2
+                          ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 shadow-md hover:shadow-lg'
+                      }`}
                       title={tour.stops < 2 ? "Au moins 2 livraisons requises" : "Optimiser l'itinéraire"}
                     >
-                      <Zap size={16} className={isOptimizing ? "animate-pulse" : ""} />
+                      <Zap size={16} className={isOptimizing ? "animate-spin" : ""} />
                       <span className="hidden sm:inline">
                         {isOptimizing ? "Optimisation..." : "Optimiser"}
                       </span>
@@ -595,6 +696,31 @@ export default function TourPlanning() {
           onClose={() => setShowNewTourModal(false)}
           onSave={handleCreateTour}
           selectedDate={selectedDate}
+        />
+      )}
+
+      {/* Modal édition tournée */}
+      {showEditTourModal && editingTour && (
+        <TourFormModal
+          isOpen={showEditTourModal}
+          onClose={() => {
+            setShowEditTourModal(false);
+            setEditingTour(null);
+          }}
+          onSave={handleUpdateTour}
+          selectedDate={new Date(editingTour.date)}
+          initialData={editingTour}
+          isEditMode={true}
+        />
+      )}
+
+      {/* Modal résultat optimisation */}
+      {showOptimizationModal && optimizationResult && (
+        <OptimizationResultModal
+          isOpen={showOptimizationModal}
+          onClose={() => setShowOptimizationModal(false)}
+          result={optimizationResult}
+          tourName={optimizationResult.tourName}
         />
       )}
     </div>

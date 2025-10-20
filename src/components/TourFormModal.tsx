@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from 'react';
+import { supabase } from '../supabaseClient';
 import { 
   X, User, Calendar, MapPin, Plus, Trash2,
   AlertTriangle, Package, Check
@@ -20,11 +21,20 @@ interface DeliveryStop {
 interface TourFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSave?: (tourData: any) => void;
-  selectedDate?: Date;
+  onSave: (tourData: any) => void;
+  selectedDate: Date;
+  initialData?: any;
+  isEditMode?: boolean;
 }
 
-export default function TourFormModal({ isOpen, onClose, onSave, selectedDate = new Date() }: TourFormModalProps) {
+export default function TourFormModal({ 
+  isOpen, 
+  onClose,
+  onSave,
+  selectedDate,
+  initialData,
+  isEditMode = false
+}: TourFormModalProps) {
   const { vehicles, loading: vehiclesLoading } = useVehicles();
   const { drivers, loading: driversLoading } = useDrivers();
   
@@ -47,6 +57,49 @@ export default function TourFormModal({ isOpen, onClose, onSave, selectedDate = 
     volume_m3: 0,
     notes: "",
   });
+
+  // Charger les données en mode édition
+  useEffect(() => {
+    if (isEditMode && initialData) {
+      setTourName(initialData.name || '');
+      setTourDate(initialData.date || selectedDate.toISOString().split('T')[0]);
+      setSelectedDriver(initialData.driver_id || '');
+      setSelectedVehicle(initialData.vehicle_id || '');
+      
+      if (initialData.start_time) {
+        const time = new Date(initialData.start_time).toTimeString().slice(0, 5);
+        setStartTime(time);
+      }
+      
+      // Charger les stops
+      if (initialData.id) {
+        loadExistingStops(initialData.id);
+      }
+    }
+  }, [isEditMode, initialData, selectedDate]);
+
+  const loadExistingStops = async (tourId: string) => {
+    const { data } = await supabase
+      .from('delivery_stops')
+      .select('*')
+      .eq('tour_id', tourId)
+      .order('sequence_order');
+
+    if (data) {
+      const formatted = data.map((s: any) => ({
+        id: s.id,
+        address: s.address,
+        customerName: s.customer_name,
+        customerPhone: s.customer_phone || '',
+        timeWindowStart: s.time_window_start,
+        timeWindowEnd: s.time_window_end,
+        weight_kg: s.weight_kg || 0,
+        volume_m3: s.volume_m3 || 0,
+        notes: s.notes || ''
+      }));
+      setStops(formatted);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -123,8 +176,12 @@ export default function TourFormModal({ isOpen, onClose, onSave, selectedDate = 
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Nouvelle tournée</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Planifiez une nouvelle tournée de livraison</p>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {isEditMode ? 'Modifier la tournée' : 'Nouvelle tournée'}
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {isEditMode ? 'Modifiez les détails de votre tournée' : 'Planifiez une nouvelle tournée de livraison'}
+            </p>
           </div>
           <button 
             onClick={onClose} 
@@ -463,7 +520,7 @@ export default function TourFormModal({ isOpen, onClose, onSave, selectedDate = 
             }`}
           >
             <Check size={18} />
-            Créer la tournée
+            {isEditMode ? 'Enregistrer les modifications' : 'Créer la tournée'}
           </button>
         </div>
       </div>

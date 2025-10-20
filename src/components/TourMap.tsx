@@ -1,4 +1,4 @@
-// src/components/TourMap.tsx - AVEC CHOIX DE PROVIDERS
+// src/components/TourMap.tsx - AVEC CENTRAGE SUR LE CAMION
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -123,7 +123,7 @@ export default function TourMap({
   const [driverPath, setDriverPath] = useState<[number, number][]>([]);
   const [pathDistance, setPathDistance] = useState(0);
   const [showProviderMenu, setShowProviderMenu] = useState(false);
-  const [currentProvider, setCurrentProvider] = useState<keyof typeof MAP_PROVIDERS>('carto_light');
+  const [currentProvider, setCurrentProvider] = useState<keyof typeof MAP_PROVIDERS>('osm');
 
   // Charger le fournisseur sauvegardé
   useEffect(() => {
@@ -175,14 +175,41 @@ export default function TourMap({
     return R * c;
   };
 
-  // Initialiser la carte
+  // ✅ Initialiser la carte - PRIORITÉ AU CAMION
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
+
+    let initialCenter: [number, number] = [48.8566, 2.3522]; // Paris par défaut
+    let initialZoom = 12;
+
+    // ✅ PRIORITÉ 1 : Position du camion si disponible
+    if (driverLocation?.latitude && driverLocation?.longitude) {
+      initialCenter = [driverLocation.latitude, driverLocation.longitude];
+      initialZoom = 14;
+      console.log('🚚 Carte centrée sur le camion:', initialCenter);
+    } 
+    // PRIORITÉ 2 : Sinon, centrer sur les stops
+    else {
+      const validStops = stops.filter(s => s.latitude && s.longitude);
+      
+      if (validStops.length > 0) {
+        const avgLat = validStops.reduce((sum, s) => sum + s.latitude, 0) / validStops.length;
+        const avgLng = validStops.reduce((sum, s) => sum + s.longitude, 0) / validStops.length;
+        initialCenter = [avgLat, avgLng];
+        
+        if (validStops.length === 1) {
+          initialZoom = 15;
+        } else {
+          initialZoom = 13;
+        }
+        console.log('📍 Carte centrée sur les stops:', initialCenter);
+      }
+    }
 
     const map = L.map(mapContainerRef.current, {
       zoomControl: true,
       attributionControl: true
-    }).setView([48.8566, 2.3522], 12);
+    }).setView(initialCenter, initialZoom);
 
     const provider = MAP_PROVIDERS[currentProvider];
     const tileLayer = L.tileLayer(provider.url, {
@@ -192,7 +219,33 @@ export default function TourMap({
 
     tileLayerRef.current = tileLayer;
     mapRef.current = map;
-  }, []);
+
+    // Ajuster la vue pour inclure tous les éléments visibles
+    setTimeout(() => {
+      if (mapRef.current) {
+        const bounds = L.latLngBounds([]);
+        let hasPoints = false;
+
+        // Ajouter le camion aux bounds
+        if (driverLocation?.latitude && driverLocation?.longitude) {
+          bounds.extend([driverLocation.latitude, driverLocation.longitude]);
+          hasPoints = true;
+        }
+
+        // Ajouter les stops aux bounds
+        const validStops = stops.filter(s => s.latitude && s.longitude);
+        validStops.forEach(s => {
+          bounds.extend([s.latitude, s.longitude]);
+          hasPoints = true;
+        });
+
+        // Ajuster la vue si on a plusieurs points
+        if (hasPoints && bounds.isValid()) {
+          mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
+        }
+      }
+    }, 100);
+  }, [stops, currentProvider, driverLocation]);
 
   // Changer de fournisseur de tuiles
   const changeProvider = (providerId: keyof typeof MAP_PROVIDERS) => {
@@ -299,8 +352,6 @@ export default function TourMap({
     const validStops = stops.filter(s => s.latitude && s.longitude);
     if (validStops.length === 0) return;
 
-    const bounds = L.latLngBounds([]);
-
     validStops.forEach(stop => {
       const marker = L.marker([stop.latitude, stop.longitude], {
         icon: createCustomIcon(stop)
@@ -313,12 +364,7 @@ export default function TourMap({
 
       marker.addTo(mapRef.current!);
       markersRef.current.push(marker);
-      bounds.extend([stop.latitude, stop.longitude]);
     });
-
-    if (validStops.length > 0) {
-      mapRef.current.fitBounds(bounds, { padding: [50, 50] });
-    }
   }, [stops, onStopClick]);
 
   // Dessiner le parcours réel du chauffeur
