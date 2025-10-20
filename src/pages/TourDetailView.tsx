@@ -1,10 +1,10 @@
-// src/pages/TourDetailView.tsx - VERSION COMPLÈTE
+// src/pages/TourDetailView.tsx - VERSION COMPLÈTE RESPONSIVE CORRIGÉE
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, MapPin, User, Truck, Clock, Package, 
   AlertCircle, Phone, Edit2,
-  Navigation, Download, Printer, Smartphone, X
+  Navigation, Download, Printer, Smartphone
 } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../contexts/AuthContext";
@@ -56,14 +56,12 @@ const statusColors = {
   failed: "bg-red-100 text-red-700 border-red-300 dark:bg-red-900 dark:text-red-200 dark:border-red-700",
 };
 
-// ✅ HOOK POUR ÉCOUTER LA POSITION DU CHAUFFEUR
 function useDriverLocationRealtime(driverId: string | undefined) {
   const [location, setLocation] = useState<DriverLocation | null>(null);
 
   useEffect(() => {
     if (!driverId) return;
 
-    // Charger position initiale
     const loadInitial = async () => {
       const { data } = await supabase
         .from('drivers')
@@ -83,7 +81,6 @@ function useDriverLocationRealtime(driverId: string | undefined) {
 
     loadInitial();
 
-    // S'abonner aux mises à jour en temps réel
     const channel = supabase
       .channel(`driver-location-${driverId}`)
       .on('postgres_changes', {
@@ -121,14 +118,13 @@ export default function TourDetailView() {
   const [stops, setStops] = useState<DeliveryStop[]>([]);
   const [loading, setLoading] = useState(true);
   const [showMap, setShowMap] = useState(true);
+  const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
   
-  // États pour la gestion des problèmes
   const [showProblemModal, setShowProblemModal] = useState(false);
   const [selectedStopForProblem, setSelectedStopForProblem] = useState<string | null>(null);
   const [problemReason, setProblemReason] = useState('');
   const [problemType, setProblemType] = useState<'customer_absent' | 'address_incorrect' | 'access_denied' | 'other'>('customer_absent');
   
-  // ✅ UTILISER LE HOOK POUR LA POSITION
   const driverLocation = useDriverLocationRealtime(tour?.driver?.id);
 
   useEffect(() => {
@@ -210,7 +206,6 @@ export default function TourDetailView() {
     } else {
       toast.success('Statut mis à jour');
       
-      // ✅ Recharger immédiatement les stops
       const { data: updatedStops, error: fetchError } = await supabase
         .from('delivery_stops')
         .select('*')
@@ -223,16 +218,13 @@ export default function TourDetailView() {
     }
   };
 
-  // Nouvelle fonction pour annuler un statut
   const cancelStatus = async (stopId: string) => {
     if (!confirm('Voulez-vous annuler le statut de ce point de livraison ?')) {
       return;
     }
-    
     await updateStopStatus(stopId, 'pending');
   };
 
-  // Fonction pour ouvrir le modal de problème
   const openProblemModal = (stopId: string) => {
     setSelectedStopForProblem(stopId);
     setProblemReason('');
@@ -240,7 +232,6 @@ export default function TourDetailView() {
     setShowProblemModal(true);
   };
 
-  // Fonction pour soumettre le problème
   const submitProblem = async () => {
     if (!selectedStopForProblem) return;
     
@@ -323,15 +314,12 @@ export default function TourDetailView() {
       toast.error('Aucune donnée à imprimer');
       return;
     }
-    
     printTourPDF(tour, stops);
   };
 
-  // 🆕 Fonction pour ouvrir la vue chauffeur
   const openDriverView = () => {
     const driverUrl = `${window.location.origin}/app/driver-app/${tourId}`;
     
-    // Copier le lien dans le presse-papier
     navigator.clipboard.writeText(driverUrl).then(() => {
       toast.success('Lien copié ! Ouvrez-le sur le téléphone du chauffeur', {
         duration: 5000,
@@ -342,7 +330,6 @@ export default function TourDetailView() {
       });
     });
     
-    // Ouvrir dans un nouvel onglet (utile pour tester sur desktop)
     window.open(driverUrl, '_blank');
   };
 
@@ -378,19 +365,19 @@ export default function TourDetailView() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4">
+      {/* Header responsive */}
+      <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             <button 
               onClick={() => navigate('/app/tour-planning')}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-900 dark:text-white"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-900 dark:text-white flex-shrink-0"
             >
               <ArrowLeft size={20} />
             </button>
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{tour.name}</h1>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white truncate">{tour.name}</h1>
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-1">
                 {new Date(tour.date).toLocaleDateString('fr-FR', { 
                   weekday: 'long', 
                   day: 'numeric', 
@@ -401,119 +388,102 @@ export default function TourDetailView() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* 🆕 Bouton Vue Chauffeur */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             <button
               onClick={openDriverView}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2"
-              title="Ouvrir la vue chauffeur (mobile)"
+              className="px-3 sm:px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2"
             >
               <Smartphone size={16} />
-              <span className="hidden sm:inline">Vue Chauffeur</span>
+              <span className="text-sm sm:text-base">Vue Chauffeur</span>
             </button>
 
-            <button
-              onClick={exportPDF}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              title="Exporter en PDF"
-            >
-              <Download size={20} className="text-gray-600 dark:text-gray-400" />
-            </button>
-            <button
-              onClick={handlePrint}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              title="Imprimer"
-            >
-              <Printer size={20} className="text-gray-600 dark:text-gray-400" />
-            </button>
+            <div className="flex gap-2">
+              <button onClick={exportPDF} className="flex-1 sm:flex-none p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                <Download size={20} className="text-gray-600 dark:text-gray-400" />
+              </button>
+              <button onClick={handlePrint} className="flex-1 sm:flex-none p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+                <Printer size={20} className="text-gray-600 dark:text-gray-400" />
+              </button>
+            </div>
+
             <button
               onClick={() => navigate(`/app/tour-planning/edit/${tour.id}`)}
-              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center gap-2"
+              className="px-3 sm:px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center justify-center gap-2"
             >
               <Edit2 size={16} />
-              Modifier
+              <span className="text-sm sm:text-base">Modifier</span>
             </button>
+
             {tour.status === 'planned' && (
               <button
                 onClick={startTour}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                className="px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center gap-2"
               >
                 <Navigation size={16} />
-                Démarrer
+                <span className="text-sm sm:text-base">Démarrer</span>
               </button>
             )}
             {tour.status === 'in_progress' && (
-              <button
-                onClick={completeTour}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Terminer la tournée
+              <button onClick={completeTour} className="px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                Terminer
               </button>
             )}
           </div>
         </div>
 
-        {/* Progress bar */}
-        <div className="mb-4">
-          <div className="flex justify-between text-sm mb-2">
+        <div className="mb-3 sm:mb-4">
+          <div className="flex justify-between text-xs sm:text-sm mb-2">
             <span className="text-gray-600 dark:text-gray-400">Progression</span>
             <span className="font-medium text-gray-900 dark:text-white">
               {completedStops} / {stops.length} livrés ({progress.toFixed(0)}%)
             </span>
           </div>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div
-              className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all"
-              style={{ width: `${progress}%` }}
-            />
+            <div className="bg-blue-600 dark:bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${progress}%` }} />
           </div>
         </div>
 
-        {/* Infos tournée */}
-        <div className="grid grid-cols-4 gap-4">
-          <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <User size={20} className="text-gray-500 dark:text-gray-400 mt-0.5" />
-            <div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="flex items-start gap-2 sm:gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <User className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
+            <div className="min-w-0 flex-1">
               <p className="text-xs text-gray-500 dark:text-gray-400">Chauffeur</p>
-              <p className="font-medium text-gray-900 dark:text-white">{tour.driver?.name || 'Non assigné'}</p>
+              <p className="font-medium text-sm text-gray-900 dark:text-white truncate">{tour.driver?.name || 'Non assigné'}</p>
               {tour.driver?.phone && (
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-1">
                   <Phone size={12} />
-                  {tour.driver.phone}
+                  <span className="truncate">{tour.driver.phone}</span>
                 </p>
               )}
             </div>
           </div>
 
-          <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <Truck size={20} className="text-gray-500 dark:text-gray-400 mt-0.5" />
-            <div>
+          <div className="flex items-start gap-2 sm:gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <Truck className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
+            <div className="min-w-0 flex-1">
               <p className="text-xs text-gray-500 dark:text-gray-400">Véhicule</p>
-              <p className="font-medium text-gray-900 dark:text-white">{tour.vehicle?.name || 'Non assigné'}</p>
+              <p className="font-medium text-sm text-gray-900 dark:text-white truncate">{tour.vehicle?.name || 'Non assigné'}</p>
               {tour.vehicle?.license_plate && (
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{tour.vehicle.license_plate}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate">{tour.vehicle.license_plate}</p>
               )}
             </div>
           </div>
 
-          <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <Package size={20} className="text-gray-500 dark:text-gray-400 mt-0.5" />
+          <div className="flex items-start gap-2 sm:gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <Package className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
             <div>
               <p className="text-xs text-gray-500 dark:text-gray-400">Charge totale</p>
-              <p className="font-medium text-gray-900 dark:text-white">{totalWeight} kg</p>
+              <p className="font-medium text-sm text-gray-900 dark:text-white">{totalWeight} kg</p>
               <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{totalVolume.toFixed(1)} m³</p>
             </div>
           </div>
 
-          <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <Clock size={20} className="text-gray-500 dark:text-gray-400 mt-0.5" />
+          <div className="flex items-start gap-2 sm:gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+            <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-gray-500 dark:text-gray-400 mt-0.5 flex-shrink-0" />
             <div>
               <p className="text-xs text-gray-500 dark:text-gray-400">Horaire départ</p>
-              <p className="font-medium text-gray-900 dark:text-white">
-                {new Date(tour.start_time).toLocaleTimeString('fr-FR', { 
-                  hour: '2-digit', 
-                  minute: '2-digit' 
-                })}
+              <p className="font-medium text-sm text-gray-900 dark:text-white">
+                {new Date(tour.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
               </p>
               {tour.total_distance_km && (
                 <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{tour.total_distance_km} km</p>
@@ -523,19 +493,43 @@ export default function TourDetailView() {
         </div>
       </div>
 
-      {/* Layout en 2 colonnes : Liste à gauche (40%) + Carte à droite (60%) */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* Toggle mobile */}
+      <div className="lg:hidden flex bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <button
+          onClick={() => setMobileView('list')}
+          className={`flex-1 py-3 text-sm font-medium transition-colors ${
+            mobileView === 'list'
+              ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600'
+              : 'text-gray-500 dark:text-gray-400'
+          }`}
+        >
+          Liste ({stops.length})
+        </button>
+        <button
+          onClick={() => setMobileView('map')}
+          className={`flex-1 py-3 text-sm font-medium transition-colors ${
+            mobileView === 'map'
+              ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600'
+              : 'text-gray-500 dark:text-gray-400'
+          }`}
+        >
+          Carte
+        </button>
+      </div>
+
+      {/* Layout principal */}
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         
-        {/* COLONNE GAUCHE - Liste des stops */}
-        <div className="w-2/5 bg-gray-50 dark:bg-gray-900 overflow-y-auto border-r border-gray-200 dark:border-gray-700">
-          <div className="p-6">
+        {/* Liste des stops */}
+        <div className={`flex-col lg:w-2/5 w-full bg-gray-50 dark:bg-gray-900 overflow-y-auto lg:border-r border-gray-200 dark:border-gray-700 ${mobileView === 'list' ? 'flex' : 'hidden'} lg:flex`}>
+          <div className="p-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+              <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
                 Points de livraison ({stops.length})
               </h2>
               <button
                 onClick={() => setShowMap(!showMap)}
-                className="px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center gap-2"
+                className="hidden lg:flex px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 items-center gap-2"
               >
                 <MapPin size={14} />
                 {showMap ? 'Masquer' : 'Afficher'} carte
@@ -545,18 +539,14 @@ export default function TourDetailView() {
             <div className="space-y-3">
               {stops.map((stop, index) => {
                 const isLast = index === stops.length - 1;
-
                 return (
                   <div key={stop.id} className="relative">
                     <div className="flex gap-3">
-                      {/* Timeline */}
                       <div className="flex flex-col items-center">
                         <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs ${
-                          stop.status === 'completed' 
-                            ? 'bg-green-600 text-white' 
-                            : stop.status === 'arrived'
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                          stop.status === 'completed' ? 'bg-green-600 text-white' : 
+                          stop.status === 'arrived' ? 'bg-blue-600 text-white' :
+                          'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
                         }`}>
                           {index + 1}
                         </div>
@@ -567,7 +557,6 @@ export default function TourDetailView() {
                         )}
                       </div>
 
-                      {/* Carte stop */}
                       <div className="flex-1 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-2">
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex-1">
@@ -596,9 +585,7 @@ export default function TourDetailView() {
                           </div>
                           <div>
                             <p className="text-gray-500 dark:text-gray-400">Colis</p>
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              {stop.weight_kg} kg
-                            </p>
+                            <p className="font-medium text-gray-900 dark:text-white">{stop.weight_kg} kg</p>
                           </div>
                         </div>
 
@@ -608,7 +595,6 @@ export default function TourDetailView() {
                           </div>
                         )}
 
-                        {/* Actions rapides */}
                         {tour.status === 'in_progress' && (
                           <div className="space-y-2">
                             {stop.status === 'pending' && (
@@ -652,14 +638,12 @@ export default function TourDetailView() {
                             )}
                             
                             {stop.status === 'completed' && (
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => cancelStatus(stop.id)}
-                                  className="flex-1 px-2 py-1.5 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 font-medium"
-                                >
-                                  Annuler la livraison
-                                </button>
-                              </div>
+                              <button
+                                onClick={() => cancelStatus(stop.id)}
+                                className="w-full px-2 py-1.5 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 font-medium"
+                              >
+                                Annuler la livraison
+                              </button>
                             )}
                             
                             {stop.status === 'failed' && (
@@ -669,14 +653,12 @@ export default function TourDetailView() {
                                     <strong>Raison:</strong> {stop.failure_reason}
                                   </div>
                                 )}
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => cancelStatus(stop.id)}
-                                    className="flex-1 px-2 py-1.5 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 font-medium"
-                                  >
-                                    Réessayer
-                                  </button>
-                                </div>
+                                <button
+                                  onClick={() => cancelStatus(stop.id)}
+                                  className="w-full px-2 py-1.5 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 font-medium"
+                                >
+                                  Réessayer
+                                </button>
                               </div>
                             )}
                           </div>
@@ -697,9 +679,9 @@ export default function TourDetailView() {
           </div>
         </div>
 
-        {/* COLONNE DROITE - Carte */}
+        {/* Carte */}
         {showMap && stops.length > 0 && (
-          <div className="flex-1 bg-white dark:bg-gray-800">
+          <div className={`flex-1 bg-white dark:bg-gray-800 ${mobileView === 'map' ? 'flex' : 'hidden'} lg:flex flex-col`}>
             <div className="h-full flex flex-col">
               <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                 <div className="flex items-center justify-between">
@@ -708,24 +690,19 @@ export default function TourDetailView() {
                     Carte de l'itinéraire
                   </h3>
                   
-                  {/* Indicateur GPS */}
                   {tour.driver && (
                     <div className="flex items-center gap-3">
                       {driverLocation ? (
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/30 rounded-lg border border-green-200 dark:border-green-700">
                           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                           <span className="text-xs text-gray-600 dark:text-gray-300 font-medium">
-                            GPS actif - Mis à jour il y a {
-                              Math.floor((Date.now() - new Date(driverLocation.last_update).getTime()) / 60000)
-                            } min
+                            GPS actif - Mis à jour il y a {Math.floor((Date.now() - new Date(driverLocation.last_update).getTime()) / 60000)} min
                           </span>
                         </div>
                       ) : (
                         <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
                           <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                          <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">
-                            GPS non activé
-                          </span>
+                          <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">GPS non activé</span>
                         </div>
                       )}
                     </div>
@@ -757,70 +734,73 @@ export default function TourDetailView() {
         )}
       </div>
 
-      {/* Modal de signalement de problème */}
-{showProblemModal && (
-  <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => {
-      setShowProblemModal(false);
-      setSelectedStopForProblem(null);
-    }}></div>
-    
-    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl relative z-10">
-      <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-        Signaler un problème
-      </h3>
-      
-      <div className="space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Type de problème
-          </label>
-          <select
-            value={problemType}
-            onChange={(e) => setProblemType(e.target.value as any)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="customer_absent">Client absent</option>
-            <option value="address_incorrect">Adresse incorrecte</option>
-            <option value="access_denied">Accès refusé</option>
-            <option value="other">Autre</option>
-          </select>
-        </div>
-        
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Détails du problème *
-          </label>
-          <textarea
-            value={problemReason}
-            onChange={(e) => setProblemReason(e.target.value)}
-            placeholder="Décrivez le problème rencontré..."
-            rows={4}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+      {/* Modal problème */}
+      {showProblemModal && (
+        <div className="fixed inset-0 flex items-center justify-center p-4 z-[9999]">
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm" 
+            onClick={() => {
+              setShowProblemModal(false);
+              setSelectedStopForProblem(null);
+            }}
           />
+          
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 w-full max-w-md shadow-2xl relative z-10 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">
+              Signaler un problème
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Type de problème
+                </label>
+                <select
+                  value={problemType}
+                  onChange={(e) => setProblemType(e.target.value as any)}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="customer_absent">Client absent</option>
+                  <option value="address_incorrect">Adresse incorrecte</option>
+                  <option value="access_denied">Accès refusé</option>
+                  <option value="other">Autre</option>
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Détails du problème *
+                </label>
+                <textarea
+                  value={problemReason}
+                  onChange={(e) => setProblemReason(e.target.value)}
+                  placeholder="Décrivez le problème rencontré..."
+                  rows={4}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-3 mt-6">
+              <button
+                onClick={submitProblem}
+                className="flex-1 bg-red-600 text-white px-4 py-2.5 rounded-lg hover:bg-red-700 font-medium transition-colors"
+              >
+                Confirmer le problème
+              </button>
+              <button
+                onClick={() => {
+                  setShowProblemModal(false);
+                  setSelectedStopForProblem(null);
+                }}
+                className="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2.5 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 font-medium transition-colors"
+              >
+                Annuler
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
-      
-      <div className="flex gap-3 mt-6">
-        <button
-          onClick={submitProblem}
-          className="flex-1 bg-red-600 text-white px-4 py-2.5 rounded-lg hover:bg-red-700 font-medium transition-colors"
-        >
-          Confirmer le problème
-        </button>
-        <button
-          onClick={() => {
-            setShowProblemModal(false);
-            setSelectedStopForProblem(null);
-          }}
-          className="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2.5 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 font-medium transition-colors"
-        >
-          Annuler
-        </button>
-      </div>
+      )}
     </div>
-  </div>
-)}
-</div>
   );
 }
