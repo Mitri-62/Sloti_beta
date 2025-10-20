@@ -16,6 +16,8 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import '../styles/planning-mobile.css';
+
 
 import { useAuth } from "../contexts/AuthContext";
 import type { Planning } from "../hooks/useOptimizedPlannings";
@@ -28,6 +30,7 @@ import PlanningKanban from "../components/PlanningKanban";
 import PlanningAgenda from "../components/PlanningAgenda";
 import ForecastView from "../components/ForecastView";
 import DocumentsModal from "../components/DocumentsModal";
+
 
 type ViewType = "list" | "kanban" | "agenda" | "forecast";
 
