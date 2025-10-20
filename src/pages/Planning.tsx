@@ -1,4 +1,4 @@
-// src/pages/Planning.tsx - VERSION OPTIMISÉE AVEC EXPORT PAR PÉRIODE
+// src/pages/Planning.tsx - VERSION RESPONSIVE MOBILE COMPLÈTE
 import { useState, useMemo, useCallback } from "react";
 import { 
   Calendar as CalendarIcon, 
@@ -17,7 +17,6 @@ import { toast } from "sonner";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 
-
 import { useAuth } from "../contexts/AuthContext";
 import type { Planning } from "../hooks/useOptimizedPlannings";
 import { useOptimizedPlannings } from "../hooks/useOptimizedPlannings";
@@ -30,14 +29,12 @@ import PlanningAgenda from "../components/PlanningAgenda";
 import ForecastView from "../components/ForecastView";
 import DocumentsModal from "../components/DocumentsModal";
 
-
 type ViewType = "list" | "kanban" | "agenda" | "forecast";
 
 export default function Planning() {
   const { user, isLoading: authLoading } = useAuth();
   const companyId = user?.company_id ?? null;
 
-  // ✅ Hook optimisé avec React Query
   const { plannings, add, update, remove, loading, reload } = useOptimizedPlannings(
     companyId,
     { forecastOnly: false, enableRealtime: true }
@@ -71,7 +68,6 @@ export default function Planning() {
     duration: 30,
   });
 
-  // 🔹 Fonctions utilitaires
   const openDocumentsModal = useCallback((id: string) => {
     setDocPlanningId(id);
     setIsDocModalOpen(true);
@@ -111,7 +107,6 @@ export default function Planning() {
     toast.info("Événement dupliqué, modifiez les détails si nécessaire");
   }, [openAddModal]);
 
-  // ✅ SAVE simplifié avec gestion d'erreur optimisée
   const handleSave = useCallback(async () => {
     setSaveError("");
     setValidationErrors({});
@@ -172,7 +167,6 @@ export default function Planning() {
     setIsOpen(false);
   }, []);
 
-  // ✅ DELETE simplifié
   const handleDelete = useCallback(async (id: string) => {
     if (!confirm("Êtes-vous sûr de vouloir supprimer cet événement ?")) return;
     
@@ -183,7 +177,6 @@ export default function Planning() {
     }
   }, [remove]);
 
-  // ✅ UPDATE STATUS
   const handleUpdateStatusKanban = useCallback(async (id: string, updates: Partial<Planning>) => {
     try {
       await update(id, updates);
@@ -216,7 +209,6 @@ export default function Planning() {
     }
   }, [update]);
 
-  // 🔹 Filtres
   const filteredEvents = useMemo(() => {
     return plannings.filter((ev) => {
       if (filterTransporter !== "Tous" && ev.transporter !== filterTransporter) return false;
@@ -238,7 +230,6 @@ export default function Planning() {
     return ["Tous", ...new Set(plannings.map((e) => e.transporter))];
   }, [plannings]);
 
-  // 🔹 Filtre pour l'export par période
   const getFilteredPlanningsForExport = useCallback(() => {
     if (!exportStartDate || !exportEndDate) {
       return filteredEvents;
@@ -249,7 +240,6 @@ export default function Planning() {
     });
   }, [filteredEvents, exportStartDate, exportEndDate]);
 
-  // 🔹 Export CSV avec période
   const handleExportCSV = useCallback(() => {
     const planningsToExport = getFilteredPlanningsForExport();
     
@@ -276,7 +266,6 @@ export default function Planning() {
     toast.success("CSV exporté avec succès");
   }, [getFilteredPlanningsForExport, exportStartDate, exportEndDate]);
 
-  // 🔹 Export PDF avec période
   const handleExportPDF = useCallback(() => {
     const planningsToExport = getFilteredPlanningsForExport();
     
@@ -318,7 +307,6 @@ export default function Planning() {
     toast.success("PDF exporté avec succès");
   }, [getFilteredPlanningsForExport, exportStartDate, exportEndDate]);
 
-  // 🔹 Envoi par email avec période
   const handleSendEmail = useCallback(() => {
     const planningsToExport = getFilteredPlanningsForExport();
     
@@ -344,7 +332,6 @@ export default function Planning() {
     toast.success("Client email ouvert");
   }, [getFilteredPlanningsForExport, exportStartDate, exportEndDate]);
 
-  // 🔹 Statistiques
   const stats = useMemo(() => {
     const total = filteredEvents.length;
     const receptions = filteredEvents.filter((e) => e.type === "Réception").length;
@@ -353,7 +340,6 @@ export default function Planning() {
     return { total, receptions, expeditions, termines };
   }, [filteredEvents]);
 
-  // 🔹 Loading states
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -381,7 +367,6 @@ export default function Planning() {
     );
   }
 
-  // 🔹 Vue principale
   const viewButtons = [
     { view: "list" as ViewType, icon: List, label: "Liste" },
     { view: "kanban" as ViewType, icon: Kanban, label: "Kanban" },
@@ -390,18 +375,18 @@ export default function Planning() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+    <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen planning-container">
       {/* Header */}
-      <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-          <CalendarIcon className="w-8 h-8 text-blue-600" />
+      <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 planning-header">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+          <CalendarIcon className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
           Planning
         </h1>
 
         {view !== "forecast" && (
           <button
             onClick={() => openAddModal()}
-            className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg shadow-lg hover:bg-blue-700 transition-colors font-medium"
+            className="w-full md:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg shadow-lg hover:bg-blue-700 transition-colors font-medium"
           >
             <Plus className="w-5 h-5" /> Nouvel événement
           </button>
@@ -409,31 +394,34 @@ export default function Planning() {
       </div>
 
       {/* Toolbar */}
-      <div className="mb-6 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+      <div className="mb-6 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
         {/* View Switcher */}
-        <div className="flex gap-2 bg-white dark:bg-gray-800 p-1 rounded-lg shadow-sm">
-          {viewButtons.map((btn) => (
-            <button
-              key={btn.view}
-              onClick={() => setView(btn.view)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all font-medium ${
-                view === btn.view
-                  ? "bg-blue-600 text-white shadow-md scale-105"
-                  : "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-300"
-              }`}
-            >
-              <btn.icon className="w-4 h-4" /> {btn.label}
-            </button>
-          ))}
+        <div className="w-full md:w-auto overflow-x-auto planning-view-switcher">
+          <div className="flex gap-2 bg-white dark:bg-gray-800 p-1 rounded-lg shadow-sm min-w-max">
+            {viewButtons.map((btn) => (
+              <button
+                key={btn.view}
+                onClick={() => setView(btn.view)}
+                className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg transition-all font-medium whitespace-nowrap planning-view-button ${
+                  view === btn.view
+                    ? "bg-blue-600 text-white shadow-md scale-105"
+                    : "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-300"
+                }`}
+              >
+                <btn.icon className="w-4 h-4" /> 
+                <span className="hidden sm:inline">{btn.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Actions */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full md:w-auto">
           {view !== "forecast" && (
             <>
               <button
                 onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg shadow hover:bg-gray-200 dark:hover:bg-gray-600 relative transition-colors"
+                className="flex items-center justify-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg shadow hover:bg-gray-200 dark:hover:bg-gray-600 relative transition-colors"
               >
                 <Filter className="w-4 h-4" /> Filtres
                 {activeFiltersCount > 0 && (
@@ -445,7 +433,7 @@ export default function Planning() {
 
               <button
                 onClick={() => setShowExportModal(true)}
-                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg shadow hover:bg-green-700 transition-colors disabled:opacity-50"
+                className="flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg shadow hover:bg-green-700 transition-colors disabled:opacity-50"
                 disabled={filteredEvents.length === 0}
               >
                 <Download className="w-4 h-4" /> Exporter
@@ -458,7 +446,7 @@ export default function Planning() {
       {/* Filters Panel */}
       {showFilters && view !== "forecast" && (
         <div className="mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Transporteur
@@ -509,7 +497,7 @@ export default function Planning() {
 
           {/* Stats */}
           {filteredEvents.length > 0 && (
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="mt-4 grid grid-cols-2 md:grid-cols-4 gap-3 planning-stats-grid">
               <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
                 <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Total</p>
                 <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{stats.total}</p>
@@ -605,8 +593,8 @@ export default function Planning() {
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
         
         <div className="fixed inset-0 flex items-center justify-center p-4">
-          <Dialog.Panel className="bg-white dark:bg-gray-800 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl">
-            <Dialog.Title className="text-xl font-bold text-gray-900 dark:text-white">
+          <Dialog.Panel className="bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto planning-modal-content">
+            <Dialog.Title className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
               {editingId ? "Modifier l'événement" : "Nouvel événement"}
             </Dialog.Title>
 
@@ -620,7 +608,7 @@ export default function Planning() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Date *
@@ -711,7 +699,7 @@ export default function Planning() {
               />
             </div>
 
-            <div className="flex gap-3 pt-4">
+            <div className="flex flex-col sm:flex-row gap-3 pt-4">
               <button
                 onClick={handleSave}
                 className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 font-medium transition-colors"
@@ -729,14 +717,14 @@ export default function Planning() {
         </div>
       </Dialog>
 
-      {/* Modal Export avec sélection de période */}
+      {/* Modal Export */}
       {showExportModal && (
         <Dialog open={showExportModal} onClose={() => setShowExportModal(false)} className="relative z-50">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
           
           <div className="fixed inset-0 flex items-center justify-center p-4">
-            <Dialog.Panel className="bg-white dark:bg-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl">
-              <Dialog.Title className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+            <Dialog.Panel className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+              <Dialog.Title className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">
                 Exporter le planning
               </Dialog.Title>
 
@@ -765,14 +753,14 @@ export default function Planning() {
                   />
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => {
                       const today = new Date();
                       setExportStartDate(format(today, 'yyyy-MM-dd'));
                       setExportEndDate(format(today, 'yyyy-MM-dd'));
                     }}
-                    className="px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800"
+                    className="flex-1 min-w-[80px] px-3 py-1.5 text-sm bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-200 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-800"
                   >
                     Aujourd'hui
                   </button>
@@ -786,7 +774,7 @@ export default function Planning() {
                       setExportStartDate(format(weekStart, 'yyyy-MM-dd'));
                       setExportEndDate(format(weekEnd, 'yyyy-MM-dd'));
                     }}
-                    className="px-3 py-1.5 text-sm bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800"
+                    className="flex-1 min-w-[80px] px-3 py-1.5 text-sm bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-200 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-800"
                   >
                     Cette semaine
                   </button>
@@ -795,7 +783,7 @@ export default function Planning() {
                       setExportStartDate("");
                       setExportEndDate("");
                     }}
-                    className="px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
+                    className="flex-1 min-w-[80px] px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600"
                   >
                     Tout
                   </button>
@@ -808,7 +796,7 @@ export default function Planning() {
                 )}
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleExportCSV}
                   className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 transition-colors font-medium"

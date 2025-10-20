@@ -2,243 +2,375 @@
 
 /* === SCROLL SMOOTH === */
 html {
-    scroll-behavior: smooth;
+  scroll-behavior: smooth;
+}
+
+/* === OPTIMISATION DES PERFORMANCES === */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* === ANIMATIONS === */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-out;
+}
+
+.animate-slide-in-left {
+  animation: slide-in-left 0.8s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.8s ease-out;
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
+/* === FOCUS VISIBLE (ACCESSIBILITÉ) === */
+*:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* === TRANSITIONS GLOBALES === */
+a, button {
+  transition: all 0.3s ease;
+}
+
+/* === SKIP TO MAIN CONTENT (ACCESSIBILITÉ) === */
+.skip-to-main {
+  position: absolute;
+  left: -9999px;
+  z-index: 999;
+  padding: 1rem;
+  background-color: #3b82f6;
+  color: white;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.skip-to-main:focus {
+  left: 50%;
+  transform: translateX(-50%);
+  top: 1rem;
+}
+
+/* === OPTIMISATION IMAGES === */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* === SCROLL BAR PERSONNALISÉE === */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2792B0;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #207A94;
+}
+
+/* === REDUCE MOTION (ACCESSIBILITÉ) === */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* === PRINT STYLES === */
+@media print {
+  header,
+  footer,
+  nav,
+  .no-print {
+    display: none !important;
   }
   
-  /* === OPTIMISATION DES PERFORMANCES === */
-  * {
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+  body {
+    font-size: 12pt;
+    line-height: 1.5;
   }
   
-  /* === ANIMATIONS === */
-  @keyframes fade-in {
+  a {
+    text-decoration: underline;
+  }
+  
+  a[href^="http"]:after {
+    content: " (" attr(href) ")";
+  }
+}
+
+/* === DARK MODE SUPPORT === */
+@media (prefers-color-scheme: dark) {
+  /* À implémenter si nécessaire */
+}
+
+/* === LOADING STATES === */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 200% 100%;
+  animation: loading 1.5s ease-in-out infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* === RESPONSIVE UTILITIES === */
+@media (max-width: 640px) {
+  h1 {
+    font-size: 2rem;
+  }
+  
+  h2 {
+    font-size: 1.75rem;
+  }
+  
+  h3 {
+    font-size: 1.5rem;
+  }
+}
+
+/* === HOVER EFFECTS === */
+.hover-lift {
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+/* === GRADIENT TEXT === */
+.gradient-text {
+  background: linear-gradient(135deg, #2792B0, #8BC34A);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* === GLASS MORPHISM === */
+.glass {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* === SELECTION STYLING === */
+::selection {
+  background-color: #2792B0;
+  color: white;
+}
+
+::-moz-selection {
+  background-color: #2792B0;
+  color: white;
+}
+
+/* ============================================ */
+/* === RESPONSIVE MOBILE PLANNING PAGE === */
+/* ============================================ */
+
+/* === MOBILE GÉNÉRAL (< 768px) === */
+@media (max-width: 768px) {
+  /* Améliorer les zones tactiles - IMPORTANT pour mobile */
+  button,
+  select,
+  input[type="date"],
+  input[type="time"],
+  input[type="number"] {
+    min-height: 44px !important; /* Standard Apple/Android */
+  }
+
+  /* Éviter le zoom automatique sur iOS */
+  input[type="text"],
+  input[type="number"],
+  input[type="date"],
+  input[type="time"],
+  input[type="email"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* View Switcher - Scroll horizontal fluide */
+  .planning-view-switcher {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .planning-view-switcher::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Padding safe area pour iPhone avec encoche */
+  .planning-container {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
+
+  /* Feedback tactile sur les boutons */
+  button:active {
+    transform: scale(0.98);
+    transition: transform 0.1s ease;
+  }
+
+  /* Modal responsive - Éviter débordement */
+  .planning-modal-content {
+    max-height: calc(100vh - 2rem) !important;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Améliorer les selects sur mobile */
+  select {
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    padding-right: 2.5rem;
+  }
+
+  .dark select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23ffffff' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  }
+
+  /* Transitions plus rapides sur mobile */
+  button,
+  select,
+  input {
+    transition: all 0.2s ease !important;
+  }
+}
+
+/* === PETITS ÉCRANS (< 480px) === */
+@media (max-width: 480px) {
+  /* Titre plus petit */
+  .planning-header h1 {
+    font-size: 1.5rem !important;
+  }
+
+  /* Icônes plus petites */
+  .planning-header svg {
+    width: 1.5rem !important;
+    height: 1.5rem !important;
+  }
+
+  /* Boutons view switcher compacts */
+  .planning-view-button {
+    font-size: 0.75rem !important;
+    padding: 0.375rem 0.5rem !important;
+  }
+
+  .planning-view-button svg {
+    width: 0.875rem !important;
+    height: 0.875rem !important;
+  }
+}
+
+/* === ORIENTATION PAYSAGE MOBILE === */
+@media (max-width: 768px) and (orientation: landscape) {
+  /* Modal plus compact en paysage */
+  .planning-modal-content {
+    max-height: 85vh !important;
+  }
+
+  /* Garder plus de colonnes en paysage si possible */
+  .planning-stats-grid {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+}
+
+/* === LOADING SPINNER MOBILE === */
+@media (max-width: 768px) {
+  @keyframes spin {
     from {
-      opacity: 0;
-      transform: translateY(20px);
+      transform: rotate(0deg);
     }
     to {
-      opacity: 1;
-      transform: translateY(0);
+      transform: rotate(360deg);
     }
   }
-  
-  @keyframes slide-in-left {
-    from {
-      opacity: 0;
-      transform: translateX(-30px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
+
+  .animate-spin {
+    animation: spin 1s linear infinite;
   }
-  
-  @keyframes slide-in-right {
-    from {
-      opacity: 0;
-      transform: translateX(30px);
-    }
-    to {
-      opacity: 1;
-      transform: translateX(0);
-    }
-  }
-  
-  @keyframes pulse-slow {
-    0%, 100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.7;
-    }
-  }
-  
-  .animate-fade-in {
-    animation: fade-in 0.6s ease-out;
-  }
-  
-  .animate-slide-in-left {
-    animation: slide-in-left 0.8s ease-out;
-  }
-  
-  .animate-slide-in-right {
-    animation: slide-in-right 0.8s ease-out;
-  }
-  
-  .animate-pulse-slow {
-    animation: pulse-slow 3s ease-in-out infinite;
-  }
-  
-  /* === FOCUS VISIBLE (ACCESSIBILITÉ) === */
-  *:focus-visible {
-    outline: 2px solid #3b82f6;
-    outline-offset: 2px;
-    border-radius: 4px;
-  }
-  
-  button:focus-visible,
-  a:focus-visible {
-    outline: 3px solid #3b82f6;
-    outline-offset: 2px;
-  }
-  
-  /* === TRANSITIONS GLOBALES === */
-  a, button {
-    transition: all 0.3s ease;
-  }
-  
-  /* === SKIP TO MAIN CONTENT (ACCESSIBILITÉ) === */
-  .skip-to-main {
-    position: absolute;
-    left: -9999px;
-    z-index: 999;
-    padding: 1rem;
-    background-color: #3b82f6;
-    color: white;
-    text-decoration: none;
-    font-weight: bold;
-  }
-  
-  .skip-to-main:focus {
-    left: 50%;
-    transform: translateX(-50%);
-    top: 1rem;
-  }
-  
-  /* === OPTIMISATION IMAGES === */
-  img {
-    max-width: 100%;
-    height: auto;
-    display: block;
-  }
-  
-  /* === SCROLL BAR PERSONNALISÉE === */
-  ::-webkit-scrollbar {
-    width: 10px;
-  }
-  
-  ::-webkit-scrollbar-track {
-    background: #f1f1f1;
-  }
-  
-  ::-webkit-scrollbar-thumb {
-    background: #2792B0;
-    border-radius: 5px;
-  }
-  
-  ::-webkit-scrollbar-thumb:hover {
-    background: #207A94;
-  }
-  
-  /* === REDUCE MOTION (ACCESSIBILITÉ) === */
-  @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
-  }
-  
-  /* === PRINT STYLES === */
-  @media print {
-    header,
-    footer,
-    nav,
-    .no-print {
-      display: none !important;
-    }
-    
-    body {
-      font-size: 12pt;
-      line-height: 1.5;
-    }
-    
-    a {
-      text-decoration: underline;
-    }
-    
-    a[href^="http"]:after {
-      content: " (" attr(href) ")";
-    }
-  }
-  
-  /* === DARK MODE SUPPORT === */
-  @media (prefers-color-scheme: dark) {
-    /* À implémenter si nécessaire */
-  }
-  
-  /* === LOADING STATES === */
-  .skeleton {
-    background: linear-gradient(
-      90deg,
-      #f0f0f0 25%,
-      #e0e0e0 50%,
-      #f0f0f0 75%
-    );
-    background-size: 200% 100%;
-    animation: loading 1.5s ease-in-out infinite;
-  }
-  
-  @keyframes loading {
-    0% {
-      background-position: 200% 0;
-    }
-    100% {
-      background-position: -200% 0;
-    }
-  }
-  
-  /* === RESPONSIVE UTILITIES === */
-  @media (max-width: 640px) {
-    h1 {
-      font-size: 2rem;
-    }
-    
-    h2 {
-      font-size: 1.75rem;
-    }
-    
-    h3 {
-      font-size: 1.5rem;
-    }
-  }
-  
-  /* === HOVER EFFECTS === */
-  .hover-lift {
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-  }
-  
-  .hover-lift:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-  }
-  
-  /* === GRADIENT TEXT === */
-  .gradient-text {
-    background: linear-gradient(135deg, #2792B0, #8BC34A);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-  
-  /* === GLASS MORPHISM === */
-  .glass {
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-  }
-  
-  /* === SELECTION STYLING === */
-  ::selection {
-    background-color: #2792B0;
-    color: white;
-  }
-  
-  ::-moz-selection {
-    background-color: #2792B0;
-    color: white;
-  }
+}
