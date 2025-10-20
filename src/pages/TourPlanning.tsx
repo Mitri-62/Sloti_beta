@@ -1,4 +1,4 @@
-// src/pages/TourPlanning.tsx - VERSION COMPLÈTE AVEC ÉDITION ET OPTIMISATION
+// src/pages/TourPlanning.tsx - VERSION RESPONSIVE MOBILE COMPLÈTE
 import { useState, useEffect } from "react";
 import { 
   Calendar, Truck, User, Plus, MapPin, Clock,
@@ -196,7 +196,6 @@ export default function TourPlanning() {
     try {
       setLoading(true);
 
-      // 1. Mettre à jour les infos de la tournée
       const { error: tourError } = await supabase
         .from('tours')
         .update({
@@ -210,7 +209,6 @@ export default function TourPlanning() {
 
       if (tourError) throw tourError;
 
-      // 2. Supprimer les anciens stops
       const { error: deleteError } = await supabase
         .from('delivery_stops')
         .delete()
@@ -218,7 +216,6 @@ export default function TourPlanning() {
 
       if (deleteError) throw deleteError;
 
-      // 3. Créer les nouveaux stops
       if (tourData.stops && tourData.stops.length > 0) {
         const stopsToInsert = tourData.stops.map((stop: any, index: number) => ({
           tour_id: editingTour.id,
@@ -334,7 +331,6 @@ export default function TourPlanning() {
       
       const result = optimizeTour(stops, depotLocation, vehicle, startTime);
 
-      // Mettre à jour l'ordre des stops
       for (let i = 0; i < result.stops.length; i++) {
         await supabase
           .from('delivery_stops')
@@ -345,7 +341,6 @@ export default function TourPlanning() {
           .eq('id', result.stops[i].id);
       }
 
-      // Mettre à jour les stats de la tournée
       await supabase
         .from('tours')
         .update({
@@ -356,7 +351,6 @@ export default function TourPlanning() {
 
       toast.dismiss('optimizing');
       
-      // Préparer les données pour la modal
       const savedDistance = tourData.total_distance_km 
         ? Math.round((tourData.total_distance_km - result.total_distance) * 10) / 10
         : 0;
@@ -365,7 +359,6 @@ export default function TourPlanning() {
         ? Math.round((savedDistance / tourData.total_distance_km) * 100)
         : 0;
 
-      // Afficher la modal de résultat
       setOptimizationResult({
         totalDistance: result.total_distance,
         previousDistance: tourData.total_distance_km,
@@ -411,24 +404,24 @@ export default function TourPlanning() {
   };
 
   return (
-    <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+    <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen planning-container">
       
       {/* Header avec stats */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 mb-6 border border-gray-200 dark:border-gray-700">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-4 sm:p-6 mb-6 border border-gray-200 dark:border-gray-700">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <Truck className="text-blue-600 dark:text-blue-400" size={32} />
-              Planification des tournées
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2 sm:gap-3">
+              <Truck className="text-blue-600 dark:text-blue-400 w-6 h-6 sm:w-8 sm:h-8" />
+              <span className="leading-tight">Planification des tournées</span>
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">
               Organisez et optimisez vos livraisons quotidiennes
             </p>
           </div>
 
           <button
             onClick={() => setShowNewTourModal(true)}
-            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl font-semibold"
+            className="w-full lg:w-auto flex items-center justify-center gap-2 px-4 sm:px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl font-semibold"
           >
             <Plus size={20} />
             Nouvelle tournée
@@ -436,35 +429,37 @@ export default function TourPlanning() {
         </div>
 
         {/* Stats cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
+          <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 rounded-lg p-3 sm:p-4 border border-blue-200 dark:border-blue-700">
             <div className="text-xs sm:text-sm text-blue-600 dark:text-blue-300 font-medium mb-1">Total</div>
-            <div className="text-2xl sm:text-3xl font-bold text-blue-900 dark:text-blue-100">{stats.total}</div>
+            <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-blue-900 dark:text-blue-100">{stats.total}</div>
           </div>
           
-          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900 dark:to-yellow-800 rounded-lg p-4 border border-yellow-200 dark:border-yellow-700">
+          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 dark:from-yellow-900 dark:to-yellow-800 rounded-lg p-3 sm:p-4 border border-yellow-200 dark:border-yellow-700">
             <div className="text-xs sm:text-sm text-yellow-600 dark:text-yellow-300 font-medium mb-1">Planifiées</div>
-            <div className="text-2xl sm:text-3xl font-bold text-yellow-900 dark:text-yellow-100">{stats.planned}</div>
+            <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-yellow-900 dark:text-yellow-100">{stats.planned}</div>
           </div>
           
-          <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900 dark:to-green-800 rounded-lg p-4 border border-green-200 dark:border-green-700">
+          <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900 dark:to-green-800 rounded-lg p-3 sm:p-4 border border-green-200 dark:border-green-700">
             <div className="text-xs sm:text-sm text-green-600 dark:text-green-300 font-medium mb-1">En cours</div>
-            <div className="text-2xl sm:text-3xl font-bold text-green-900 dark:text-green-100">{stats.inProgress}</div>
+            <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-green-900 dark:text-green-100">{stats.inProgress}</div>
           </div>
           
-          <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 rounded-lg p-4 border border-gray-200 dark:border-gray-600">
+          <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-600 rounded-lg p-3 sm:p-4 border border-gray-200 dark:border-gray-600">
             <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-300 font-medium mb-1">Terminées</div>
-            <div className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">{stats.completed}</div>
+            <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-white">{stats.completed}</div>
           </div>
           
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900 dark:to-purple-800 rounded-lg p-4 border border-purple-200 dark:border-purple-700">
+          <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900 dark:to-purple-800 rounded-lg p-3 sm:p-4 border border-purple-200 dark:border-purple-700">
             <div className="text-xs sm:text-sm text-purple-600 dark:text-purple-300 font-medium mb-1">Livraisons</div>
-            <div className="text-2xl sm:text-3xl font-bold text-purple-900 dark:text-purple-100">{stats.totalStops}</div>
+            <div className="text-xl sm:text-2xl lg:text-3xl font-bold text-purple-900 dark:text-purple-100">{stats.totalStops}</div>
           </div>
           
-          <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900 dark:to-indigo-800 rounded-lg p-4 border border-indigo-200 dark:border-indigo-700">
+          <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 dark:from-indigo-900 dark:to-indigo-800 rounded-lg p-3 sm:p-4 border border-indigo-200 dark:border-indigo-700">
             <div className="text-xs sm:text-sm text-indigo-600 dark:text-indigo-300 font-medium mb-1">Distance</div>
-            <div className="text-xl sm:text-2xl font-bold text-indigo-900 dark:text-indigo-100">{stats.totalDistance.toFixed(1)} km</div>
+            <div className="text-lg sm:text-xl lg:text-2xl font-bold text-indigo-900 dark:text-indigo-100">
+              {stats.totalDistance.toFixed(1)} km
+            </div>
           </div>
         </div>
       </div>
@@ -484,9 +479,9 @@ export default function TourPlanning() {
                 <ChevronLeft size={20} />
               </button>
               
-              <div className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-200 dark:border-blue-700 rounded-lg">
-                <Calendar size={18} className="text-blue-600 dark:text-blue-400" />
-                <span className="font-semibold text-gray-900 dark:text-white">
+              <div className="flex-1 flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-200 dark:border-blue-700 rounded-lg">
+                <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                <span className="font-semibold text-sm sm:text-base text-gray-900 dark:text-white text-center">
                   {selectedDate.toLocaleDateString('fr-FR', { 
                     weekday: 'short', 
                     day: 'numeric', 
@@ -552,7 +547,7 @@ export default function TourPlanning() {
             <p className="text-gray-600 dark:text-gray-400">Chargement des tournées...</p>
           </div>
         ) : filteredTours.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-12 text-center border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-8 sm:p-12 text-center border border-gray-200 dark:border-gray-700">
             <Truck size={48} className="mx-auto text-gray-400 dark:text-gray-600 mb-4" />
             <p className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
               Aucune tournée pour cette date
@@ -576,57 +571,57 @@ export default function TourPlanning() {
             return (
               <div
                 key={tour.id}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg transition-shadow p-6 border border-gray-200 dark:border-gray-700"
+                className="bg-white dark:bg-gray-800 rounded-xl shadow-md hover:shadow-lg transition-shadow p-4 sm:p-6 border border-gray-200 dark:border-gray-700"
               >
-                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div className="flex flex-col gap-4">
                   
                   {/* Infos principales */}
                   <div className="flex-1 space-y-3">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-2 truncate">
                           {tour.name}
                         </h3>
-                        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-sm font-medium ${statusConfig[tour.status]?.color}`}>
-                          <StatusIcon size={16} />
+                        <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs sm:text-sm font-medium ${statusConfig[tour.status]?.color}`}>
+                          <StatusIcon size={14} sm:size={16} />
                           {statusConfig[tour.status]?.label}
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-sm">
                       <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                        <User size={16} className="text-blue-600 dark:text-blue-400" />
-                        <span>{tour.driver?.name || 'Non assigné'}</span>
+                        <User size={16} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                        <span className="truncate">{tour.driver?.name || 'Non assigné'}</span>
                       </div>
                       
                       <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                        <Truck size={16} className="text-green-600 dark:text-green-400" />
-                        <span>{tour.vehicle?.name || 'Aucun véhicule'}</span>
+                        <Truck size={16} className="text-green-600 dark:text-green-400 flex-shrink-0" />
+                        <span className="truncate">{tour.vehicle?.name || 'Aucun véhicule'}</span>
                       </div>
                       
                       <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                        <Clock size={16} className="text-orange-600 dark:text-orange-400" />
+                        <Clock size={16} className="text-orange-600 dark:text-orange-400 flex-shrink-0" />
                         <span>{tour.startTime || 'Non défini'}</span>
                       </div>
                       
                       <div className="flex items-center gap-2 text-gray-600 dark:text-gray-400">
-                        <MapPin size={16} className="text-purple-600 dark:text-purple-400" />
+                        <MapPin size={16} className="text-purple-600 dark:text-purple-400 flex-shrink-0" />
                         <span>{tour.stops} livraison{tour.stops > 1 ? 's' : ''}</span>
                       </div>
                     </div>
 
                     {tour.total_distance_km !== undefined && tour.total_distance_km > 0 && (
-                      <div className="flex items-center gap-4 pt-2 border-t border-gray-100 dark:border-gray-700">
-                        <div className="flex items-center gap-2 text-sm">
-                          <TrendingUp size={16} className="text-blue-600 dark:text-blue-400" />
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 pt-2 border-t border-gray-100 dark:border-gray-700">
+                        <div className="flex items-center gap-2 text-xs sm:text-sm">
+                          <TrendingUp size={16} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
                           <span className="text-gray-600 dark:text-gray-400">
                             Distance: <strong className="text-gray-900 dark:text-white">{tour.total_distance_km.toFixed(1)} km</strong>
                           </span>
                         </div>
                         {tour.estimated_duration_minutes && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <Clock size={16} className="text-indigo-600 dark:text-indigo-400" />
+                          <div className="flex items-center gap-2 text-xs sm:text-sm">
+                            <Clock size={16} className="text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
                             <span className="text-gray-600 dark:text-gray-400">
                               Durée: <strong className="text-gray-900 dark:text-white">
                                 {Math.floor(tour.estimated_duration_minutes / 60)}h{tour.estimated_duration_minutes % 60}
@@ -639,19 +634,19 @@ export default function TourPlanning() {
                   </div>
 
                   {/* Actions */}
-                  <div className="flex flex-wrap gap-2 lg:flex-col">
+                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
                     <button
                       onClick={() => handleViewTour(tour.id)}
-                      className="flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                      className="flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                     >
                       <Eye size={16} />
-                      <span className="hidden sm:inline">Voir</span>
+                      <span>Voir</span>
                     </button>
 
                     <button
                       onClick={() => handleOptimizeTour(tour.id)}
                       disabled={isOptimizing || tour.stops < 2}
-                      className={`flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium ${
+                      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all text-sm font-medium ${
                         isOptimizing
                           ? 'bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300 cursor-wait'
                           : tour.stops < 2
@@ -661,9 +656,7 @@ export default function TourPlanning() {
                       title={tour.stops < 2 ? "Au moins 2 livraisons requises" : "Optimiser l'itinéraire"}
                     >
                       <Zap size={16} className={isOptimizing ? "animate-spin" : ""} />
-                      <span className="hidden sm:inline">
-                        {isOptimizing ? "Optimisation..." : "Optimiser"}
-                      </span>
+                      <span>{isOptimizing ? "..." : "Optimiser"}</span>
                     </button>
 
                     <button
@@ -672,6 +665,7 @@ export default function TourPlanning() {
                       title="Modifier"
                     >
                       <Edit2 size={16} />
+                      <span className="sm:hidden">Éditer</span>
                     </button>
 
                     <button
@@ -680,6 +674,7 @@ export default function TourPlanning() {
                       title="Supprimer"
                     >
                       <Trash2 size={16} />
+                      <span className="sm:hidden">Suppr.</span>
                     </button>
                   </div>
                 </div>
