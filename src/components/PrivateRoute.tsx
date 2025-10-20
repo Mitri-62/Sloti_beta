@@ -14,11 +14,6 @@ export default function PrivateRoute({ children }: { children: JSX.Element }) {
 
         {/* Loader */}
         <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-
-        {/* Texte */}
-        <p className="text-gray-600 font-medium mt-4">
-          Merci de relancer le navigateur...
-        </p>
       </div>
     );
   }

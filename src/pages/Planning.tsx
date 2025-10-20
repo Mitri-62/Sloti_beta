@@ -16,7 +16,6 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
-import '../styles/planning-mobile.css';
 
 
 import { useAuth } from "../contexts/AuthContext";
