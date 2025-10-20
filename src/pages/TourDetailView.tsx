@@ -364,9 +364,9 @@ export default function TourDetailView() {
   const progress = stops.length > 0 ? (completedStops / stops.length) * 100 : 0;
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
       {/* Header responsive */}
-      <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 sm:p-6">
+      <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-3 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
           <div className="flex items-center gap-3 sm:gap-4">
             <button 
