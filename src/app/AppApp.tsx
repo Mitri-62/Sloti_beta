@@ -28,6 +28,9 @@ import InvitePage from "../pages/InvitePage";
 import Inventaire from "../pages/Inventaire";
 import HelpCenter from "../pages/HelpCenter";
 import DriverApp from "../pages/DriverApp";
+import DockManagement from '../pages/DockManagement/DockManagement';
+
+
 
 function AppContent() {
   return (
@@ -56,7 +59,8 @@ function AppContent() {
         {/* Tournées */}
         <Route path="tour-planning" element={<PrivateRoute><TourPlanning /></PrivateRoute>} />
         <Route path="tour-planning/:tourId" element={<PrivateRoute><TourDetailView /></PrivateRoute>} />
-
+        <Route path="dock-management" element={<PrivateRoute><DockManagement /></PrivateRoute>} />
+        
         {/* Paramètres et profil */}
         <Route path="profile" element={<PrivateRoute><Profile /></PrivateRoute>} />
         <Route path="settings" element={<PrivateRoute><Settings /></PrivateRoute>} />

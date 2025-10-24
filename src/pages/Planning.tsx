@@ -1,4 +1,4 @@
-// src/pages/Planning.tsx - VERSION RESPONSIVE MOBILE COMPLÈTE
+// src/pages/Planning.tsx - IMPORTS COMPLETS
 import { useState, useMemo, useCallback } from "react";
 import { 
   Calendar as CalendarIcon, 
@@ -10,6 +10,7 @@ import {
   BarChart, 
   Filter,
   AlertCircle,
+  Warehouse, // ✅ AJOUTÉ
 } from "lucide-react";
 import { Dialog } from "@headlessui/react";
 import { format } from "date-fns";
@@ -18,10 +19,10 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 
 import { useAuth } from "../contexts/AuthContext";
-import type { Planning } from "../hooks/useOptimizedPlannings";
+import type { Planning } from "../hooks/useOptimizedPlannings"; // ✅ UN SEUL IMPORT DE Planning
 import { useOptimizedPlannings } from "../hooks/useOptimizedPlannings";
+import { usePlanningsWithDocks } from "../hooks/usePlanningsWithDocks"; // ✅ AJOUTÉ
 import { validatePlanning, validateEventDateTime } from "../schemas/planningSchema";
-import { errorService } from "../services/errorService";
 
 import PlanningList from "../components/PlanningList";
 import PlanningKanban from "../components/PlanningKanban";
@@ -40,11 +41,29 @@ export default function Planning() {
     { forecastOnly: false, enableRealtime: true }
   );
 
+  // ✅ AJOUTÉ - Hook pour récupérer les quais
+  const { plannings: planningsWithDocks, loading: docksLoading } = usePlanningsWithDocks(companyId);
+
+  // ✅ AJOUTÉ - Fusionner les données de planning avec les quais
+  const enrichedPlannings = useMemo(() => {
+    if (docksLoading) return plannings;
+    
+    return plannings.map(planning => {
+      const withDock = planningsWithDocks.find(p => p.id === planning.id);
+      return {
+        ...planning,
+        dock_booking: withDock?.dock_booking || null,
+        dock_booking_id: withDock?.dock_booking_id || null
+      };
+    });
+  }, [plannings, planningsWithDocks, docksLoading]);
+
   const [view, setView] = useState<ViewType>("agenda");
   const [showFilters, setShowFilters] = useState(false);
   const [filterTransporter, setFilterTransporter] = useState<string>("Tous");
   const [filterType, setFilterType] = useState<string>("Tous");
   const [filterStatus, setFilterStatus] = useState<string>("Tous");
+  const [showDocks, setShowDocks] = useState(true); // ✅ AJOUTÉ
 
   const [isOpen, setIsOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -79,79 +98,29 @@ export default function Planning() {
   }, []);
 
   const openAddModal = useCallback((initialData?: Partial<Planning>) => {
-    setEditingId(null);
-    setNewEvent(initialData || {
-      date: "",
-      hour: "",
-      type: "Réception",
-      transporter: "",
-      products: "",
-      status: "Prévu",
-      duration: 30,
-    });
+    if (initialData) {
+      setNewEvent(initialData);
+      setEditingId(initialData.id || null);
+    } else {
+      setNewEvent({
+        date: "",
+        hour: "",
+        type: "Réception",
+        transporter: "",
+        products: "",
+        status: "Prévu",
+        duration: 30,
+      });
+      setEditingId(null);
+    }
     setSaveError("");
     setValidationErrors({});
     setIsOpen(true);
   }, []);
 
-  const handleDuplicate = useCallback((event: Planning) => {
-    openAddModal({
-      date: event.date,
-      hour: event.hour,
-      type: event.type,
-      transporter: event.transporter,
-      products: event.products,
-      status: "Prévu",
-      duration: event.duration || 30,
-    });
-    toast.info("Événement dupliqué, modifiez les détails si nécessaire");
-  }, [openAddModal]);
-
-  const handleSave = useCallback(async () => {
-    setSaveError("");
-    setValidationErrors({});
-
-    try {
-      const validation = validatePlanning(newEvent);
-      if (!validation.success) {
-        const errorMap: Record<string, string> = {};
-        validation.errors.forEach(err => {
-          errorMap[err.field] = err.message;
-        });
-        setValidationErrors(errorMap);
-        setSaveError(validation.message);
-        return;
-      }
-
-      if (!editingId) {
-        const dateTimeValidation = validateEventDateTime(
-          validation.data.date, 
-          validation.data.hour,
-          false
-        );
-        
-        if (!dateTimeValidation.success) {
-          setSaveError(dateTimeValidation.message);
-          setValidationErrors({ date: dateTimeValidation.message });
-          return;
-        }
-      }
-
-      if (editingId) {
-        await update(editingId, validation.data);
-      } else {
-        await add(validation.data as Omit<Planning, "id">);
-      }
-
-      resetForm();
-
-    } catch (error) {
-      const appError = errorService.normalizeError(error);
-      setSaveError(appError.message);
-    }
-  }, [newEvent, editingId, update, add]);
-
   const resetForm = useCallback(() => {
+    setIsOpen(false);
+    setEditingId(null);
     setNewEvent({
       date: "",
       hour: "",
@@ -161,14 +130,93 @@ export default function Planning() {
       status: "Prévu",
       duration: 30,
     });
-    setEditingId(null);
     setSaveError("");
     setValidationErrors({});
-    setIsOpen(false);
   }, []);
 
+  const handleSave = useCallback(async () => {
+    try {
+      setSaveError("");
+      setValidationErrors({});
+  
+      // Validation des champs requis
+      if (!newEvent.date || !newEvent.hour || !newEvent.type || !newEvent.transporter) {
+        setSaveError("Veuillez remplir tous les champs obligatoires");
+        return;
+      }
+  
+      // Validation date/heure
+      const eventDateTime = validateEventDateTime(newEvent.date, newEvent.hour);
+      if (!eventDateTime.success) {
+        setSaveError(eventDateTime.message); // ✅ CORRIGÉ
+        return;
+      }
+  
+      // ✅ Structure complète avec TOUTES les propriétés
+      const planningData = {
+        date: newEvent.date,
+        hour: newEvent.hour,
+        type: newEvent.type as "Réception" | "Expédition",
+        transporter: newEvent.transporter,
+        products: newEvent.products || null,
+        status: (newEvent.status || "Prévu") as "Prévu" | "En cours" | "Chargé" | "Terminé",
+        duration: newEvent.duration || 30,
+        name: newEvent.name || null,
+        user_id: user?.id || null,
+        is_forecast: false,
+      };
+  
+      // Validation avec Zod
+      const validation = validatePlanning(planningData);
+      if (!validation.success) {
+        // ✅ Convertir le tableau d'erreurs en objet
+        const errorsObject = validation.errors.reduce((acc, err) => {
+          acc[err.field] = err.message;
+          return acc;
+        }, {} as Record<string, string>);
+        
+        setValidationErrors(errorsObject);
+        setSaveError("Veuillez corriger les erreurs");
+        return;
+      }
+  
+      // ✅ Nettoyer les données pour éliminer undefined
+      const cleanedData = {
+        ...validation.data,
+        user_id: validation.data.user_id ?? null,
+        products: validation.data.products ?? null,
+        name: validation.data.name ?? null,
+      };
+
+      // Sauvegarde
+      if (editingId) {
+        await update(editingId, cleanedData);
+        toast.success("Événement modifié avec succès");
+      } else {
+        await add(cleanedData);
+        toast.success("Événement créé avec succès");
+      }
+  
+      resetForm();
+    } catch (error: any) {
+      console.error("Erreur lors de la sauvegarde:", error);
+      const errorMsg = error?.message || "Une erreur est survenue"; // ✅ CORRIGÉ
+      setSaveError(errorMsg);
+      toast.error(errorMsg);
+    }
+  }, [newEvent, editingId, user, add, update, resetForm]);
+
+  const handleDuplicate = useCallback((planning: Planning) => {
+    openAddModal({
+      ...planning,
+      id: undefined,
+      name: `${planning.name || planning.transporter} (copie)`,
+    });
+  }, [openAddModal]);
+
   const handleDelete = useCallback(async (id: string) => {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer cet événement ?")) return;
+    if (!window.confirm("Êtes-vous sûr de vouloir supprimer cet événement ?")) 
+      return;
     
     try {
       await remove(id);
@@ -210,13 +258,13 @@ export default function Planning() {
   }, [update]);
 
   const filteredEvents = useMemo(() => {
-    return plannings.filter((ev) => {
+    return enrichedPlannings.filter((ev) => {
       if (filterTransporter !== "Tous" && ev.transporter !== filterTransporter) return false;
       if (filterType !== "Tous" && ev.type !== filterType) return false;
       if (filterStatus !== "Tous" && ev.status !== filterStatus) return false;
       return true;
     });
-  }, [plannings, filterTransporter, filterType, filterStatus]);
+  }, [enrichedPlannings, filterTransporter, filterType, filterStatus]);
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
@@ -378,74 +426,77 @@ export default function Planning() {
     <div className="p-4 sm:p-6 bg-gray-50 dark:bg-gray-900 min-h-screen planning-container">
       {/* Header */}
       <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 planning-header">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-          <CalendarIcon className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600" />
-          Planning
-        </h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Planning</h1>
 
-        {view !== "forecast" && (
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          {/* ✅ AJOUTÉ - Toggle Afficher les quais */}
+          <label className="flex items-center gap-2 text-sm cursor-pointer bg-white dark:bg-gray-800 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+            <input
+              type="checkbox"
+              checked={showDocks}
+              onChange={(e) => setShowDocks(e.target.checked)}
+              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            />
+            <Warehouse className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+            <span className="font-medium text-gray-700 dark:text-gray-300 hidden sm:inline">
+              Afficher les quais
+            </span>
+          </label>
+
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="relative flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-3 sm:px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            <Filter className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="hidden sm:inline text-sm font-medium">Filtres</span>
+            {activeFiltersCount > 0 && (
+              <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                {activeFiltersCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setShowExportModal(true)}
+            className="flex items-center gap-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-3 sm:px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            <Download className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="hidden sm:inline text-sm font-medium">Exporter</span>
+          </button>
+
           <button
             onClick={() => openAddModal()}
-            className="w-full md:w-auto flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg shadow-lg hover:bg-blue-700 transition-colors font-medium"
+            className="flex items-center gap-2 bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
           >
-            <Plus className="w-5 h-5" /> Nouvel événement
+            <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="text-sm font-medium">Nouvel événement</span>
           </button>
-        )}
+        </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="mb-6 flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-        {/* View Switcher */}
-        <div className="w-full md:w-auto overflow-x-auto planning-view-switcher">
-          <div className="flex gap-2 bg-white dark:bg-gray-800 p-1 rounded-lg shadow-sm min-w-max">
-            {viewButtons.map((btn) => (
-              <button
-                key={btn.view}
-                onClick={() => setView(btn.view)}
-                className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-lg transition-all font-medium whitespace-nowrap planning-view-button ${
-                  view === btn.view
-                    ? "bg-blue-600 text-white shadow-md scale-105"
-                    : "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-blue-300"
-                }`}
-              >
-                <btn.icon className="w-4 h-4" /> 
-                <span className="hidden sm:inline">{btn.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full md:w-auto">
-          {view !== "forecast" && (
-            <>
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="flex items-center justify-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-2 rounded-lg shadow hover:bg-gray-200 dark:hover:bg-gray-600 relative transition-colors"
-              >
-                <Filter className="w-4 h-4" /> Filtres
-                {activeFiltersCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-semibold">
-                    {activeFiltersCount}
-                  </span>
-                )}
-              </button>
-
-              <button
-                onClick={() => setShowExportModal(true)}
-                className="flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg shadow hover:bg-green-700 transition-colors disabled:opacity-50"
-                disabled={filteredEvents.length === 0}
-              >
-                <Download className="w-4 h-4" /> Exporter
-              </button>
-            </>
-          )}
-        </div>
+      {/* View Tabs */}
+      <div className="mb-6 flex flex-wrap gap-2 planning-view-tabs">
+        {viewButtons.map(({ view: v, icon: Icon, label }) => (
+          <button
+            key={v}
+            onClick={() => setView(v)}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              view === v
+                ? "bg-blue-600 text-white shadow-sm"
+                : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700"
+            }`}
+          >
+            <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span className="text-sm sm:text-base">{label}</span>
+          </button>
+        ))}
       </div>
 
       {/* Filters Panel */}
-      {showFilters && view !== "forecast" && (
-        <div className="mb-6 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+      {showFilters && (
+        <div className="mb-6 bg-white dark:bg-gray-800 p-4 sm:p-6 rounded-lg shadow planning-filters-panel">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Filtres</h3>
+          
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -561,6 +612,7 @@ export default function Planning() {
           onReset={handleReset}
           openDocumentsModal={openDocumentsModal}
           onDuplicate={handleDuplicate}
+          showDocks={showDocks}
         />
       )}
 
@@ -569,6 +621,7 @@ export default function Planning() {
           events={filteredEvents}
           onDelete={handleDelete}
           onValidate={handleUpdateStatusKanban}
+          showDocks={showDocks}
         />
       )}
 
@@ -581,6 +634,7 @@ export default function Planning() {
           companyId={companyId || ""}
           onUpdate={handleUpdateEvent}
           onOpenAddModal={openAddModal}
+          showDocks={showDocks}
         />
       )}
 
@@ -599,30 +653,26 @@ export default function Planning() {
             </Dialog.Title>
 
             {saveError && (
-              <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 px-4 py-3 rounded-lg flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-semibold text-sm">Erreur de validation</p>
-                  <p className="text-sm">{saveError}</p>
-                </div>
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 p-3 rounded-lg text-sm">
+                {saveError}
               </div>
             )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Date *
                 </label>
                 <input
                   type="date"
-                  value={newEvent.date}
+                  value={newEvent.date || ""}
                   onChange={(e) => setNewEvent({ ...newEvent, date: e.target.value })}
-                  className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white ${
-                    validationErrors.date ? "border-red-500" : "border-gray-300 dark:border-gray-600"
+                  className={`w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${
+                    validationErrors.date ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                   }`}
                 />
                 {validationErrors.date && (
-                  <p className="text-xs text-red-600 mt-1">{validationErrors.date}</p>
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{validationErrors.date}</p>
                 )}
               </div>
 
@@ -632,85 +682,118 @@ export default function Planning() {
                 </label>
                 <input
                   type="time"
-                  value={newEvent.hour}
+                  value={newEvent.hour || ""}
                   onChange={(e) => setNewEvent({ ...newEvent, hour: e.target.value })}
-                  className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white ${
-                    validationErrors.hour ? "border-red-500" : "border-gray-300 dark:border-gray-600"
+                  className={`w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${
+                    validationErrors.hour ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
                   }`}
                 />
+                {validationErrors.hour && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{validationErrors.hour}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Durée (minutes)
+                </label>
+                <input
+                  type="number"
+                  min="15"
+                  step="15"
+                  value={newEvent.duration || 30}
+                  onChange={(e) => setNewEvent({ ...newEvent, duration: parseInt(e.target.value) || 30 })}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Type *
+                </label>
+                <select
+                  value={newEvent.type || "Réception"}
+                  onChange={(e) => setNewEvent({ ...newEvent, type: e.target.value as "Réception" | "Expédition" })}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Réception">Réception</option>
+                  <option value="Expédition">Expédition</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Transporteur *
+                </label>
+                <input
+                  type="text"
+                  value={newEvent.transporter || ""}
+                  onChange={(e) => setNewEvent({ ...newEvent, transporter: e.target.value })}
+                  className={`w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 ${
+                    validationErrors.transporter ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
+                  }`}
+                  placeholder="Nom du transporteur"
+                />
+                {validationErrors.transporter && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{validationErrors.transporter}</p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Nom / Référence
+                </label>
+                <input
+                  type="text"
+                  value={newEvent.name || ""}
+                  onChange={(e) => setNewEvent({ ...newEvent, name: e.target.value })}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                  placeholder="Optionnel"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Produits
+                </label>
+                <textarea
+                  value={newEvent.products || ""}
+                  onChange={(e) => setNewEvent({ ...newEvent, products: e.target.value })}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                  placeholder="Description des produits"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Statut
+                </label>
+                <select
+                  value={newEvent.status || "Prévu"}
+                  onChange={(e) => setNewEvent({ ...newEvent, status: e.target.value as Planning["status"] })}
+                  className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="Prévu">Prévu</option>
+                  <option value="En cours">En cours</option>
+                  <option value="Chargé">Chargé</option>
+                  <option value="Terminé">Terminé</option>
+                </select>
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Type *
-              </label>
-              <select
-                value={newEvent.type}
-                onChange={(e) => setNewEvent({ ...newEvent, type: e.target.value as any })}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-              >
-                <option value="Réception">Réception</option>
-                <option value="Expédition">Expédition</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Transporteur *
-              </label>
-              <input
-                type="text"
-                value={newEvent.transporter}
-                onChange={(e) => setNewEvent({ ...newEvent, transporter: e.target.value })}
-                placeholder="Nom du transporteur"
-                className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white ${
-                  validationErrors.transporter ? "border-red-500" : "border-gray-300 dark:border-gray-600"
-                }`}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Produits *
-              </label>
-              <textarea
-                value={newEvent.products}
-                onChange={(e) => setNewEvent({ ...newEvent, products: e.target.value })}
-                placeholder="Description des produits"
-                rows={3}
-                className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white ${
-                  validationErrors.products ? "border-red-500" : "border-gray-300 dark:border-gray-600"
-                }`}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Durée (minutes)
-              </label>
-              <input
-                type="number"
-                value={newEvent.duration || 30}
-                onChange={(e) => setNewEvent({ ...newEvent, duration: parseInt(e.target.value) })}
-                min="15"
-                step="15"
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-              />
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3 pt-4">
-              <button
-                onClick={handleSave}
-                className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 font-medium transition-colors"
-              >
-                {editingId ? "Mettre à jour" : "Créer"}
-              </button>
+            <div className="flex gap-3 pt-4">
               <button
                 onClick={resetForm}
-                className="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2.5 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 font-medium transition-colors"
+                className="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2.5 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm font-medium"
               >
                 Annuler
+              </button>
+              <button
+                onClick={handleSave}
+                className="flex-1 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+              >
+                {editingId ? "Modifier" : "Créer"}
               </button>
             </div>
           </Dialog.Panel>
@@ -718,42 +801,42 @@ export default function Planning() {
       </Dialog>
 
       {/* Modal Export */}
-      {showExportModal && (
-        <Dialog open={showExportModal} onClose={() => setShowExportModal(false)} className="relative z-50">
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
-          
-          <div className="fixed inset-0 flex items-center justify-center p-4">
-            <Dialog.Panel className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
-              <Dialog.Title className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white mb-4">
-                Exporter le planning
-              </Dialog.Title>
+      <Dialog open={showExportModal} onClose={() => setShowExportModal(false)} className="relative z-50">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
+        
+        <div className="fixed inset-0 flex items-center justify-center p-4">
+          <Dialog.Panel className="bg-white dark:bg-gray-800 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl">
+            <Dialog.Title className="text-xl font-bold text-gray-900 dark:text-white">
+              Exporter le planning
+            </Dialog.Title>
 
-              <div className="space-y-4 mb-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Date de début
-                  </label>
-                  <input
-                    type="date"
-                    value={exportStartDate}
-                    onChange={(e) => setExportStartDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Période (optionnel)
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Du</label>
+                    <input
+                      type="date"
+                      value={exportStartDate}
+                      onChange={(e) => setExportStartDate(e.target.value)}
+                      className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600 dark:text-gray-400">Au</label>
+                    <input
+                      type="date"
+                      value={exportEndDate}
+                      onChange={(e) => setExportEndDate(e.target.value)}
+                      className="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Date de fin
-                  </label>
-                  <input
-                    type="date"
-                    value={exportEndDate}
-                    onChange={(e) => setExportEndDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-2">
+                <div className="flex gap-2 mt-2 flex-wrap">
                   <button
                     onClick={() => {
                       const today = new Date();
@@ -790,7 +873,7 @@ export default function Planning() {
                 </div>
 
                 {(exportStartDate || exportEndDate) && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
                     {getFilteredPlanningsForExport().length} événement(s) à exporter
                   </p>
                 )}
@@ -801,46 +884,44 @@ export default function Planning() {
                   onClick={handleExportCSV}
                   className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 transition-colors font-medium"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-5 h-5" />
                   CSV
                 </button>
-                
                 <button
                   onClick={handleExportPDF}
-                  className="flex-1 flex items-center justify-center gap-2 bg-orange-600 text-white px-4 py-2.5 rounded-lg hover:bg-orange-700 transition-colors font-medium"
+                  className="flex-1 flex items-center justify-center gap-2 bg-red-600 text-white px-4 py-2.5 rounded-lg hover:bg-red-700 transition-colors font-medium"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-5 h-5" />
                   PDF
                 </button>
-                
                 <button
                   onClick={handleSendEmail}
                   className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
                 >
-                  <Mail className="w-4 h-4" />
+                  <Mail className="w-5 h-5" />
                   Email
                 </button>
               </div>
+            </div>
 
-              <button
-                onClick={() => setShowExportModal(false)}
-                className="w-full mt-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
-              >
-                Annuler
-              </button>
-            </Dialog.Panel>
-          </div>
-        </Dialog>
-      )}
+            <button
+              onClick={() => setShowExportModal(false)}
+              className="w-full bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 px-4 py-2.5 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-medium"
+            >
+              Fermer
+            </button>
+          </Dialog.Panel>
+        </div>
+      </Dialog>
 
-      {/* Documents Modal */}
-      {docPlanningId && (
+      {/* Modal Documents */}
+      {isDocModalOpen && docPlanningId && (
         <DocumentsModal
           isOpen={isDocModalOpen}
           onClose={closeDocumentsModal}
           planningId={docPlanningId}
           companyId={companyId || ""}
-          reloadPlannings={reload}
+          reloadPlannings={reload} // ✅ AJOUTE CETTE LIGNE
         />
       )}
     </div>

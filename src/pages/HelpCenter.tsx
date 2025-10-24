@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Book, Search, HelpCircle, LayoutDashboard, Calendar, Package, Truck, TrendingUp, TrendingDown, Boxes, BarChart3, MessageSquare, FileText, ChevronRight, ExternalLink, Download } from 'lucide-react';
-
+import { Warehouse } from 'lucide-react';
 // Types
 interface GuideSection {
   id: string;
@@ -123,6 +123,37 @@ const guides: GuideSection[] = [
       timeGain: 'Jusqu\'à 20% de km économisés grâce à l\'optimisation des routes'
     }
   },
+  // src/pages/HelpCenter.tsx
+// Dans l'array 'guides', ajoute après 'tournees' :
+
+{
+  id: 'quais',
+  title: 'Gestion des Quais',
+  icon: Warehouse,
+  content: {
+    objective: 'Gérez vos quais de chargement/déchargement avec planning visuel, check-in/out et statistiques.',
+    features: [
+      'Configuration des quais (horaires, capacité, type)',
+      'Planning visuel avec timeline des réservations',
+      'Check-in / Check-out des camions en temps réel',
+      'Dashboard avec KPIs et statistiques'
+    ],
+    steps: [
+      'Menu → "Gestion des Quais"',
+      'Créez vos quais avec horaires et capacités',
+      'Planifiez les réservations dans la vue "Planning"',
+      'Gérez les arrivées dans "Check-in / Check-out"',
+      'Consultez les stats dans "Statistiques"'
+    ],
+    tips: [
+      'Le système détecte automatiquement les conflits de réservation',
+      'Vous pouvez voir les créneaux disponibles suggérés',
+      'Les activités sont enregistrées automatiquement'
+    ],
+    timeGain: 'Réduction de 30% des temps d\'attente grâce à la planification optimisée'
+  }
+},
+  
   {
     id: 'stocks',
     title: 'Gestion des Stocks',

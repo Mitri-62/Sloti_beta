@@ -6,49 +6,46 @@ import { z } from 'zod';
  * Assure la cohérence et la sécurité des données
  */
 export const planningSchema = z.object({
-  // Date au format YYYY-MM-DD
   date: z.string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Format de date invalide (YYYY-MM-DD)")
     .refine((dateStr) => {
       const date = new Date(dateStr);
       return !isNaN(date.getTime());
     }, "Date invalide"),
-
-  // Heure au format HH:MM
+  
   hour: z.string()
     .regex(/^([0-1][0-9]|2[0-3]):[0-5][0-9]$/, "Format d'heure invalide (HH:MM)"),
-
-  // Type d'événement
+  
   type: z.enum(["Réception", "Expédition"], {
     errorMap: () => ({ message: "Type doit être 'Réception' ou 'Expédition'" }),
   }),
-
-  // Transporteur (requis, min 2 caractères)
+  
   transporter: z.string()
     .trim()
     .min(2, "Le transporteur doit contenir au moins 2 caractères")
     .max(100, "Le transporteur ne peut pas dépasser 100 caractères"),
-
-  // Produits (optionnel)
+  
+  // ✅ MODIFIE POUR ACCEPTER null
   products: z.string()
     .max(500, "La description des produits ne peut pas dépasser 500 caractères")
-    .optional()
-    .or(z.literal("")),
-
-  // Statut
+    .nullable()
+    .optional(),
+  
   status: z.enum(["Prévu", "En cours", "Chargé", "Terminé"], {
     errorMap: () => ({ message: "Statut invalide" }),
   }),
-
-  // Durée en minutes (optionnel, par défaut 30)
+  
   duration: z.number()
     .int("La durée doit être un nombre entier")
     .positive("La durée doit être positive")
     .max(480, "La durée ne peut pas dépasser 8 heures (480 minutes)")
     .optional()
     .default(30),
-
-  // Champ forecast (optionnel)
+  
+  // ✅ AJOUTE name et user_id
+  name: z.string().max(200).nullable().optional(),
+  user_id: z.string().uuid().nullable().optional(),
+  
   is_forecast: z.boolean().optional().default(false),
 });
 

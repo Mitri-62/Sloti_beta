@@ -20,6 +20,7 @@ import {
   Moon,
   Sun,
   Book,
+  Warehouse,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../supabaseClient";
@@ -283,6 +284,15 @@ export default function Sidebar() {
           label="Tournées"
           isCollapsed={isCollapsed}
         />
+
+        {/* ⬇️ AJOUTE CES LIGNES ICI */}
+        <TooltipNavLink
+        to="/app/dock-management"
+        icon={Warehouse}
+        label="Gestion des Quais"
+        isCollapsed={isCollapsed}
+        />
+
 
         {/* Section Stocks */}
         {!isCollapsed && (

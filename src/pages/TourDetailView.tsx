@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, MapPin, User, Truck, Clock, Package, 
-  AlertCircle, Phone, Edit2, Navigation, Download, 
+  AlertCircle, Edit2, Navigation, Download, 
   Printer, Smartphone
 } from "lucide-react";
 import { supabase } from "../supabaseClient";

@@ -6,7 +6,7 @@ import { format, parse, startOfWeek, getDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Dialog } from "@headlessui/react";
 import { Check, Trash2 } from "lucide-react";
-import { Planning } from "../hooks/usePlannings";
+import type { Planning } from "../hooks/useOptimizedPlannings";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import "react-big-calendar/lib/addons/dragAndDrop/styles.css";
 
@@ -16,8 +16,9 @@ interface Props {
   onValidate: (id: string) => void;
   onReset: (id: string) => void;
   companyId: string;
-  onUpdate: (ev: Planning) => Promise<void>;
-  onOpenAddModal: (initialData?: Partial<Planning>) => void;
+  onUpdate: (event: Planning) => void;
+  onOpenAddModal: (data?: Partial<Planning>) => void;
+  showDocks?: boolean; // ✅ AJOUTE CETTE LIGNE
 }
 
 const locales = {
@@ -37,9 +38,14 @@ const DnDCalendar = withDragAndDrop(Calendar);
 export default function PlanningAgenda({
   events,
   onDelete,
+  onValidate,
+  onReset,
+  companyId,
   onUpdate,
   onOpenAddModal,
+  showDocks = true, // ✅ AJOUTE CETTE LIGNE
 }: Props) {
+  
   const [view, setView] = useState<View>("week");
   const [date, setDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<Planning | null>(null);

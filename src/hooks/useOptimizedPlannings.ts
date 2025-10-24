@@ -1,5 +1,5 @@
 // src/hooks/useOptimizedPlannings.ts
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { errorService } from "../services/errorService";
 import { validatePlanning, validatePlanningUpdate, validateEventDateTime } from "../schemas/planningSchema";
@@ -23,14 +23,18 @@ export interface Planning {
   hour: string;
   type: "Réception" | "Expédition";
   transporter: string;
-  products: string;
+  products: string | null;
   status: "Prévu" | "En cours" | "Chargé" | "Terminé";
   company_id: string;
   duration?: number;
   is_forecast?: boolean;
+  name?: string | null;
+  user_id?: string | null;
   documents?: Document[];
   created_at?: string;
   updated_at?: string;
+  dock_booking?: any;
+  dock_booking_id?: string | null;
 }
 
 interface UsePlanningsOptions {
@@ -42,7 +46,7 @@ interface UsePlanningsOptions {
  * Hook optimisé pour la gestion des plannings
  * ✅ Cache intelligent
  * ✅ Mises à jour optimistes
- * ✅ Realtime performant
+ * ✅ Realtime performant SANS DOUBLONS
  * ✅ Gestion d'erreur centralisée
  */
 export function useOptimizedPlannings(
@@ -54,6 +58,9 @@ export function useOptimizedPlannings(
   const [plannings, setPlannings] = useState<Planning[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  // ✅ SOLUTION : Tracker les IDs insérés localement pour éviter les doublons
+  const locallyInsertedIds = useRef<Set<string>>(new Set());
 
   // 🔹 Cache Key
   const cacheKey = `plannings_${companyId || "none"}_${forecastOnly ? "forecast" : "normal"}`;
@@ -102,7 +109,7 @@ export function useOptimizedPlannings(
       // Fetch from DB
       const data = await fetchPlannings();
       setPlannings(data);
-      queryCache.set(cacheKey, data); // ✅ Seulement 2 arguments
+      queryCache.set(cacheKey, data);
     } catch (err) {
       setError(err as Error);
     } finally {
@@ -115,7 +122,7 @@ export function useOptimizedPlannings(
     loadPlannings();
   }, [loadPlannings]);
 
-  // 🔹 Realtime subscription
+  // 🔹 Realtime subscription SANS DOUBLONS
   useEffect(() => {
     if (!enableRealtime || !companyId) return;
 
@@ -132,8 +139,23 @@ export function useOptimizedPlannings(
         (payload) => {
           if (payload.eventType === "INSERT") {
             const newPlanning = payload.new as Planning;
+            
+            // ✅ ÉVITER LE DOUBLON : vérifier si cet ID a été inséré localement
+            if (locallyInsertedIds.current.has(newPlanning.id)) {
+              // C'est notre propre insertion, on l'ignore
+              locallyInsertedIds.current.delete(newPlanning.id);
+              return;
+            }
+
+            // C'est une insertion d'un autre utilisateur
             if (newPlanning.is_forecast === forecastOnly) {
-              setPlannings((prev) => [...prev, newPlanning]);
+              setPlannings((prev) => {
+                // Vérifier qu'il n'existe pas déjà
+                if (prev.some(p => p.id === newPlanning.id)) {
+                  return prev;
+                }
+                return [...prev, newPlanning];
+              });
               queryCache.invalidate(cacheKey);
               toast.success("Nouveau planning ajouté");
             }
@@ -158,9 +180,9 @@ export function useOptimizedPlannings(
     };
   }, [companyId, forecastOnly, enableRealtime, cacheKey]);
 
-  // 🔹 ADD Planning
+  // 🔹 ADD Planning (SANS DOUBLON)
   const add = useCallback(
-    async (planning: Omit<Planning, "id">) => {
+    async (planning: Omit<Planning, "id" | "company_id" | "created_at" | "is_forecast">) => {
       try {
         // Validation
         const validation = validatePlanning(planning);
@@ -181,7 +203,7 @@ export function useOptimizedPlannings(
         // ✅ Assurer que products est une string (pas undefined)
         const validatedData = {
           ...validation.data,
-          products: validation.data.products || "",
+          products: validation.data.products || null,
         };
 
         // Optimistic Update
@@ -209,11 +231,19 @@ export function useOptimizedPlannings(
 
         if (err) throw err;
 
+        // ✅ MARQUER CET ID COMME INSÉRÉ LOCALEMENT
+        locallyInsertedIds.current.add(data.id);
+
         // Replace temp item with real one
         setPlannings((prev) =>
           prev.map((p) => (p.id === tempId ? (data as Planning) : p))
         );
         queryCache.invalidate(cacheKey);
+
+        // ✅ Nettoyer après 2 secondes (au cas où le realtime serait lent)
+        setTimeout(() => {
+          locallyInsertedIds.current.delete(data.id);
+        }, 2000);
 
         toast.success("Planning ajouté avec succès");
         return data as Planning;
@@ -228,7 +258,7 @@ export function useOptimizedPlannings(
 
   // 🔹 UPDATE Planning
   const update = useCallback(
-    async (id: string, updates: Partial<Planning>) => {
+    async (id: string, updates: Partial<Omit<Planning, "id" | "company_id" | "created_at" | "is_forecast">>) => {
       try {
         // Validation avec validatePlanningUpdate pour les updates partiels
         const validation = validatePlanningUpdate(updates);
@@ -240,7 +270,7 @@ export function useOptimizedPlannings(
         const validatedData = {
           ...validation.data,
           ...(validation.data.products !== undefined && {
-            products: validation.data.products || "",
+            products: validation.data.products || null,
           }),
         };
 
@@ -304,7 +334,7 @@ export function useOptimizedPlannings(
 
   // 🔹 BULK OPERATIONS (pour import CSV)
   const addBulk = useCallback(
-    async (planningsList: Omit<Planning, "id">[]) => {
+    async (planningsList: Omit<Planning, "id" | "company_id" | "created_at" | "is_forecast">[]) => {
       try {
         const validated = planningsList.map((p) => {
           const validation = validatePlanning(p);

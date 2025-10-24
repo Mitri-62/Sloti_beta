@@ -1,6 +1,6 @@
-// src/components/PlanningList.tsx - AVEC DARK MODE
-import { Calendar, Package, Truck, Check, Undo2, Trash2, Copy, FileText } from "lucide-react";
-import type { Planning } from "../hooks/usePlannings";
+// src/components/PlanningList.tsx - AVEC QUAIS
+import { Calendar, Package, Truck, Check, Undo2, Trash2, Copy, FileText, Warehouse, AlertTriangle } from "lucide-react";
+import type { Planning } from "../hooks/useOptimizedPlannings";
 import { useRef, useEffect, useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import DatePicker from "react-datepicker";
@@ -13,6 +13,7 @@ interface Props {
   onReset: (id: string) => void;
   openDocumentsModal: (id: string) => void;
   onDuplicate: (event: Planning) => void;
+  showDocks?: boolean; // ✅ AJOUTÉ
 }
 
 // Fonction utilitaire pour récupérer la semaine en cours
@@ -43,6 +44,7 @@ export default function PlanningList({
   onReset,
   openDocumentsModal,
   onDuplicate,
+  showDocks = true, // ✅ AJOUTÉ
 }: Props) {
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>(() => 
     getCurrentWeekRange()
@@ -264,7 +266,7 @@ export default function PlanningList({
                             {ev.products}
                           </p>
                         )}
-                        <div className="flex items-center gap-2 mt-2">
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
                           <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium ${statusColors[ev.status]}`}>
                             {ev.status}
                           </span>
@@ -272,6 +274,21 @@ export default function PlanningList({
                             <span className="text-xs text-gray-500 dark:text-gray-400">
                               Durée: {ev.duration} min
                             </span>
+                          )}
+                          
+                          {/* ✅ AJOUTÉ - Badge Quai */}
+                          {showDocks && (
+                            ev.dock_booking ? (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-green-100 border border-green-300 rounded-full text-xs font-medium text-green-800 dark:bg-green-900 dark:border-green-700 dark:text-green-200">
+                                <Warehouse className="w-3 h-3" />
+                                {ev.dock_booking.dock.name}
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-orange-100 border border-orange-300 rounded-full text-xs font-medium text-orange-800 dark:bg-orange-900 dark:border-orange-700 dark:text-orange-200">
+                                <AlertTriangle className="w-3 h-3" />
+                                Aucun quai
+                              </span>
+                            )
                           )}
                         </div>
                       </div>
