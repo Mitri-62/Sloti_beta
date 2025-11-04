@@ -131,77 +131,34 @@ export async function getDockBookings(
     date_to?: string;
   }
 ): Promise<DockBookingRow[]> {
-  console.log('🔍 [getDockBookings] START');
-  console.log('📊 companyId:', companyId);
-  console.log('📊 filters:', JSON.stringify(filters, null, 2));
-
   try {
-    // Étape 1: Query de base
-    console.log('⚙️ Création query de base...');
     let query = supabase
       .from('dock_bookings')
       .select('*')
       .eq('company_id', companyId);
-    
-    console.log('✅ Query de base OK');
 
-    // Étape 2: Filtres optionnels
     if (filters?.dock_id) {
-      console.log('⚙️ Ajout filtre dock_id:', filters.dock_id);
       query = query.eq('dock_id', filters.dock_id);
     }
-    
+
     if (filters?.status) {
-      if (Array.isArray(filters.status)) {
-        console.log('⚙️ Ajout filtre status (array):', filters.status);
-        query = query.in('status', filters.status);
-      } else {
-        console.log('⚙️ Ajout filtre status (string):', filters.status);
-        query = query.eq('status', filters.status);
-      }
+      const statuses = Array.isArray(filters.status) ? filters.status : [filters.status];
+      query = query.in('status', statuses);
     }
-    
+
     if (filters?.date_from) {
-      console.log('⚙️ Ajout filtre date_from:', filters.date_from);
       query = query.gte('slot_start', filters.date_from);
     }
-    
+
     if (filters?.date_to) {
-      console.log('⚙️ Ajout filtre date_to:', filters.date_to);
-      query = query.lte('slot_start', filters.date_to);
+      query = query.lte('slot_end', filters.date_to);
     }
 
-    // Étape 3: Exécution
-    console.log('🚀 Exécution query...');
-    const { data, error } = await query.order('slot_start', { ascending: true });
+    const { data, error } = await query.order('slot_start', { ascending: false });
     
-    console.log('📦 Résultat:', {
-      hasData: !!data,
-      dataLength: data?.length || 0,
-      hasError: !!error,
-      error: error
-    });
-
-    if (error) {
-      console.error('❌ Erreur Supabase:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint
-      });
-      throw error;
-    }
-
-    console.log('✅ SUCCESS - Retour de', data?.length || 0, 'réservations');
+    if (error) throw error;
     return data || [];
-
   } catch (error: any) {
-    console.error('💥 CATCH dans getDockBookings:', {
-      name: error?.name,
-      message: error?.message,
-      code: error?.code,
-      stack: error?.stack
-    });
     handleError(error, 'récupération des réservations');
   }
 }
@@ -210,11 +167,19 @@ export async function getDockBookingWithDock(bookingId: string): Promise<DockBoo
   try {
     const { data, error } = await supabase
       .from('dock_bookings')
-      .select('*, dock:docks(*)')
+      .select(`
+        *,
+        dock:dock_id(*)
+      `)
       .eq('id', bookingId)
       .single();
-    if (error) throw error;
-    return data as any;
+
+    if (error) {
+      if (error.code === 'PGRST116') return null; // Not found
+      throw error;
+    }
+
+    return data;
   } catch (error: any) {
     handleError(error, 'récupération de la réservation');
   }
@@ -368,6 +333,144 @@ export async function checkOutBooking(bookingId: string): Promise<DockBookingRow
 }
 
 // ============================================================
+// LIEN PLANNING → DOCK BOOKING
+// ============================================================
+
+export async function linkPlanningToDockBooking(planningId: string, dockBookingId: string): Promise<void> {
+  try {
+    console.log('🔗 [linkPlanningToDockBooking] Linking planning:', planningId, 'to booking:', dockBookingId);
+    
+    const { error } = await supabase
+      .from('plannings')
+      .update({ dock_booking_id: dockBookingId })
+      .eq('id', planningId);
+
+    if (error) throw error;
+    console.log('✅ [linkPlanningToDockBooking] Lien créé avec succès');
+  } catch (error: any) {
+    handleError(error, 'lien planning-quai');
+  }
+}
+
+export async function unlinkPlanningFromDockBooking(planningId: string): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('plannings')
+      .update({ dock_booking_id: null })
+      .eq('id', planningId);
+
+    if (error) throw error;
+  } catch (error: any) {
+    handleError(error, 'suppression du lien planning-quai');
+  }
+}
+
+// ============================================================
+// DISPONIBILITÉ
+// ============================================================
+
+export async function checkDockAvailability(
+  dockId: string,
+  slotStart: string,
+  slotEnd: string
+): Promise<DockAvailabilityCheck> {
+  try {
+    // Récupérer le quai
+    const { data: dock, error: dockError } = await supabase
+      .from('docks')
+      .select('*')
+      .eq('id', dockId)
+      .single();
+
+    if (dockError) throw dockError;
+    if (!dock) {
+      return {
+        is_available: false,
+        dock: null as any,
+        reason: 'Quai non trouvé'
+      };
+    }
+
+    // Vérifier le statut du quai
+    if (dock.status !== 'available') {
+      return {
+        is_available: false,
+        dock,
+        reason: `Quai en ${dock.status}`
+      };
+    }
+
+    // Vérifier les conflits de réservation
+    const conflictCheck = await checkBookingConflict(dockId, slotStart, slotEnd);
+    if (conflictCheck.has_conflict) {
+      return {
+        is_available: false,
+        dock,
+        reason: 'Créneau en conflit avec une autre réservation'
+      };
+    }
+
+    return {
+      is_available: true,
+      dock
+    };
+  } catch (error: any) {
+    handleError(error, 'vérification disponibilité quai');
+  }
+}
+
+export async function getAvailableSlots(
+  dockId: string,
+  date: string,
+  durationMinutes: number = 120
+): Promise<AvailableSlot[]> {
+  try {
+    const startOfDay = `${date}T00:00:00Z`;
+    const endOfDay = `${date}T23:59:59Z`;
+
+    const { data: bookings, error } = await supabase
+      .from('dock_bookings')
+      .select('slot_start, slot_end, status')
+      .eq('dock_id', dockId)
+      .gte('slot_start', startOfDay)
+      .lte('slot_end', endOfDay)
+      .not('status', 'in', '(cancelled,completed,no_show)');
+
+    if (error) throw error;
+
+    const slots: AvailableSlot[] = [];
+    const dayStart = new Date(`${date}T06:00:00Z`);
+    const dayEnd = new Date(`${date}T22:00:00Z`);
+    const slotDuration = durationMinutes * 60 * 1000;
+
+    let currentTime = new Date(dayStart);
+    while (currentTime.getTime() + slotDuration <= dayEnd.getTime()) {
+      const slotEnd = new Date(currentTime.getTime() + slotDuration);
+
+      const isAvailable = !bookings?.some(booking => {
+        const bookingStart = new Date(booking.slot_start);
+        const bookingEnd = new Date(booking.slot_end);
+        return (currentTime < bookingEnd && slotEnd > bookingStart);
+      });
+
+      if (isAvailable) {
+        slots.push({
+          slot_start: new Date(currentTime),
+          slot_end: slotEnd,
+          duration_minutes: durationMinutes
+        });
+      }
+
+      currentTime = new Date(currentTime.getTime() + 30 * 60 * 1000); // +30 min
+    }
+
+    return slots;
+  } catch (error: any) {
+    handleError(error, 'calcul des créneaux disponibles');
+  }
+}
+
+// ============================================================
 // STATISTIQUES
 // ============================================================
 
@@ -396,91 +499,57 @@ export async function calculateDockOccupancy(
     const completedBookings = bookings?.filter(b => b.status === 'completed').length || 0;
     const cancelledBookings = bookings?.filter(b => b.status === 'cancelled').length || 0;
     const durations = bookings?.filter(b => b.actual_duration).map(b => b.actual_duration!) || [];
-    const averageDuration = durations.length > 0 ? Math.round(durations.reduce((sum, d) => sum + d, 0) / durations.length) : 0;
+    const averageDuration = durations.length > 0 ?
+      Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : 0;
 
     return {
       dock_id: dockId,
-      dock_name: dock?.name || 'Inconnu',
-      total_minutes: data[0]?.total_minutes || 0,
-      occupied_minutes: data[0]?.occupied_minutes || 0,
-      occupancy_rate: data[0]?.occupancy_rate || 0,
+      dock_name: dock?.name || 'Unknown',
+      total_minutes: data?.total_minutes || 0,
+      occupied_minutes: data?.occupied_minutes || 0,
+      occupancy_rate: data?.occupancy_rate || 0,
       total_bookings: totalBookings,
       completed_bookings: completedBookings,
       cancelled_bookings: cancelledBookings,
       average_duration: averageDuration
     };
   } catch (error: any) {
-    handleError(error, 'calcul statistiques');
+    handleError(error, 'calcul d\'occupation');
   }
 }
 
-export async function getAvailableSlots(
-  dockId: string,
-  date: string,
-  durationMinutes: number = 120
-): Promise<AvailableSlot[]> {
-  try {
-    const { data, error } = await supabase.rpc('get_available_slots', {
-      p_dock_id: dockId,
-      p_date: date,
-      p_slot_duration_minutes: durationMinutes
-    });
-    if (error) throw error;
-    return (data || []).map((slot: any) => ({
-      slot_start: new Date(slot.slot_start),
-      slot_end: new Date(slot.slot_end),
-      duration_minutes: durationMinutes
-    }));
-  } catch (error: any) {
-    handleError(error, 'récupération créneaux');
-  }
-}
-
-export async function checkDockAvailability(
-  dockId: string,
-  slotStart: string,
-  slotEnd: string
-): Promise<DockAvailabilityCheck> {
-  try {
-    const { data: dock, error } = await supabase.from('docks').select('*').eq('id', dockId).single();
-    if (error) throw error;
-    if (dock.status !== 'available') {
-      return {
-        is_available: false,
-        dock,
-        reason: `Quai ${dock.status === 'maintenance' ? 'en maintenance' : 'fermé'}`
-      };
-    }
-    const conflictCheck = await checkBookingConflict(dockId, slotStart, slotEnd);
-    if (conflictCheck.has_conflict) {
-      return { is_available: false, dock, reason: 'Créneau déjà réservé' };
-    }
-    return { is_available: true, dock };
-  } catch (error: any) {
-    handleError(error, 'vérification disponibilité');
-  }
-}
-
-export async function getDockActivities(bookingId: string): Promise<DockActivityRow[]> {
-  try {
-    const { data, error } = await supabase
-      .from('dock_activities')
-      .select('*, user:users(id, name, email)')
-      .eq('dock_booking_id', bookingId)
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data || [];
-  } catch (error: any) {
-    handleError(error, 'récupération activités');
-  }
-}
+// ============================================================
+// ACTIVITÉS
+// ============================================================
 
 export async function createDockActivity(activity: DockActivityInsert): Promise<DockActivityRow> {
   try {
-    const { data, error } = await supabase.from('dock_activities').insert(activity).select().single();
+    const { data, error } = await supabase
+      .from('dock_activities')
+      .insert(activity)
+      .select()
+      .single();
+
     if (error) throw error;
     return data;
   } catch (error: any) {
-    handleError(error, 'création activité');
+    handleError(error, 'création d\'activité');
+  }
+}
+
+export async function getDockActivities(
+  dockBookingId: string
+): Promise<DockActivityRow[]> {
+  try {
+    const { data, error } = await supabase
+      .from('dock_activities')
+      .select('*')
+      .eq('dock_booking_id', dockBookingId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error: any) {
+    handleError(error, 'récupération des activités');
   }
 }

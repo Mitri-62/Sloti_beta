@@ -1,8 +1,10 @@
 // src/views/AdvancedLoadingSystem.tsx - VERSION OPTIMISÉE COMPLÈTE
-import { 
+import React, { 
   useState, 
   useMemo, 
-  useEffect
+  useEffect,
+  memo,
+  useRef
 } from "react";
 import {  
   Package, 
@@ -16,9 +18,11 @@ import {
   Weight,
   AlertTriangle,
   Eye,
-  List
+  List,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useFrame } from "@react-three/fiber";
 import { OrbitControls, Edges, Grid, Text } from "@react-three/drei";
 import { useMasterData } from "../hooks/useMasterData";
 import { useAuth } from "../contexts/AuthContext";
@@ -135,17 +139,37 @@ function computeStacking(
   return stackedUnits;
 }
 
-function StackedPallet({ unit, position, isHighlighted, index }: any) {
+function StackedPallet({ unit, position, index, highlightedIndexRef }: any) {
+  const meshRef = useRef<any>();
+  const stackedMeshRefs = useRef<any[]>([]);
   const { l, w } = unit.dimensions;
   const baseHeight = unit.base_pallet.height_actual;
   const hasStacked = unit.stacked_pallets.length > 0;
   const baseColor = unit.base_pallet.status === "full" 
     ? (hasStacked ? "#2e7d32" : "#1976d2")
     : "#f57c00";
-  const highlightColor = isHighlighted ? "#ffeb3b" : baseColor;
 
   const palletSupportHeight = 0.15;
   const palletSupportColor = "#8B4513";
+
+  // Utiliser useFrame pour mettre à jour la couleur sans re-render
+  useFrame(() => {
+    const isHighlighted = highlightedIndexRef.current === index;
+    
+    // Mettre à jour la palette de base
+    if (meshRef.current) {
+      const targetColor = isHighlighted ? "#ffeb3b" : baseColor;
+      meshRef.current.material.color.set(targetColor);
+    }
+    
+    // Mettre à jour les palettes empilées
+    stackedMeshRefs.current.forEach((mesh) => {
+      if (mesh) {
+        const targetColor = isHighlighted ? "#ffeb3b" : "#e57373";
+        mesh.material.color.set(targetColor);
+      }
+    });
+  });
 
   const stackPositions: Array<{
     y: number;
@@ -188,10 +212,10 @@ function StackedPallet({ unit, position, isHighlighted, index }: any) {
         </mesh>
       </group>
 
-      <mesh position={[0, palletSupportHeight + baseHeight / 2, 0]} castShadow receiveShadow>
+      <mesh position={[0, palletSupportHeight + baseHeight / 2, 0]} castShadow receiveShadow ref={meshRef}>
         <boxGeometry args={[l, baseHeight, w]} />
         <meshStandardMaterial 
-          color={highlightColor} 
+          color={baseColor}
           roughness={0.7}
           metalness={0.1}
         />
@@ -260,10 +284,15 @@ function StackedPallet({ unit, position, isHighlighted, index }: any) {
             </mesh>
           </group>
 
-          <mesh position={[0, pos.y, 0]} castShadow receiveShadow>
+          <mesh 
+            position={[0, pos.y, 0]} 
+            castShadow 
+            receiveShadow
+            ref={(el) => (stackedMeshRefs.current[idx] = el)}
+          >
             <boxGeometry args={[l, pos.height, w]} />
             <meshStandardMaterial 
-              color={isHighlighted ? "#ffeb3b" : "#e57373"} 
+              color="#e57373"
               roughness={0.7}
               metalness={0.1}
             />
@@ -339,6 +368,122 @@ function placeUnitsOptimized(units: StackedUnit[], truck: any) {
   return { placed, unplaced };
 }
 
+// Composant Canvas isolé qui ne se re-render PAS au hover
+const Canvas3DViewer = memo(({ 
+  placedUnits, 
+  unplacedUnits, 
+  truck, 
+  isDarkMode, 
+  height,
+  highlightedIndexRef 
+}: { 
+  placedUnits: any[]; 
+  unplacedUnits: any[]; 
+  truck: { length: number; width: number; height: number }; 
+  isDarkMode: boolean; 
+  height: number;
+  highlightedIndexRef: React.MutableRefObject<number | null>;
+}) => {
+  return (
+    <Canvas 
+      camera={{ position: [25, 18, 30], fov: 60 }} 
+      style={{ height }} 
+      shadows={placedUnits.length < 50}
+      gl={{ alpha: false, antialias: true, powerPreference: "high-performance", preserveDrawingBuffer: false }}
+    >
+      <color attach="background" args={[isDarkMode ? '#1f2937' : '#f3f4f6']} />
+      <ambientLight intensity={isDarkMode ? 0.4 : 0.6} />
+      <directionalLight position={[10, 10, 5]} intensity={isDarkMode ? 0.6 : 0.8} castShadow />
+      <OrbitControls 
+        enableDamping 
+        dampingFactor={0.05}
+        enableRotate={true}
+        enablePan={true}
+        enableZoom={true}
+      />
+      
+      <mesh position={[truck.length / 2, truck.height / 2, truck.width / 2]}>
+        <boxGeometry args={[truck.length, truck.height, truck.width]} />
+        <meshBasicMaterial visible={false} />
+        <Edges color={isDarkMode ? "#9ca3af" : "#000000"} linewidth={2.5} />
+      </mesh>
+      
+      <mesh 
+        rotation={[-Math.PI / 2, 0, 0]} 
+        position={[truck.length / 2, -0.01, truck.width / 2]} 
+        receiveShadow
+      >
+        <planeGeometry args={[truck.length + 2, truck.width + 2]} />
+        <meshStandardMaterial color={isDarkMode ? "#374151" : "#d1d5db"} roughness={0.8} metalness={0.2} />
+      </mesh>
+      
+      <Grid 
+        args={[truck.length + 2, truck.width + 2]} 
+        sectionColor={isDarkMode ? "#4b5563" : "#9ca3af"} 
+        cellColor={isDarkMode ? "#374151" : "#d1d5db"} 
+        infiniteGrid={false} 
+        position={[truck.length / 2, 0, truck.width / 2]} 
+        cellSize={0.5} 
+        fadeDistance={30} 
+        sectionSize={1} 
+      />
+      
+      {placedUnits.map((placed: any, idx: number) => (
+        <StackedPallet 
+          key={idx} 
+          unit={placed.unit} 
+          position={[placed.x, placed.y, placed.z]} 
+          index={idx}
+          highlightedIndexRef={highlightedIndexRef}
+        />
+      ))}
+
+      {unplacedUnits.map((unit, idx) => {
+        const { l, w } = unit.dimensions;
+        const h = unit.total_height;
+        const xPos = truck.length + 2 + (idx % 3) * 1.5;
+        const zPos = Math.floor(idx / 3) * 1.5 + w / 2;
+        
+        return (
+          <group key={`unplaced-${idx}`} position={[xPos, h / 2, zPos]}>
+            <mesh castShadow>
+              <boxGeometry args={[l, h, w]} />
+              <meshStandardMaterial 
+                color="#ef4444" 
+                transparent
+                opacity={0.6}
+                roughness={0.7}
+                metalness={0.1}
+              />
+              <Edges color="#dc2626" linewidth={2} />
+            </mesh>
+            <Text 
+              position={[0, h * 0.3, w / 2 + 0.02]}
+              fontSize={0.25}
+              color="white"
+              anchorX="center"
+              anchorY="middle"
+              outlineWidth={0.04}
+              outlineColor="red"
+            >
+              ✗ NON CHARGÉ
+            </Text>
+          </group>
+        );
+      })}
+    </Canvas>
+  );
+}, (prevProps, nextProps) => {
+  // Ne re-render que si ces valeurs changent (pas highlightedIndex)
+  return (
+    prevProps.placedUnits === nextProps.placedUnits &&
+    prevProps.unplacedUnits === nextProps.unplacedUnits &&
+    prevProps.truck === nextProps.truck &&
+    prevProps.isDarkMode === nextProps.isDarkMode &&
+    prevProps.height === nextProps.height
+  );
+});
+
 export default function AdvancedLoadingSystem() {
   const { user } = useAuth();
   
@@ -346,8 +491,15 @@ export default function AdvancedLoadingSystem() {
   const [palletListing, setPalletListing] = useState<Array<{ sscc: string; sku: string; quantity: number }>>([]);
   const [enableStacking, setEnableStacking] = useState(true);
   const [highlightedIndex, setHighlightedIndex] = useState<number | null>(null);
+  const highlightedIndexRef = useRef<number | null>(null);
   const [view3D, setView3D] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [expandedPallets, setExpandedPallets] = useState<Set<number>>(new Set());
+
+  // Synchroniser le ref avec le state
+  useEffect(() => {
+    highlightedIndexRef.current = highlightedIndex;
+  }, [highlightedIndex]);
 
   const uniqueSKUs = useMemo(() => {
     return [...new Set(palletListing.map(p => p.sku))];
@@ -559,85 +711,6 @@ export default function AdvancedLoadingSystem() {
     );
   }
 
-  const Canvas3DContent = () => (
-    <>
-      <color attach="background" args={[isDarkMode ? '#1f2937' : '#f3f4f6']} />
-      <ambientLight intensity={isDarkMode ? 0.4 : 0.6} />
-      <directionalLight position={[10, 10, 5]} intensity={isDarkMode ? 0.6 : 0.8} castShadow />
-      <OrbitControls enableDamping dampingFactor={0.05} />
-      
-      <mesh position={[truck.length / 2, truck.height / 2, truck.width / 2]}>
-        <boxGeometry args={[truck.length, truck.height, truck.width]} />
-        <meshBasicMaterial visible={false} />
-        <Edges color={isDarkMode ? "#9ca3af" : "#000000"} linewidth={2.5} />
-      </mesh>
-      
-      <mesh 
-        rotation={[-Math.PI / 2, 0, 0]} 
-        position={[truck.length / 2, -0.01, truck.width / 2]} 
-        receiveShadow
-      >
-        <planeGeometry args={[truck.length + 2, truck.width + 2]} />
-        <meshStandardMaterial color={isDarkMode ? "#374151" : "#d1d5db"} roughness={0.8} metalness={0.2} />
-      </mesh>
-      
-      <Grid 
-        args={[truck.length + 2, truck.width + 2]} 
-        sectionColor={isDarkMode ? "#4b5563" : "#9ca3af"} 
-        cellColor={isDarkMode ? "#374151" : "#d1d5db"} 
-        infiniteGrid={false} 
-        position={[truck.length / 2, 0, truck.width / 2]} 
-        cellSize={0.5} 
-        fadeDistance={30} 
-        sectionSize={1} 
-      />
-      
-      {placedUnits.map((placed: any, idx: number) => (
-        <StackedPallet 
-          key={idx} 
-          unit={placed.unit} 
-          position={[placed.x, placed.y, placed.z]} 
-          isHighlighted={highlightedIndex === idx} 
-          index={idx} 
-        />
-      ))}
-
-      {unplacedUnits.map((unit, idx) => {
-        const { l, w } = unit.dimensions;
-        const h = unit.total_height;
-        const xPos = truck.length + 2 + (idx % 3) * 1.5;
-        const zPos = Math.floor(idx / 3) * 1.5 + w / 2;
-        
-        return (
-          <group key={`unplaced-${idx}`} position={[xPos, h / 2, zPos]}>
-            <mesh castShadow>
-              <boxGeometry args={[l, h, w]} />
-              <meshStandardMaterial 
-                color="#ef4444" 
-                transparent
-                opacity={0.6}
-                roughness={0.7}
-                metalness={0.1}
-              />
-              <Edges color="#dc2626" linewidth={2} />
-            </mesh>
-            <Text 
-              position={[0, h * 0.3, w / 2 + 0.02]}
-              fontSize={0.25}
-              color="white"
-              anchorX="center"
-              anchorY="middle"
-              outlineWidth={0.04}
-              outlineColor="red"
-            >
-              ✗ NON CHARGÉ
-            </Text>
-          </group>
-        );
-      })}
-    </>
-  );
-
   return (
     <div className="p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -800,14 +873,14 @@ export default function AdvancedLoadingSystem() {
                     <span>Retour à la vue liste</span>
                   </button>
                 </div>
-                <Canvas 
-                  camera={{ position: [25, 18, 30], fov: 60 }} 
-                  style={{ height: 800 }} 
-                  shadows={placedUnits.length < 50}
-                  gl={{ alpha: false, antialias: true, powerPreference: "high-performance", preserveDrawingBuffer: false }}
-                >
-                  <Canvas3DContent />
-                </Canvas>
+                <Canvas3DViewer
+                  placedUnits={placedUnits}
+                  unplacedUnits={unplacedUnits}
+                  truck={truck}
+                  isDarkMode={isDarkMode}
+                  height={800}
+                  highlightedIndexRef={highlightedIndexRef}
+                />
               </div>
             ) : (
               <>
@@ -822,28 +895,41 @@ export default function AdvancedLoadingSystem() {
                       <span>Vue 3D complète</span>
                     </button>
                   </div>
-                  <Canvas 
-                    camera={{ position: [25, 18, 30], fov: 60 }} 
-                    style={{ height: 600 }} 
-                    shadows={placedUnits.length < 50}
-                    gl={{ alpha: false, antialias: true, powerPreference: "high-performance", preserveDrawingBuffer: false }}
-                  >
-                    <Canvas3DContent />
-                  </Canvas>
+                  <Canvas3DViewer
+                    placedUnits={placedUnits}
+                    unplacedUnits={unplacedUnits}
+                    truck={truck}
+                    isDarkMode={isDarkMode}
+                    height={600}
+                    highlightedIndexRef={highlightedIndexRef}
+                  />
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 flex flex-col h-[600px] border border-gray-200 dark:border-gray-700">
-                  <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-                    Unités ({placedUnits.length}/{stackedUnits.length})
-                  </h3>
-                  <div className="flex-1 overflow-y-auto space-y-2">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden border border-gray-200 dark:border-gray-700 flex flex-col" style={{ maxHeight: '668px' }}>
+                  <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Unités ({placedUnits.length}/{stackedUnits.length})
+                    </h3>
+                  </div>
+                  <div className="flex-1 p-4 overflow-y-auto space-y-2">
                     {placedUnits.map((placed: any, idx: number) => {
                       const unit = placed.unit;
+                      const isExpanded = expandedPallets.has(idx);
+                      const toggleExpand = (e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        const newExpanded = new Set(expandedPallets);
+                        if (isExpanded) {
+                          newExpanded.delete(idx);
+                        } else {
+                          newExpanded.add(idx);
+                        }
+                        setExpandedPallets(newExpanded);
+                      };
                       
                       return (
                         <div
                           key={idx}
-                          className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                          className={`border rounded-lg p-3 transition-all ${
                             unit.stacked_pallets.length > 0 
                               ? "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700" 
                               : "bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600"
@@ -853,8 +939,16 @@ export default function AdvancedLoadingSystem() {
                           onMouseEnter={() => setHighlightedIndex(idx)}
                           onMouseLeave={() => setHighlightedIndex(null)}
                         >
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <span className="font-semibold text-sm text-gray-900 dark:text-white">#{idx + 1} - {unit.base_pallet.sscc}</span>
+                          {/* En-tête de la palette */}
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-sm text-gray-900 dark:text-white">
+                                #{idx + 1}
+                              </span>
+                              <span className="text-xs font-mono text-gray-600 dark:text-gray-400">
+                                {unit.base_pallet.sscc}
+                              </span>
+                            </div>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -865,14 +959,134 @@ export default function AdvancedLoadingSystem() {
                               <X size={16} className="text-red-600 dark:text-red-400" />
                             </button>
                           </div>
-                          <p className="text-xs text-gray-600 dark:text-gray-400">{unit.base_pallet.sku} - {unit.base_pallet.quantity} unités</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-500">
-                            {unit.dimensions.l.toFixed(2)}m × {unit.dimensions.w.toFixed(2)}m × {unit.total_height.toFixed(2)}m
-                          </p>
+
+                          {/* Infos palette de base */}
+                          <div className="space-y-1 mb-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="text-gray-600 dark:text-gray-400">
+                                <span className="font-medium">SKU:</span> {unit.base_pallet.sku}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                                unit.base_pallet.status === 'full' 
+                                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' 
+                                  : 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400'
+                              }`}>
+                                {unit.base_pallet.status === 'full' ? 'Pleine' : 'Partielle'}
+                              </span>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-400">
+                              <div>
+                                <span className="font-medium">Qté:</span> {unit.base_pallet.quantity} unités
+                              </div>
+                              <div>
+                                <span className="font-medium">Poids:</span> {unit.base_pallet.weight_actual.toFixed(1)} kg
+                              </div>
+                              <div>
+                                <span className="font-medium">Hauteur:</span> {unit.base_pallet.height_actual.toFixed(2)} m
+                              </div>
+                              <div>
+                                <span className="font-medium">Type:</span> {unit.pallet_type || 'EUR'}
+                              </div>
+                            </div>
+
+                            <div className="text-xs text-gray-500 dark:text-gray-500">
+                              <span className="font-medium">Dimensions:</span>{" "}
+                              {unit.dimensions.l.toFixed(2)}m × {unit.dimensions.w.toFixed(2)}m × {unit.base_pallet.height_actual.toFixed(2)}m
+                            </div>
+                          </div>
                           
+                          {/* Section gerbage avec toggle */}
                           {unit.stacked_pallets.length > 0 && (
-                            <div className="mt-2 pl-3 border-l-2 border-green-500 dark:border-green-600">
-                              <p className="text-xs font-medium text-green-700 dark:text-green-400">↑ Gerbé ({unit.stacked_pallets.length})</p>
+                            <div className="mt-3 pt-2 border-t border-green-200 dark:border-green-700/50">
+                              {/* En-tête du gerbage avec toggle */}
+                              <button
+                                onClick={toggleExpand}
+                                className="w-full flex items-center justify-between mb-2 hover:bg-green-100 dark:hover:bg-green-900/30 rounded p-1 transition-colors"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Layers size={14} className="text-green-600 dark:text-green-400" />
+                                  <p className="text-xs font-semibold text-green-700 dark:text-green-400">
+                                    Palettes gerbées ({unit.stacked_pallets.length})
+                                  </p>
+                                </div>
+                                {isExpanded ? (
+                                  <ChevronUp size={16} className="text-green-600 dark:text-green-400" />
+                                ) : (
+                                  <ChevronDown size={16} className="text-green-600 dark:text-green-400" />
+                                )}
+                              </button>
+
+                              {/* Liste des palettes empilées (collapsible) */}
+                              {isExpanded && (
+                                <>
+                                  <div className="space-y-2 pl-4 mb-2">
+                                    {unit.stacked_pallets.map((stacked: any, sIdx: number) => (
+                                      <div 
+                                        key={sIdx}
+                                        className="bg-green-50 dark:bg-green-900/20 rounded-md p-2 border border-green-200 dark:border-green-700/50"
+                                      >
+                                        {/* SSCC et niveau */}
+                                        <div className="flex items-center justify-between mb-1">
+                                          <span className="text-xs font-medium text-green-900 dark:text-green-100">
+                                            ↑ Niveau {sIdx + 1}
+                                          </span>
+                                          <span className="text-xs text-green-600 dark:text-green-400 font-mono">
+                                            {stacked.sscc}
+                                          </span>
+                                        </div>
+
+                                        {/* Détails (Qté, Hauteur, Poids, Statut) */}
+                                        <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+                                          <div className="text-gray-600 dark:text-gray-400">
+                                            <span className="font-medium">Qté:</span> {stacked.quantity} unités
+                                          </div>
+                                          <div className="text-gray-600 dark:text-gray-400">
+                                            <span className="font-medium">H:</span> {stacked.height_actual.toFixed(2)}m
+                                          </div>
+                                          <div className="text-gray-600 dark:text-gray-400">
+                                            <span className="font-medium">Poids:</span> {stacked.weight_actual.toFixed(1)}kg
+                                          </div>
+                                          <div className="text-gray-600 dark:text-gray-400">
+                                            <span className="font-medium">Statut:</span>{" "}
+                                            <span className={stacked.status === 'full' ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}>
+                                              {stacked.status === 'full' ? 'Pleine' : 'Partielle'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </>
+                              )}
+                              
+                              {/* Totaux agrégés du gerbage (toujours visible) */}
+                              <div className="pt-2 border-t border-green-200 dark:border-green-700/50">
+                                <div className="flex items-center justify-between text-xs">
+                                  <span className="font-semibold text-green-800 dark:text-green-300">
+                                    Total empilé:
+                                  </span>
+                                  <div className="flex gap-3 text-green-700 dark:text-green-400">
+                                    <div className="flex items-center gap-1">
+                                      <Weight size={12} />
+                                      <span>{unit.total_weight.toFixed(1)}kg</span>
+                                    </div>
+                                    <span>•</span>
+                                    <div className="flex items-center gap-1">
+                                      <TrendingUp size={12} />
+                                      <span>{unit.total_height.toFixed(2)}m</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {/* Alerte si proche de la limite */}
+                                {unit.total_height > 2.4 && (
+                                  <div className="mt-1 flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400">
+                                    <AlertTriangle size={12} />
+                                    <span>Attention : hauteur élevée</span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>
