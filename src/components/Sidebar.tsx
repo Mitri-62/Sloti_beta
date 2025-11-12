@@ -21,9 +21,12 @@ import {
   Sun,
   Book,
   Warehouse,
+  Crown,
+  Settings,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../supabaseClient";
+import useSuperAdmin from "../hooks/useSuperAdmin";
 import logo from "../assets/Sloti.svg";
 
 interface TooltipNavLinkProps {
@@ -88,6 +91,10 @@ export default function Sidebar() {
 
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { isSuperAdmin, loading: superAdminLoading } = useSuperAdmin();
+  
+  // Vérifier si l'utilisateur est admin
+  const isAdmin = user?.role === 'admin';
 
   // Charger le thème depuis localStorage
   useEffect(() => {
@@ -355,6 +362,41 @@ export default function Sidebar() {
           isCollapsed={isCollapsed}
           badge={unreadMessages}
         />
+
+        {/* Section Administration */}
+        {(isAdmin || isSuperAdmin) && !superAdminLoading && (
+          <>
+            {!isCollapsed && (
+              <div className="px-3 mb-2 mt-4">
+                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Administration
+                </span>
+              </div>
+            )}
+
+            {/* Gestion d'équipe (Admins uniquement) */}
+            {isAdmin && (
+              <TooltipNavLink
+                to="/app/team"
+                icon={Settings}
+                label="Gestion d'équipe"
+                isCollapsed={isCollapsed}
+              />
+            )}
+
+            {/* Dashboard Fondateur (Super admins uniquement) */}
+            {isSuperAdmin && (
+              <>
+                <TooltipNavLink
+                  to="/app/founder/dashboard"
+                  icon={Crown}
+                  label="Dashboard Fondateur"
+                  isCollapsed={isCollapsed}
+                />
+              </>
+            )}
+          </>
+        )}
       </nav>
 
       {/* Section centre d'aide */}

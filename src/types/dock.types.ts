@@ -23,6 +23,15 @@ export interface DockRow {
   capacity?: string | null;
   operating_hours_start?: string | null;
   operating_hours_end?: string | null;
+  
+  // ✅ CHAMPS DE MAINTENANCE DÉTAILLÉE
+  maintenance_reason?: string | null;
+  maintenance_start_date?: string | null;  // Format: 'YYYY-MM-DD'
+  maintenance_end_date?: string | null;    // Format: 'YYYY-MM-DD'
+  maintenance_cost?: number | null;
+  maintenance_technician?: string | null;
+  maintenance_notes?: string | null;
+  
   created_at: string;
   updated_at: string;
 }
@@ -158,4 +167,17 @@ export interface TimeSlot {
   end: string;
   available: boolean;
   booking?: DockBookingRow;
+}
+
+// ============================================================
+// ✅ NOUVEAUX TYPES POUR LA MAINTENANCE
+// ============================================================
+
+export interface MaintenanceData {
+  maintenance_reason: string;
+  maintenance_start_date: string;
+  maintenance_end_date: string;
+  maintenance_cost: number | null;
+  maintenance_technician: string;
+  maintenance_notes: string;
 }

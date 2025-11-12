@@ -212,16 +212,16 @@ export default function Login() {
           </div>
         </div>
 
-        {/* Lien vers inscription */}
+        {/* Lien vers demande de démo */}
         <div className="text-center">
-          <p className="text-gray-600 dark:text-gray-400">
-            Pas encore de compte ?{" "}
-            <Link 
-              to="/signup" 
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            Vous n'avez pas encore de compte ?{" "}
+            <a 
+              href="/#DevisForm"
               className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-semibold hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-1"
             >
-              S'inscrire gratuitement
-            </Link>
+              Demander une démo
+            </a>
           </p>
         </div>
 

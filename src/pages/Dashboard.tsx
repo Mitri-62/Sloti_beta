@@ -1,4 +1,4 @@
-// src/pages/Dashboard.tsx - VERSION OPTIMISÉE AVEC CACHE + DARK MODE
+// src/pages/Dashboard.tsx - VERSION AVEC AUTO-REFRESH
 import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../contexts/AuthContext";
@@ -8,7 +8,7 @@ import {
 } from "recharts";
 import { 
   Package, Truck, Users, Calendar, Download, TrendingUp, TrendingDown,
-  Activity, MapPin, AlertTriangle, CheckCircle, Target
+  Activity, MapPin, AlertTriangle, CheckCircle, Target, RefreshCw
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { startOfWeek, endOfWeek, addWeeks, format, subDays } from "date-fns";
@@ -21,6 +21,10 @@ export default function Dashboard() {
 
   const [loading, setLoading] = useState(true);
   const [loadingChart, setLoadingChart] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+  const [refreshing, setRefreshing] = useState(false);
+  
   const [stats, setStats] = useState({
     stocks: 0,
     chargements: 0,
@@ -79,159 +83,190 @@ export default function Dashboard() {
     }
   }, [user?.company_id]);
 
+  // Fonction de rafraîchissement manuel
+  const handleManualRefresh = async () => {
+    setRefreshing(true);
+    await loadAllData();
+    setLastRefresh(new Date());
+    setTimeout(() => setRefreshing(false), 500);
+  };
+
+  // Charger toutes les données
+  const loadAllData = async () => {
+    await Promise.all([
+      loadStats(),
+      loadChartData(),
+      loadStockLocations(),
+    ]);
+  };
+
   // Charger les KPI avec tendances
-  useEffect(() => {
-    const loadStats = async () => {
-      if (!user?.company_id) return;
+  const loadStats = async () => {
+    if (!user?.company_id) return;
+    
+    const hasCache = stats.stocks > 0 || stats.chargements > 0 || stats.tours > 0;
+    if (!hasCache) {
+      setLoading(true);
+    }
+
+    try {
+      const [
+        { data: stockData, error: stockError },
+        { data: oldStockData },
+        { count: userCount },
+        { data: toursData, error: toursError },
+        { data: planningsData, error: planningsError }
+      ] = await Promise.all([
+        supabase.from("stocks").select("ean, quantity").eq("company_id", user.company_id),
+        supabase.from("stock_movements").select("quantity").eq("company_id", user.company_id).lt("created_at", subDays(new Date(), 7).toISOString()),
+        supabase.from("users").select("*", { count: "exact", head: true }).eq("company_id", user.company_id),
+        supabase.from("tours").select("status").eq("company_id", user.company_id).gte("date", subDays(new Date(), 30).toISOString().split('T')[0]),
+        supabase.from("plannings").select("type").eq("company_id", user.company_id).gte("date", startOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 1 }).toISOString().split("T")[0]).lte("date", endOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 1 }).toISOString().split("T")[0])
+      ]);
+
+      if (stockError) throw stockError;
+      if (toursError) throw toursError;
+      if (planningsError) throw planningsError;
+
+      const uniqueSkus = stockData ? new Set(stockData.map((s) => s.ean)).size : 0;
+      const totalQuantity = stockData?.reduce((sum, s) => sum + (s.quantity || 0), 0) || 0;
+      const oldTotal = oldStockData?.reduce((sum, s) => sum + Math.abs(s.quantity || 0), 0) || 0;
+      const stocksTrend = oldTotal > 0 ? ((totalQuantity - oldTotal) / oldTotal) * 100 : 0;
+
+      const totalTours = toursData?.length || 0;
+      const completedTours = toursData?.filter(t => t.status === 'completed').length || 0;
+
+      const recepCount = planningsData?.filter((r) => r.type === "Réception").length || 0;
+      const loadCount = planningsData?.filter((r) => r.type === "Expédition").length || 0;
+
+      const newStats = {
+        stocks: uniqueSkus,
+        chargements: loadCount,
+        receptions: recepCount,
+        utilisateurs: userCount || 0,
+        tours: totalTours,
+        toursCompleted: completedTours,
+      };
+
+      setStats(newStats);
+      localStorage.setItem(`dashboard_stats_${user.company_id}`, JSON.stringify(newStats));
+
+      const newTrends = {
+        stocksTrend: Math.round(stocksTrend),
+        chargementsTrend: 0,
+        toursTrend: 0,
+      };
+
+      setTrends(newTrends);
+      localStorage.setItem(`dashboard_trends_${user.company_id}`, JSON.stringify(newTrends));
+
+      const toursByStatus = [
+        { status: 'Planifiée', count: toursData?.filter(t => t.status === 'planned').length || 0 },
+        { status: 'En cours', count: toursData?.filter(t => t.status === 'in_progress').length || 0 },
+        { status: 'Terminée', count: completedTours },
+        { status: 'Annulée', count: toursData?.filter(t => t.status === 'cancelled').length || 0 },
+      ];
+      setTourStats(toursByStatus);
+
+    } catch (error) {
+      console.error("Erreur chargement stats:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Charger distribution des stocks par emplacement
+  const loadStockLocations = async () => {
+    if (!user?.company_id) return;
+
+    const { data } = await supabase
+      .from("stocks")
+      .select("emplacement_prenant, quantity")
+      .eq("company_id", user.company_id);
+
+    if (data) {
+      const grouped = data.reduce((acc: any, item) => {
+        const loc = item.emplacement_prenant || 'Non défini';
+        acc[loc] = (acc[loc] || 0) + (item.quantity || 0);
+        return acc;
+      }, {});
+
+      const chartData = Object.entries(grouped)
+        .map(([name, value]) => ({ name, value: value as number }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5);
+
+      setStockByLocation(chartData);
+    }
+  };
+
+  // Charger le graphique avec période variable
+  const loadChartData = async () => {
+    if (!user?.company_id) return;
+
+    setLoadingChart(true);
+
+    const today = new Date();
+    const currentWeek = addWeeks(today, weekOffset);
+    const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
+    const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
+
+    const { data, error } = await supabase
+      .from("plannings")
+      .select("date, type")
+      .eq("company_id", user.company_id)
+      .gte("date", weekStart.toISOString().split("T")[0])
+      .lte("date", weekEnd.toISOString().split("T")[0]);
+
+    if (error) {
+      console.error("Erreur chargement planning:", error.message);
+      setLoadingChart(false);
+      return;
+    }
+
+    const days = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+    const result = days.map((d) => ({ day: d, entrees: 0, sorties: 0 }));
+
+    data?.forEach((row) => {
+      const [year, month, day] = row.date.split('-').map(Number);
+      const localDate = new Date(year, month - 1, day);
+      const dayIndex = localDate.getDay();
+      const mappedIndex = dayIndex === 0 ? 6 : dayIndex - 1;
       
-      const hasCache = stats.stocks > 0 || stats.chargements > 0 || stats.tours > 0;
-      if (!hasCache) {
-        setLoading(true);
-      }
+      if (row.type === "Réception") result[mappedIndex].entrees++;
+      if (row.type === "Expédition") result[mappedIndex].sorties++;
+    });
 
-      try {
-        const [
-          { data: stockData, error: stockError },
-          { data: oldStockData },
-          { count: userCount },
-          { data: toursData, error: toursError },
-          { data: planningsData, error: planningsError }
-        ] = await Promise.all([
-          supabase.from("stocks").select("ean, quantity").eq("company_id", user.company_id),
-          supabase.from("stock_movements").select("quantity").eq("company_id", user.company_id).lt("created_at", subDays(new Date(), 7).toISOString()),
-          supabase.from("users").select("*", { count: "exact", head: true }).eq("company_id", user.company_id),
-          supabase.from("tours").select("status").eq("company_id", user.company_id).gte("date", subDays(new Date(), 30).toISOString().split('T')[0]),
-          supabase.from("plannings").select("type").eq("company_id", user.company_id).gte("date", startOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 1 }).toISOString().split("T")[0]).lte("date", endOfWeek(addWeeks(new Date(), weekOffset), { weekStartsOn: 1 }).toISOString().split("T")[0])
-        ]);
+    setChartData(result);
+    localStorage.setItem(`dashboard_chart_${user.company_id}`, JSON.stringify(result));
+    setLoadingChart(false);
+  };
 
-        if (stockError) throw stockError;
-        if (toursError) throw toursError;
-        if (planningsError) throw planningsError;
-
-        const uniqueSkus = stockData ? new Set(stockData.map((s) => s.ean)).size : 0;
-        const totalQuantity = stockData?.reduce((sum, s) => sum + (s.quantity || 0), 0) || 0;
-        const oldTotal = oldStockData?.reduce((sum, s) => sum + Math.abs(s.quantity || 0), 0) || 0;
-        const stocksTrend = oldTotal > 0 ? ((totalQuantity - oldTotal) / oldTotal) * 100 : 0;
-
-        const totalTours = toursData?.length || 0;
-        const completedTours = toursData?.filter(t => t.status === 'completed').length || 0;
-
-        const recepCount = planningsData?.filter((r) => r.type === "Réception").length || 0;
-        const loadCount = planningsData?.filter((r) => r.type === "Expédition").length || 0;
-
-        const newStats = {
-          stocks: uniqueSkus,
-          chargements: loadCount,
-          receptions: recepCount,
-          utilisateurs: userCount || 0,
-          tours: totalTours,
-          toursCompleted: completedTours,
-        };
-
-        setStats(newStats);
-        localStorage.setItem(`dashboard_stats_${user.company_id}`, JSON.stringify(newStats));
-
-        const newTrends = {
-          stocksTrend: Math.round(stocksTrend),
-          chargementsTrend: 0,
-          toursTrend: 0,
-        };
-
-        setTrends(newTrends);
-        localStorage.setItem(`dashboard_trends_${user.company_id}`, JSON.stringify(newTrends));
-
-        const toursByStatus = [
-          { status: 'Planifiée', count: toursData?.filter(t => t.status === 'planned').length || 0 },
-          { status: 'En cours', count: toursData?.filter(t => t.status === 'in_progress').length || 0 },
-          { status: 'Terminée', count: completedTours },
-          { status: 'Annulée', count: toursData?.filter(t => t.status === 'cancelled').length || 0 },
-        ];
-        setTourStats(toursByStatus);
-
-      } catch (error) {
-        console.error("Erreur chargement stats:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
+  // Chargement initial et sur changement de semaine
+  useEffect(() => {
     loadStats();
   }, [user?.company_id, weekOffset]);
 
-  // Charger distribution des stocks par emplacement
   useEffect(() => {
-    const loadStockLocations = async () => {
-      if (!user?.company_id) return;
-
-      const { data } = await supabase
-        .from("stocks")
-        .select("emplacement_prenant, quantity")
-        .eq("company_id", user.company_id);
-
-      if (data) {
-        const grouped = data.reduce((acc: any, item) => {
-          const loc = item.emplacement_prenant || 'Non défini';
-          acc[loc] = (acc[loc] || 0) + (item.quantity || 0);
-          return acc;
-        }, {});
-
-        const chartData = Object.entries(grouped)
-          .map(([name, value]) => ({ name, value: value as number }))
-          .sort((a, b) => b.value - a.value)
-          .slice(0, 5);
-
-        setStockByLocation(chartData);
-      }
-    };
-
     loadStockLocations();
   }, [user?.company_id]);
 
-  // Charger le graphique avec période variable
   useEffect(() => {
-    const loadChartData = async () => {
-      if (!user?.company_id) return;
-
-      setLoadingChart(true);
-
-      const today = new Date();
-      const currentWeek = addWeeks(today, weekOffset);
-      const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
-      const weekEnd = endOfWeek(currentWeek, { weekStartsOn: 1 });
-
-      const { data, error } = await supabase
-        .from("plannings")
-        .select("date, type")
-        .eq("company_id", user.company_id)
-        .gte("date", weekStart.toISOString().split("T")[0])
-        .lte("date", weekEnd.toISOString().split("T")[0]);
-
-      if (error) {
-        console.error("Erreur chargement planning:", error.message);
-        setLoadingChart(false);
-        return;
-      }
-
-      const days = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
-      const result = days.map((d) => ({ day: d, entrees: 0, sorties: 0 }));
-
-      data?.forEach((row) => {
-        const [year, month, day] = row.date.split('-').map(Number);
-        const localDate = new Date(year, month - 1, day);
-        const dayIndex = localDate.getDay();
-        const mappedIndex = dayIndex === 0 ? 6 : dayIndex - 1;
-        
-        if (row.type === "Réception") result[mappedIndex].entrees++;
-        if (row.type === "Expédition") result[mappedIndex].sorties++;
-      });
-
-      setChartData(result);
-      localStorage.setItem(`dashboard_chart_${user.company_id}`, JSON.stringify(result));
-      setLoadingChart(false);
-    };
-
     loadChartData();
   }, [user?.company_id, weekOffset]);
+
+  // AUTO-REFRESH toutes les 5 minutes
+  useEffect(() => {
+    if (!autoRefresh || !user?.company_id) return;
+
+    const interval = setInterval(() => {
+      console.log("🔄 Auto-refresh Dashboard");
+      loadAllData();
+      setLastRefresh(new Date());
+    }, 5 * 60 * 1000); // 5 minutes
+
+    return () => clearInterval(interval);
+  }, [autoRefresh, user?.company_id, weekOffset]);
 
   // Charger activité récente avec types
   useEffect(() => {
@@ -359,10 +394,17 @@ export default function Dashboard() {
     </div>
   );
 
+  const getTimeSinceRefresh = () => {
+    const seconds = Math.floor((new Date().getTime() - lastRefresh.getTime()) / 1000);
+    if (seconds < 60) return `il y a ${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    return `il y a ${minutes}min`;
+  };
+
   return (
     <div className="p-4 sm:p-6 space-y-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
       
-      {/* En-tête avec message de bienvenue */}
+      {/* En-tête avec message de bienvenue + contrôles refresh */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
@@ -372,13 +414,47 @@ export default function Dashboard() {
             Bienvenue, {user?.name || user?.email?.split('@')[0]} 👋
           </p>
         </div>
-        <button
-          onClick={exportData}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-        >
-          <Download size={18} />
-          Exporter
-        </button>
+        
+        <div className="flex items-center gap-3">
+          {/* Indicateur auto-refresh */}
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <button
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                autoRefresh 
+                  ? 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300' 
+                  : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                <div className={`w-2 h-2 rounded-full ${autoRefresh ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`} />
+                <span className="text-xs font-medium">{autoRefresh ? 'Auto' : 'Pause'}</span>
+              </div>
+            </button>
+            <span className="text-xs hidden sm:inline">
+              Actualisé {getTimeSinceRefresh()}
+            </span>
+          </div>
+
+          {/* Bouton refresh manuel */}
+          <button
+            onClick={handleManualRefresh}
+            disabled={refreshing}
+            className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-50"
+            title="Actualiser maintenant"
+          >
+            <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+          </button>
+
+          {/* Bouton export */}
+          <button
+            onClick={exportData}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+          >
+            <Download size={18} />
+            <span className="hidden sm:inline">Exporter</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards avec tendances */}

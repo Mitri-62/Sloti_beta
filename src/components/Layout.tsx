@@ -1,15 +1,18 @@
-// src/components/Layout.tsx - VERSION AVEC SIDEBAR FIXE
-import { Outlet, useLocation } from "react-router-dom";
+// src/components/Layout.tsx - VERSION AVEC SIDEBAR FIXE + GUEST RESTRICTION + IMPERSONATE
+import { Outlet, useLocation, Navigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import Header from "./Header";
 import Sidebar from "./Sidebar";
 import ChatSidebar from "./ChatSidebar";
 import UsersListSidebar from "./UsersListSidebar";
+import ImpersonateBanner from "./ImpersonateBanner";
+import useImpersonate from "../hooks/useImpersonate";
 
 export default function Layout() {
   const { user } = useAuth();
   const location = useLocation();
+  const { isImpersonating } = useImpersonate();
   
   // ✅ Détection des pages de chat
   const isChatPage = useMemo(() => {
@@ -19,15 +22,33 @@ export default function Layout() {
            path.startsWith("/app/chat/dm/");
   }, [location.pathname]);
 
+  // ✅ Gestion des guests : redirection automatique vers chat
+  const isGuest = user?.role === 'guest';
+
+  useEffect(() => {
+    if (isGuest && !isChatPage) {
+      console.log("🚫 Guest tentant d'accéder à:", location.pathname);
+      console.log("➡️ Redirection vers /app/chat");
+    }
+  }, [isGuest, isChatPage, location.pathname]);
+
+  // Si guest et pas sur chat, rediriger
+  if (isGuest && !isChatPage) {
+    return <Navigate to="/app/chat" replace />;
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
       {/* ⚠️ CRITIQUE : overflow-hidden sur le container principal */}
       
-      {/* Sidebar principale (navigation) - TOUJOURS VISIBLE et FIXE */}
-      {user && <Sidebar />}
+      {/* Sidebar principale (navigation) - CACHÉE pour les guests */}
+      {user && !isGuest && <Sidebar />}
 
       {/* Zone principale avec Header global + contenu */}
       <div className="flex-1 flex flex-col min-h-0">
+        {/* 🔓 Banner d'impersonate si actif - AU-DESSUS DU HEADER */}
+        {isImpersonating && <ImpersonateBanner />}
+        
         {/* Header global TOUJOURS au-dessus */}
         {user && <Header />}
         

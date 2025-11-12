@@ -1,4 +1,4 @@
-// src/components/PlanningList.tsx - AVEC QUAIS
+// src/components/PlanningList.tsx - VERSION SIMPLE SANS MENU
 import { Calendar, Package, Truck, Check, Undo2, Trash2, Copy, FileText, Warehouse, AlertTriangle } from "lucide-react";
 import type { Planning } from "../hooks/useOptimizedPlannings";
 import { useRef, useEffect, useState, useMemo } from "react";
@@ -13,7 +13,8 @@ interface Props {
   onReset: (id: string) => void;
   openDocumentsModal: (id: string) => void;
   onDuplicate: (event: Planning) => void;
-  showDocks?: boolean; // ✅ AJOUTÉ
+  onAssignDock?: (id: string) => void;
+  showDocks?: boolean;
 }
 
 // Fonction utilitaire pour récupérer la semaine en cours
@@ -44,7 +45,8 @@ export default function PlanningList({
   onReset,
   openDocumentsModal,
   onDuplicate,
-  showDocks = true, // ✅ AJOUTÉ
+  onAssignDock,
+  showDocks = true,
 }: Props) {
   const [dateRange, setDateRange] = useState<[Date | null, Date | null]>(() => 
     getCurrentWeekRange()
@@ -276,7 +278,7 @@ export default function PlanningList({
                             </span>
                           )}
                           
-                          {/* ✅ AJOUTÉ - Badge Quai */}
+                          {/* Badge Quai - cliquable pour assigner */}
                           {showDocks && (
                             ev.dock_booking ? (
                               <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-green-100 border border-green-300 rounded-full text-xs font-medium text-green-800 dark:bg-green-900 dark:border-green-700 dark:text-green-200">
@@ -284,16 +286,19 @@ export default function PlanningList({
                                 {ev.dock_booking.dock.name}
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-orange-100 border border-orange-300 rounded-full text-xs font-medium text-orange-800 dark:bg-orange-900 dark:border-orange-700 dark:text-orange-200">
+                              <button
+                                onClick={() => onAssignDock?.(ev.id!)}
+                                className="inline-flex items-center gap-1.5 px-2 py-1 bg-orange-100 border border-orange-300 rounded-full text-xs font-medium text-orange-800 hover:bg-orange-200 transition-colors dark:bg-orange-900 dark:border-orange-700 dark:text-orange-200 dark:hover:bg-orange-800"
+                              >
                                 <AlertTriangle className="w-3 h-3" />
-                                Aucun quai
-                              </span>
+                                Assigner un quai
+                              </button>
                             )
                           )}
                         </div>
                       </div>
 
-                      {/* Actions */}
+                      {/* Actions - TOUS LES BOUTONS VISIBLES */}
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           onClick={() => openDocumentsModal(ev.id!)}

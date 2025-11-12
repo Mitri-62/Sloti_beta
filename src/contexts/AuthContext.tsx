@@ -1,8 +1,9 @@
-// src/contexts/AuthContext.tsx - VERSION CORRIGÉE
+// src/contexts/AuthContext.tsx - VERSION AMÉLIORÉE AVEC GESTION DU RÉVEIL
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { User } from "../types";
 import { toast } from "sonner";
+import { queryCache } from "../services/queryCache";
 
 interface UserWithCompany extends User {
   full_name?: string;
@@ -99,7 +100,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setUser(null);
         setIsLoading(false);
-        // ❌ PAS de navigate() ici
       }
     };
 
@@ -114,7 +114,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await checkUser(true);
       } else if (event === "SIGNED_OUT") {
         setUser(null);
-        // ❌ PAS de navigate() ici
       }
     });
     
@@ -124,22 +123,75 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (msg.data.event === "SIGNED_IN") await checkUser(true);
       if (msg.data.event === "SIGNED_OUT") {
         setUser(null);
-        // ❌ PAS de navigate() ici
       }
     };
 
-    // ✅ Throttle de la vérification au focus (5s minimum)
-    const handleFocus = async () => {
-      console.log("🔄 Onglet actif → vérification session");
-      await checkUser(false); // Throttled
+    // ✅ NOUVEAU : Détection du réveil après verrouillage PC
+    let lastActivity = Date.now();
+    const INACTIVITY_THRESHOLD = 5 * 60 * 1000; // 5 minutes
+
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible') {
+        const inactivityDuration = Date.now() - lastActivity;
+        
+        console.log(`🔄 Onglet visible - Inactivité: ${Math.round(inactivityDuration / 1000)}s`);
+        
+        // Si inactivité > 5 min, forcer la vérification et refresh de la session
+        if (inactivityDuration > INACTIVITY_THRESHOLD) {
+          console.log("⚠️ Longue inactivité détectée - Refresh de la session");
+          
+          try {
+            // Forcer le refresh du token
+            const { data, error } = await supabase.auth.refreshSession();
+            
+            if (error) {
+              console.error("❌ Erreur refresh session:", error);
+              toast.error("Session expirée, veuillez vous reconnecter");
+              setUser(null);
+              return;
+            }
+            
+            if (data.session) {
+              console.log("✅ Session refreshed avec succès");
+              await checkUser(true);
+              
+              // Invalider tous les caches pour forcer le rechargement des données
+              queryCache.clear();
+              
+              toast.success("Connexion restaurée !");
+            }
+          } catch (err) {
+            console.error("❌ Erreur lors du refresh:", err);
+          }
+        } else {
+          // Vérification légère
+          await checkUser(false);
+        }
+        
+        lastActivity = Date.now();
+      }
     };
-    window.addEventListener("focus", handleFocus);
+
+    const handleActivity = () => {
+      lastActivity = Date.now();
+    };
+
+    // Écouter les événements de visibilité et d'activité
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleActivity);
+    window.addEventListener('click', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('mousemove', handleActivity);
 
     return () => {
       refreshSub.subscription.unsubscribe();
       channel.close();
       supabase.auth.stopAutoRefresh();
-      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleActivity);
+      window.removeEventListener('click', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('mousemove', handleActivity);
     };
   }, [checkUser]);
 
@@ -157,7 +209,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data.user) {
         await checkUser(true);
         toast.success("Connexion réussie");
-        // ✅ La redirection se fera dans le composant Login après l'appel
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Erreur de connexion";
@@ -178,8 +229,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await supabase.auth.signOut();
       setUser(null);
       sessionStorage.clear();
+      queryCache.clear(); // Nettoyer le cache
       toast.success("Déconnexion réussie");
-      // ✅ La redirection se fera dans le composant qui appelle logout
     } catch (err) {
       console.error("Logout error:", err);
       toast.error("Erreur lors de la déconnexion");

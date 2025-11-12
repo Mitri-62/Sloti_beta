@@ -5,6 +5,7 @@ import { X, Warehouse, AlertTriangle, CheckCircle, Clock, MapPin } from 'lucide-
 import { format, parseISO, addMinutes } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { supabase } from '../supabaseClient';
 import { useDocks } from '../hooks/useDocks';
 import { useDockBookings } from '../hooks/useDockBookings';
 import * as dockService from '../services/dockService';
@@ -136,7 +137,7 @@ export default function DockAssignModal({
 
     setSaving(true);
     try {
-      // ✅ CORRECTION : Ajouter la propriété 'type' requise
+      // ✅ Type de réservation basé sur le type de planning
       const bookingType: 'loading' | 'unloading' = 
         planning.type === 'Réception' ? 'unloading' : 'loading';
       
@@ -151,12 +152,24 @@ export default function DockAssignModal({
         notes: planning.products || undefined,
       };
 
+      // Créer la réservation de quai
       const newBooking = await dockService.createDockBooking(bookingData);
+      console.log('✅ Réservation créée:', newBooking.id);
 
-      // Mettre à jour le planning avec le dock_booking_id
-      await dockService.linkPlanningToDockBooking(planning.id, newBooking.id);
+      // ✅ Mettre à jour le planning directement avec supabase
+      const { error: updateError } = await supabase
+        .from('plannings')
+        .update({ dock_booking_id: newBooking.id })
+        .eq('id', planning.id);
 
-      toast.success(`Quai ${selectedDock.name} assigné avec succès`);
+      if (updateError) {
+        console.error('Erreur mise à jour planning:', updateError);
+        throw updateError;
+      }
+
+      console.log('✅ Planning mis à jour avec dock_booking_id:', newBooking.id);
+
+      toast.success(`${selectedDock.name} assigné avec succès`);
       onSuccess();
       onClose();
     } catch (error: any) {

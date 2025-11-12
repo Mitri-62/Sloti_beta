@@ -1,10 +1,10 @@
-// src/components/TourMap.tsx - AVEC CENTRAGE SUR LE CAMION
+// src/components/TourMap.tsx - VERSION AMÉLIORÉE
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-routing-machine';
 import 'leaflet-routing-machine/dist/leaflet-routing-machine.css';
-import { Layers } from 'lucide-react';
+import { Layers, Trash2, Navigation as NavigationIcon } from 'lucide-react';
 
 interface Stop {
   id: string;
@@ -142,6 +142,7 @@ export default function TourMap({
           const parsed = JSON.parse(saved);
           setDriverPath(parsed.path || []);
           setPathDistance(parsed.distance || 0);
+          console.log('📍 Parcours chargé:', parsed.path.length, 'points,', parsed.distance.toFixed(2), 'km');
         } catch (e) {
           console.error('Erreur chargement parcours:', e);
         }
@@ -367,42 +368,67 @@ export default function TourMap({
     });
   }, [stops, onStopClick]);
 
-  // Dessiner le parcours réel du chauffeur
+  // 🆕 AMÉLIORATION: Dessiner le parcours réel avec protection erreurs GPS
   useEffect(() => {
     if (!mapRef.current || !driverLocation) return;
 
     const newPoint: [number, number] = [driverLocation.latitude, driverLocation.longitude];
     
     setDriverPath(prev => {
-      const updated = [...prev, newPoint];
+      const updated = [...prev];
       
-      if (updated.length > 1) {
-        const lastPoint = updated[updated.length - 2];
-        const distance = calculateDistance(lastPoint[0], lastPoint[1], newPoint[0], newPoint[1]);
-        setPathDistance(prev => prev + distance);
+      // Éviter les doublons (même position)
+      if (updated.length > 0) {
+        const last = updated[updated.length - 1];
+        if (last[0] === newPoint[0] && last[1] === newPoint[1]) {
+          return prev;
+        }
+        
+        // Calculer la distance
+        const distance = calculateDistance(last[0], last[1], newPoint[0], newPoint[1]);
+        
+        // 🆕 Ignorer les sauts trop importants (>1km = erreur GPS)
+        if (distance > 1) {
+          console.warn('⚠️ Saut GPS détecté:', distance.toFixed(2), 'km - ignoré');
+          return prev;
+        }
+        
+        setPathDistance(prevDist => prevDist + distance);
+        console.log('📍 Nouveau point:', newPoint, '+', distance.toFixed(3), 'km');
       }
       
+      updated.push(newPoint);
       return updated;
     });
   }, [driverLocation]);
 
-  // Afficher la polyline du parcours
+  // 🆕 AMÉLIORATION: Ligne bleue au lieu de verte avec meilleur style
   useEffect(() => {
-    if (!mapRef.current || driverPath.length < 2) return;
+    if (!mapRef.current || driverPath.length < 2) {
+      if (driverPathRef.current) {
+        driverPathRef.current.remove();
+        driverPathRef.current = null;
+      }
+      return;
+    }
 
     if (driverPathRef.current) {
       driverPathRef.current.setLatLngs(driverPath);
     } else {
       driverPathRef.current = L.polyline(driverPath, {
-        color: '#10B981',
-        weight: 4,
-        opacity: 0.7,
-        smoothFactor: 1
+        color: '#3B82F6',      // 🆕 Bleu au lieu de vert
+        weight: 5,              // 🆕 Plus épais
+        opacity: 0.8,           // 🆕 Plus opaque
+        smoothFactor: 1.5,      // 🆕 Plus lisse
+        lineCap: 'round',       // 🆕 Bouts arrondis
+        lineJoin: 'round'       // 🆕 Jointures arrondies
       }).addTo(mapRef.current);
     }
+
+    console.log('🔵 Parcours mis à jour:', driverPath.length, 'points');
   }, [driverPath]);
 
-  // Afficher le marker du chauffeur avec meilleure visibilité
+  // 🆕 AMÉLIORATION: Marker chauffeur avec animation pulse et design moderne
   useEffect(() => {
     if (!mapRef.current || !driverLocation) return;
 
@@ -412,48 +438,62 @@ export default function TourMap({
       const driverIcon = L.divIcon({
         html: `
           <div style="position: relative; width: 60px; height: 60px;">
-            <!-- Cercle pulsant blanc -->
+            <!-- Cercle pulsant bleu -->
             <div style="
               position: absolute; top: 50%; left: 50%; 
               transform: translate(-50%, -50%);
-              width: 65px; height: 65px; 
-              background: rgba(255, 255, 255, 0.4); 
+              width: 70px; height: 70px; 
+              background: rgba(59, 130, 246, 0.3); 
               border-radius: 50%;
               animation: pulse-ring 2s ease-in-out infinite;">
             </div>
             
-            <!-- Cercle principal avec ombre -->
+            <!-- Cercle blanc avec ombre -->
             <div style="
               position: absolute; top: 50%; left: 50%; 
               transform: translate(-50%, -50%);
-              width: 56px; height: 56px; 
+              width: 54px; height: 54px; 
               background: white;
               border-radius: 50%;
-              box-shadow: 0 6px 20px rgba(0,0,0,0.4);">
+              box-shadow: 0 6px 20px rgba(0,0,0,0.3);">
             </div>
             
-            <!-- Cercle de couleur -->
+            <!-- Cercle bleu avec dégradé -->
             <div style="
               position: absolute; top: 50%; left: 50%; 
               transform: translate(-50%, -50%);
-              width: 50px; height: 50px; 
-              background: linear-gradient(135deg, #10B981 0%, #059669 100%);
-              border-radius: 50%; border: 3px solid white;
-              box-shadow: 0 4px 12px rgba(16, 185, 129, 0.5);
-              display: flex; align-items: center; justify-content: center;
-              font-size: 26px;">
-              🚚
+              width: 48px; height: 48px; 
+              background: linear-gradient(135deg, #3B82F6 0%, #2563EB 100%);
+              border-radius: 50%; 
+              border: 3px solid white;
+              box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+              display: flex; 
+              align-items: center; 
+              justify-content: center;
+              font-size: 24px;">
+              🚛
             </div>
             
             ${pathDistance > 0 ? `
               <div style="
-                position: absolute; bottom: -35px; left: 50%;
-                transform: translateX(-50%); white-space: nowrap;
-                background: white; padding: 6px 12px; border-radius: 8px;
+                position: absolute; 
+                bottom: -38px; 
+                left: 50%;
+                transform: translateX(-50%); 
+                white-space: nowrap;
+                background: linear-gradient(135deg, #3B82F6, #2563EB); 
+                padding: 6px 12px; 
+                border-radius: 8px;
                 box-shadow: 0 4px 12px rgba(0,0,0,0.25); 
-                font-size: 12px; font-weight: 700;
-                color: #10B981; border: 2px solid #10B981;">
-                📍 ${pathDistance.toFixed(2)} km
+                font-size: 12px; 
+                font-weight: 700;
+                color: white;
+                border: 2px solid white;
+                display: flex;
+                align-items: center;
+                gap: 4px;">
+                <span style="font-size: 14px;">📍</span>
+                ${pathDistance.toFixed(2)} km
               </div>
             ` : ''}
           </div>
@@ -468,9 +508,31 @@ export default function TourMap({
         zIndexOffset: 1000
       });
 
+      marker.bindPopup(`
+        <div style="padding: 8px;">
+          <div style="font-weight: bold; font-size: 14px; margin-bottom: 4px; color: #1F2937;">
+            📍 Position actuelle
+          </div>
+          <div style="font-size: 12px; color: #6B7280;">
+            Chauffeur en déplacement
+          </div>
+          ${pathDistance > 0 ? `
+            <div style="margin-top: 6px; padding: 4px 8px; background: #EFF6FF; border-radius: 4px; font-size: 11px; color: #2563EB; font-weight: 600;">
+              Distance: ${pathDistance.toFixed(2)} km
+            </div>
+          ` : ''}
+        </div>
+      `);
+
       marker.addTo(mapRef.current);
       driverMarkerRef.current = marker;
     }
+
+    // Centrer sur le chauffeur (avec animation)
+    mapRef.current.setView([driverLocation.latitude, driverLocation.longitude], mapRef.current.getZoom(), { 
+      animate: true, 
+      duration: 0.5 
+    });
   }, [driverLocation, pathDistance]);
 
   // Gérer l'itinéraire planifié
@@ -503,7 +565,7 @@ export default function TourMap({
       showAlternatives: false,
       lineOptions: {
         styles: [
-          { color: '#3B82F6', opacity: 0.6, weight: 5 }
+          { color: '#9CA3AF', opacity: 0.5, weight: 4, dashArray: '10, 10' }  // 🆕 Gris pointillé
         ],
         extendToWaypoints: true,
         missingRouteTolerance: 0
@@ -518,7 +580,7 @@ export default function TourMap({
     }
   }, [stops, showRoute]);
 
-  // Fonction de réinitialisation
+  // 🆕 AMÉLIORATION: Fonction effacer le parcours
   const clearDriverPath = () => {
     setDriverPath([]);
     setPathDistance(0);
@@ -529,6 +591,7 @@ export default function TourMap({
       driverPathRef.current.remove();
       driverPathRef.current = null;
     }
+    console.log('🗑️ Parcours effacé');
   };
 
   // CLEANUP COMPLET
@@ -648,36 +711,51 @@ export default function TourMap({
         )}
       </div>
 
-      {/* Indicateur de distance parcourue */}
-      {pathDistance > 0 && (
+      {/* 🆕 AMÉLIORATION: Panneau info moderne avec bouton effacer */}
+      {driverPath.length > 0 && (
         <div style={{
           position: 'absolute', top: '10px', right: '10px', zIndex: 1000,
-          background: 'white', padding: '12px 16px', borderRadius: '8px',
+          background: 'white', padding: '12px', borderRadius: '8px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-          display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '180px'
+          minWidth: '180px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '20px' }}>📍</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+            <NavigationIcon size={16} style={{ color: '#3B82F6' }} />
             <div>
-              <p style={{ margin: 0, fontSize: '11px', color: '#666', fontWeight: 500 }}>
-                Distance parcourue
+              <p style={{ margin: 0, fontSize: '11px', color: '#6B7280', fontWeight: 500 }}>
+                Parcours réel
               </p>
-              <p style={{ margin: 0, fontSize: '18px', color: '#10B981', fontWeight: 700 }}>
+              <p style={{ margin: 0, fontSize: '18px', color: '#3B82F6', fontWeight: 700 }}>
                 {pathDistance.toFixed(2)} km
               </p>
             </div>
           </div>
+          <p style={{ margin: '0 0 10px 0', fontSize: '11px', color: '#9CA3AF' }}>
+            {driverPath.length} points enregistrés
+          </p>
           <button
             onClick={clearDriverPath}
             style={{
-              padding: '6px 12px', background: '#EF4444', color: 'white',
-              border: 'none', borderRadius: '6px', fontSize: '11px',
-              fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s'
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              padding: '8px',
+              background: '#FEE2E2',
+              color: '#DC2626',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 600,
+              transition: 'background 0.2s'
             }}
-            onMouseOver={(e) => e.currentTarget.style.background = '#DC2626'}
-            onMouseOut={(e) => e.currentTarget.style.background = '#EF4444'}
+            onMouseOver={(e) => e.currentTarget.style.background = '#FECACA'}
+            onMouseOut={(e) => e.currentTarget.style.background = '#FEE2E2'}
           >
-            🗑️ Effacer le parcours
+            <Trash2 size={14} />
+            Effacer
           </button>
         </div>
       )}
@@ -731,7 +809,7 @@ export default function TourMap({
             opacity: 1;
           }
           100% {
-            transform: translate(-50%, -50%) scale(1.3);
+            transform: translate(-50%, -50%) scale(1.4);
             opacity: 0;
           }
         }

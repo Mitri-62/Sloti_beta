@@ -139,7 +139,7 @@ function computeStacking(
   return stackedUnits;
 }
 
-function StackedPallet({ unit, position, index, highlightedIndexRef }: any) {
+function StackedPallet({ unit, position, index, highlightedIndexRef, onSelect, onContextMenu }: any) {
   const meshRef = useRef<any>();
   const stackedMeshRefs = useRef<any[]>([]);
   const { l, w } = unit.dimensions;
@@ -151,6 +151,42 @@ function StackedPallet({ unit, position, index, highlightedIndexRef }: any) {
 
   const palletSupportHeight = 0.15;
   const palletSupportColor = "#8B4513";
+
+  // Handler pour le click
+  const handleClick = (e: any) => {
+    e.stopPropagation();
+    if (onSelect) {
+      onSelect(index, unit);
+    }
+  };
+
+  // Handler pour le right-click (Three.js utilise onPointerDown + button === 2)
+  const handlePointerDown = (e: any) => {
+    e.stopPropagation();
+    if (e.button === 2 && onContextMenu) { // button 2 = right-click
+      // L'événement Three.js contient nativeEvent
+      const mouseEvent = e.nativeEvent || e.sourceEvent || e;
+      
+      const pseudoEvent = {
+        preventDefault: () => {},
+        nativeEvent: {
+          clientX: mouseEvent.clientX || window.innerWidth / 2,
+          clientY: mouseEvent.clientY || window.innerHeight / 2
+        }
+      };
+      onContextMenu(pseudoEvent, index, unit);
+    }
+  };
+
+  // Handler pour le curseur
+  const handlePointerOver = (e: any) => {
+    e.stopPropagation();
+    document.body.style.cursor = 'pointer';
+  };
+
+  const handlePointerOut = () => {
+    document.body.style.cursor = 'default';
+  };
 
   // Utiliser useFrame pour mettre à jour la couleur sans re-render
   useFrame(() => {
@@ -188,7 +224,13 @@ function StackedPallet({ unit, position, index, highlightedIndexRef }: any) {
   });
 
   return (
-    <group position={position}>
+    <group 
+      position={position} 
+      onClick={handleClick} 
+      onPointerDown={handlePointerDown}
+      onPointerOver={handlePointerOver}
+      onPointerOut={handlePointerOut}
+    >
       <group position={[0, palletSupportHeight / 2, 0]}>
         <mesh castShadow receiveShadow>
           <boxGeometry args={[l, palletSupportHeight, w]} />
@@ -212,7 +254,12 @@ function StackedPallet({ unit, position, index, highlightedIndexRef }: any) {
         </mesh>
       </group>
 
-      <mesh position={[0, palletSupportHeight + baseHeight / 2, 0]} castShadow receiveShadow ref={meshRef}>
+      <mesh 
+        position={[0, palletSupportHeight + baseHeight / 2, 0]} 
+        castShadow 
+        receiveShadow 
+        ref={meshRef}
+      >
         <boxGeometry args={[l, baseHeight, w]} />
         <meshStandardMaterial 
           color={baseColor}
@@ -375,7 +422,9 @@ const Canvas3DViewer = memo(({
   truck, 
   isDarkMode, 
   height,
-  highlightedIndexRef 
+  highlightedIndexRef,
+  onSelectPallet,
+  onRemovePallet
 }: { 
   placedUnits: any[]; 
   unplacedUnits: any[]; 
@@ -383,9 +432,48 @@ const Canvas3DViewer = memo(({
   isDarkMode: boolean; 
   height: number;
   highlightedIndexRef: React.MutableRefObject<number | null>;
+  onSelectPallet?: (index: number, unit: any) => void;
+  onRemovePallet?: (event: any, index: number, unit: any) => void;
 }) => {
+  
+  const [contextMenu, setContextMenu] = useState<{x: number, y: number, unit: any, index: number} | null>(null);
+
+  const handleSelect = (index: number, unit: any) => {
+    if (onSelectPallet) {
+      onSelectPallet(index, unit);
+    }
+  };
+
+  const handleContextMenu = (e: any, index: number, unit: any) => {
+    e.preventDefault();
+    // Convertir les coordonnées 3D en coordonnées écran
+    setContextMenu({
+      x: e.nativeEvent.clientX,
+      y: e.nativeEvent.clientY,
+      unit,
+      index
+    });
+  };
+
+  const handleRemove = () => {
+    if (contextMenu && onRemovePallet) {
+      onRemovePallet(null, contextMenu.index, contextMenu.unit);
+      setContextMenu(null);
+    }
+  };
+
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, []);
+
   return (
-    <Canvas 
+    <div 
+      style={{ position: 'relative', height }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <Canvas 
       camera={{ position: [25, 18, 30], fov: 60 }} 
       style={{ height }} 
       shadows={placedUnits.length < 50}
@@ -435,6 +523,8 @@ const Canvas3DViewer = memo(({
           position={[placed.x, placed.y, placed.z]} 
           index={idx}
           highlightedIndexRef={highlightedIndexRef}
+          onSelect={handleSelect}
+          onContextMenu={handleContextMenu}
         />
       ))}
 
@@ -472,6 +562,37 @@ const Canvas3DViewer = memo(({
         );
       })}
     </Canvas>
+
+    {/* Menu contextuel */}
+    {contextMenu && (
+      <div
+        style={{
+          position: 'fixed',
+          left: contextMenu.x,
+          top: contextMenu.y,
+          zIndex: 9999,
+        }}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-1 min-w-[180px]"
+      >
+        <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+          <p className="text-xs font-semibold text-gray-900 dark:text-white">
+            Palette #{contextMenu.index + 1}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+            {contextMenu.unit.base_pallet.sscc}
+          </p>
+        </div>
+        <button
+          onClick={handleRemove}
+          className="w-full px-3 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 transition-colors"
+        >
+          <Trash2 size={14} />
+          Supprimer la palette
+        </button>
+      </div>
+    )}
+  </div>
   );
 }, (prevProps, nextProps) => {
   // Ne re-render que si ces valeurs changent (pas highlightedIndex)
@@ -635,10 +756,30 @@ export default function AdvancedLoadingSystem() {
     }
   };
 
-  const handleRemovePallet = (ssccToRemove: string) => {
-    if (confirm(`Supprimer la palette ${ssccToRemove} ?`)) {
-      const updatedListing = palletListing.filter(p => p.sscc !== ssccToRemove);
-      setPalletListing(updatedListing);
+  const handleRemovePallet = (ssccOrEvent: string | any, index?: number, unit?: any) => {
+    // Si c'est un event (right-click depuis la 3D)
+    if (typeof ssccOrEvent === 'object' && unit) {
+      const sscc = unit.base_pallet.sscc;
+      if (confirm(`Supprimer la palette #${(index || 0) + 1} (${sscc}) ?`)) {
+        const updatedListing = palletListing.filter(p => p.sscc !== sscc);
+        setPalletListing(updatedListing);
+      }
+    }
+    // Si c'est un SSCC direct (depuis la liste)
+    else if (typeof ssccOrEvent === 'string') {
+      if (confirm(`Supprimer la palette ${ssccOrEvent} ?`)) {
+        const updatedListing = palletListing.filter(p => p.sscc !== ssccOrEvent);
+        setPalletListing(updatedListing);
+      }
+    }
+  };
+
+  const handleSelectPallet = (index: number,) => {
+    setHighlightedIndex(index);
+    // Scroll vers la palette dans la liste
+    const element = document.getElementById(`pallet-card-${index}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   };
 
@@ -880,6 +1021,8 @@ export default function AdvancedLoadingSystem() {
                   isDarkMode={isDarkMode}
                   height={800}
                   highlightedIndexRef={highlightedIndexRef}
+                  onSelectPallet={handleSelectPallet}
+                  onRemovePallet={handleRemovePallet}
                 />
               </div>
             ) : (
@@ -902,6 +1045,8 @@ export default function AdvancedLoadingSystem() {
                     isDarkMode={isDarkMode}
                     height={600}
                     highlightedIndexRef={highlightedIndexRef}
+                    onSelectPallet={handleSelectPallet}
+                    onRemovePallet={handleRemovePallet}
                   />
                 </div>
 
@@ -929,6 +1074,7 @@ export default function AdvancedLoadingSystem() {
                       return (
                         <div
                           key={idx}
+                          id={`pallet-card-${idx}`}
                           className={`border rounded-lg p-3 transition-all ${
                             unit.stacked_pallets.length > 0 
                               ? "bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700" 

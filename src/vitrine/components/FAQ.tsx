@@ -1,52 +1,11 @@
-// src/vitrine/components/FAQ.tsx
+// src/vitrine/components/FAQ.tsx - VERSION AVEC DB CONFIG
 import { useState } from "react";
 import { ChevronDown, HelpCircle } from "lucide-react";
-
-const faqs = [
-  {
-    question: "Sloti est-il adapté à mon entreprise ?",
-    answer:
-      "Oui ! Sloti s'adresse aux PME comme aux grandes entreprises qui souhaitent simplifier la gestion de leurs flux logistiques. Notre solution s'adapte à vos besoins spécifiques.",
-  },
-  {
-    question: "Mes données sont-elles sécurisées ?",
-    answer:
-      "Toutes vos données sont stockées et sécurisées avec Supabase, chiffrées en transit et au repos, conformément aux meilleures pratiques du marché et au RGPD.",
-  },
-  {
-    question: "Puis-je inviter plusieurs utilisateurs ?",
-    answer:
-      "Bien sûr ! Selon votre plan, vous pouvez inviter vos collègues, vos transporteurs ou vos fournisseurs directement dans la plateforme pour une collaboration optimale.",
-  },
-  {
-    question: "Sloti propose-t-il une période d'essai ?",
-    answer:
-      "Oui, vous bénéficiez de 14 jours d'essai gratuit sans carte bancaire requise. Testez toutes les fonctionnalités avant de vous engager.",
-  },
-  {
-    question: "Puis-je changer de plan à tout moment ?",
-    answer:
-      "Absolument ! Vous pouvez passer à un plan supérieur ou inférieur à tout moment. Les ajustements de facturation se font automatiquement et de manière proportionnelle.",
-  },
-  {
-    question: "Quel support est disponible ?",
-    answer:
-      "Nous offrons un support par email pour tous les plans, un support prioritaire pour les plans Starter et Pro, et un support 24/7 pour le plan Enterprise avec un gestionnaire de compte dédié.",
-  },
-  {
-    question: "Sloti fonctionne-t-il sur mobile ?",
-    answer:
-      "Oui, Sloti est entièrement responsive et fonctionne parfaitement sur smartphones et tablettes. Vous pouvez gérer vos flux logistiques où que vous soyez.",
-  },
-  {
-    question: "Y a-t-il des frais cachés ?",
-    answer:
-      "Non, aucun frais caché. Le prix affiché est le prix que vous payez. Pas de frais d'installation, pas de coûts supplémentaires pour les mises à jour.",
-  },
-];
+import useVitrineConfig, { FAQConfig } from "../../hooks/useVitrineConfig";
 
 export default function FAQ() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const { config, loading } = useVitrineConfig<FAQConfig>('faq');
 
   const toggleFAQ = (index: number) => {
     setOpenIndex(openIndex === index ? null : index);
@@ -58,6 +17,30 @@ export default function FAQ() {
       toggleFAQ(index);
     }
   };
+
+  // Valeurs par défaut si pas encore chargé
+  const faqs = config?.items || [
+    {
+      question: "Sloti est-il adapté à mon entreprise ?",
+      answer: "Oui ! Sloti s'adresse aux PME comme aux grandes entreprises qui souhaitent simplifier la gestion de leurs flux logistiques. Notre solution s'adapte à vos besoins spécifiques.",
+    },
+    {
+      question: "Mes données sont-elles sécurisées ?",
+      answer: "Toutes vos données sont stockées et sécurisées avec Supabase, chiffrées en transit et au repos, conformément aux meilleures pratiques du marché et au RGPD.",
+    },
+  ];
+
+  if (loading) {
+    return (
+      <section id="faq" className="py-16 sm:py-20 lg:py-24 bg-gradient-to-b from-white to-gray-50">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-12">
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section 

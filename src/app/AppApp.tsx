@@ -1,4 +1,4 @@
-// src/app/AppApp.tsx - VERSION AVEC DRIVER-APP EN DEHORS DU LAYOUT
+// src/app/AppApp.tsx - VERSION AVEC DRIVER-APP ET INVITATIONS EN DEHORS DU LAYOUT
 import { Routes, Route } from "react-router-dom";
 import { AuthProvider } from "../contexts/AuthContext";
 import { ThemeProvider } from "../contexts/ThemeContext";
@@ -25,21 +25,47 @@ import Profile from "../pages/Profile";
 import Settings from "../pages/Settings";
 import Notifications from "../pages/Notifications";
 import InvitePage from "../pages/InvitePage";
+import SignupInvitePage from "../pages/SignupInvitePage";
 import Inventaire from "../pages/Inventaire";
 import HelpCenter from "../pages/HelpCenter";
 import DriverApp from "../pages/DriverApp";
 import DockManagement from '../pages/DockManagement/DockManagement';
 
+// Pages Administration
+import TeamManagement from "../pages/TeamManagement";
+import FounderDashboard from "../pages/FounderDashboard";
 
 
 function AppContent() {
   return (
     <Routes>
-      {/* Routes SANS Layout (standalone) */}
+      {/* ========================================= */}
+      {/* Routes SANS Layout (standalone)          */}
+      {/* ========================================= */}
+      
+      {/* 
+        Page de visualisation de l'invitation
+        Public - L'utilisateur peut voir les détails avant de se connecter
+      */}
       <Route path="/invite/:token" element={<InvitePage />} />
+      
+      {/* 
+        ✅ NOUVELLE ROUTE : Page d'inscription via invitation
+        Public - Permet de créer un compte directement lié à l'invitation
+        L'utilisateur rejoint automatiquement la company du canal
+      */}
+      <Route path="/signup-invite/:token" element={<SignupInvitePage />} />
+      
+      {/* 
+        Application chauffeur
+        Public (mais protégée par tourId dans l'URL)
+      */}
       <Route path="/driver-app/:tourId" element={<DriverApp />} />
 
+      {/* ========================================= */}
       {/* Routes AVEC Layout (interface principale) */}
+      {/* ========================================= */}
+      
       <Route element={<Layout />}>
         {/* Home */}
         <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
@@ -74,6 +100,10 @@ function AppContent() {
         <Route path="chat" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
         <Route path="chat/channel/:channelId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
         <Route path="chat/dm/:userId" element={<PrivateRoute><ChatPage /></PrivateRoute>} />
+
+        {/* Administration */}
+        <Route path="team" element={<PrivateRoute><TeamManagement /></PrivateRoute>} />
+        <Route path="founder/dashboard" element={<PrivateRoute><FounderDashboard /></PrivateRoute>} />
       </Route>
     </Routes>
   );

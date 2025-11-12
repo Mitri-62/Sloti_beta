@@ -18,7 +18,7 @@ interface Props {
   companyId: string;
   onUpdate: (event: Planning) => void;
   onOpenAddModal: (data?: Partial<Planning>) => void;
-  showDocks?: boolean; // ✅ AJOUTE CETTE LIGNE
+  showDocks?: boolean;
 }
 
 const locales = {
@@ -43,7 +43,7 @@ export default function PlanningAgenda({
   companyId,
   onUpdate,
   onOpenAddModal,
-  showDocks = true, // ✅ AJOUTE CETTE LIGNE
+  showDocks = true,
 }: Props) {
   
   const [view, setView] = useState<View>("week");
@@ -68,6 +68,61 @@ export default function PlanningAgenda({
 
     return () => observer.disconnect();
   }, []);
+
+  // Composant personnalisé pour la vue mois - affiche uniquement le nombre d'événements
+  const MonthEvent = ({ event }: { event: any }) => {
+    return null; // On n'affiche rien, on gère tout dans le MonthDateCell
+  };
+
+  // Composant pour afficher le nombre d'événements par jour dans la vue mois
+  const MonthDateCell = ({ label, date }: { label: React.ReactNode; date: Date }) => {
+    if (view !== 'month') return <div>{label}</div>;
+    
+    // Compter les événements pour ce jour
+    const dayEvents = calendarEvents.filter(event => {
+      const eventDate = new Date(event.start);
+      return (
+        eventDate.getDate() === date.getDate() &&
+        eventDate.getMonth() === date.getMonth() &&
+        eventDate.getFullYear() === date.getFullYear()
+      );
+    });
+
+    const eventCount = dayEvents.length;
+    
+    // Compter par type
+    const receptions = dayEvents.filter(e => e.resource.type === "Réception").length;
+    const expeditions = dayEvents.filter(e => e.resource.type === "Expédition").length;
+
+    return (
+      <div className="relative h-full min-h-[120px]">
+        <div>{label}</div>
+        {eventCount > 0 && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="flex flex-col items-center gap-1.5">
+              <div className="bg-blue-600 text-white rounded-full w-14 h-14 flex items-center justify-center font-bold text-xl shadow-lg cursor-pointer hover:bg-blue-700 hover:scale-105 transition-all">
+                {eventCount}
+              </div>
+              {(receptions > 0 || expeditions > 0) && (
+                <div className="flex gap-1.5 text-xs">
+                  {receptions > 0 && (
+                    <span className="bg-green-500 text-white px-2.5 py-1 rounded-full font-medium shadow">
+                      📦 {receptions}
+                    </span>
+                  )}
+                  {expeditions > 0 && (
+                    <span className="bg-blue-500 text-white px-2.5 py-1 rounded-full font-medium shadow">
+                      🚚 {expeditions}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const calendarEvents = useMemo(() => {
     return events.map(ev => {
@@ -138,6 +193,42 @@ export default function PlanningAgenda({
     setSelectedEvent(ev);
   }, []);
 
+  // Nouveau handler pour le clic sur une date en vue mois
+  const handleSelectSlotMonth = useCallback((slotInfo: any) => {
+    if (view === 'month') {
+      const clickedDate = slotInfo.start as Date;
+      
+      // Trouver tous les événements de ce jour
+      const dayEvents = calendarEvents.filter(event => {
+        const eventDate = new Date(event.start);
+        return (
+          eventDate.getDate() === clickedDate.getDate() &&
+          eventDate.getMonth() === clickedDate.getMonth() &&
+          eventDate.getFullYear() === clickedDate.getFullYear()
+        );
+      });
+
+      if (dayEvents.length > 0) {
+        // S'il y a des événements, ouvrir le premier (ou créer une modal liste)
+        setSelectedEvent(dayEvents[0].resource);
+      } else {
+        // Sinon, créer un nouvel événement
+        onOpenAddModal({
+          date: format(clickedDate, 'yyyy-MM-dd'),
+          hour: format(new Date(), 'HH:mm'),
+          type: "Réception",
+          transporter: "",
+          products: "",
+          status: "Prévu",
+          duration: 30,
+        });
+      }
+    } else {
+      // Comportement normal pour les autres vues
+      handleSelectSlot(slotInfo);
+    }
+  }, [view, calendarEvents, onOpenAddModal]);
+
   const handleEventDrop = useCallback(async ({ event, start, end }: any) => {
     const ev = event.resource as Planning;
     
@@ -181,211 +272,348 @@ export default function PlanningAgenda({
     try {
       await onUpdate({ ...ev, ...updatedData });
     } catch (error) {
-      console.error("Erreur lors du resize:", error);
+      console.error("Erreur lors du redimensionnement:", error);
       alert("Impossible de redimensionner l'événement. Veuillez réessayer.");
     }
   }, [onUpdate]);
 
-  const closeEventDetail = () => {
+  const closeEventDetail = useCallback(() => {
     setSelectedEvent(null);
-  };
+  }, []);
 
-  // ✅ STYLES COMPLETS AVEC RESPONSIVE MOBILE INTÉGRÉ
+  const handleUpdateEvent = useCallback(async () => {
+    if (!selectedEvent) return;
+    
+    try {
+      await onUpdate(selectedEvent);
+      setSelectedEvent(null);
+    } catch (error) {
+      console.error("Erreur lors de la mise à jour:", error);
+      alert("Erreur lors de la mise à jour de l'événement.");
+    }
+  }, [selectedEvent, onUpdate]);
+
+  const handleDeleteEvent = useCallback(async () => {
+    if (!selectedEvent?.id) return;
+    
+    if (confirm("Voulez-vous vraiment supprimer cet événement ?")) {
+      try {
+        await onDelete(selectedEvent.id);
+        setSelectedEvent(null);
+      } catch (error) {
+        console.error("Erreur lors de la suppression:", error);
+        alert("Erreur lors de la suppression de l'événement.");
+      }
+    }
+  }, [selectedEvent, onDelete]);
+
+  const handleValidateEvent = useCallback(async () => {
+    if (!selectedEvent?.id) return;
+    
+    try {
+      await onValidate(selectedEvent.id);
+      setSelectedEvent(null);
+    } catch (error) {
+      console.error("Erreur lors de la validation:", error);
+      alert("Erreur lors de la validation de l'événement.");
+    }
+  }, [selectedEvent, onValidate]);
+
+  // Styles CSS personnalisés pour le calendrier
   const calendarStyles = `
-    /* === STYLES DE BASE === */
-    ${isDark ? `
-      /* Dark mode */
-      .calendar-adaptive .rbc-calendar { background-color: transparent; }
-      .calendar-adaptive .rbc-header { background-color: #374151; color: white; border-color: #4b5563; padding: 10px; font-weight: 600; }
-      .calendar-adaptive .rbc-time-view { background-color: #1f2937; border-color: #374151; }
-      .calendar-adaptive .rbc-time-content { border-color: #374151; }
-      .calendar-adaptive .rbc-time-slot { border-color: #374151; }
-      .calendar-adaptive .rbc-day-slot { background-color: #111827; }
-      .calendar-adaptive .rbc-today { background-color: #1e3a5f !important; }
-      .calendar-adaptive .rbc-timeslot-group { border-color: #374151; background-color: #1f2937; }
-      .calendar-adaptive .rbc-time-header-content { border-color: #374151; }
-      .calendar-adaptive .rbc-time-header-gutter { background-color: #374151; }
-      .calendar-adaptive .rbc-label { color: #9ca3af; }
-      .calendar-adaptive .rbc-current-time-indicator { background-color: #ef4444; }
-      .calendar-adaptive .rbc-toolbar { padding: 15px 10px; background-color: #1f2937; border-radius: 8px; margin-bottom: 15px; }
-      .calendar-adaptive .rbc-toolbar button { color: white; background-color: #374151; border: 1px solid #4b5563; padding: 8px 16px; border-radius: 6px; font-weight: 500; }
-      .calendar-adaptive .rbc-toolbar button:hover { background-color: #4b5563; }
-      .calendar-adaptive .rbc-toolbar button.rbc-active { background-color: #3b82f6; border-color: #3b82f6; }
-      .calendar-adaptive .rbc-toolbar-label { color: #ffffff; font-weight: 600; font-size: 1.1rem; }
-      .calendar-adaptive .rbc-month-view { background-color: #1f2937; border-color: #374151; }
-      .calendar-adaptive .rbc-month-row { border-color: #374151; }
-      .calendar-adaptive .rbc-day-bg { background-color: #111827; border-color: #374151; }
-      .calendar-adaptive .rbc-off-range-bg { background-color: #0f172a; }
-      .calendar-adaptive .rbc-off-range .rbc-date-cell { color: #6b7280; }
-      .calendar-adaptive .rbc-date-cell { color: #ffffff !important; }
-      .calendar-adaptive .rbc-date-cell button { color: #ffffff !important; }
-      .calendar-adaptive .rbc-button-link { color: #ffffff !important; }
-      .calendar-adaptive .rbc-event { font-size: 0.875rem; }
-      .calendar-adaptive .rbc-show-more { background-color: #3b82f6; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; }
-      .calendar-adaptive .rbc-agenda-view { background-color: #1f2937; }
-      .calendar-adaptive .rbc-agenda-view table { background-color: #1f2937; border-color: #374151; }
-      .calendar-adaptive .rbc-agenda-view thead { background-color: #374151; }
-      .calendar-adaptive .rbc-agenda-view thead th { background-color: #374151; color: #ffffff; border-color: #4b5563; font-weight: 600; padding: 12px; }
-      .calendar-adaptive .rbc-agenda-view tbody { background-color: #1f2937; }
-      .calendar-adaptive .rbc-agenda-view tbody tr { border-color: #374151; }
-      .calendar-adaptive .rbc-agenda-view tbody tr:hover { background-color: #374151; }
-      .calendar-adaptive .rbc-agenda-table { border-color: #374151; }
-      .calendar-adaptive .rbc-agenda-date-cell, .calendar-adaptive .rbc-agenda-time-cell { background-color: #1f2937; color: #ffffff; border-color: #374151; padding: 12px; }
-      .calendar-adaptive .rbc-agenda-event-cell { background-color: #1f2937; color: #ffffff; border-color: #374151; padding: 12px; }
-      .calendar-adaptive .rbc-agenda-empty { color: #9ca3af; }
-    ` : `
-      /* Light mode */
-      .calendar-adaptive .rbc-calendar { background-color: white; }
-      .calendar-adaptive .rbc-header { background-color: #f3f4f6; color: #111827; border-color: #e5e7eb; padding: 10px; font-weight: 600; }
-      .calendar-adaptive .rbc-time-view { background-color: white; border-color: #e5e7eb; }
-      .calendar-adaptive .rbc-time-content { border-color: #e5e7eb; }
-      .calendar-adaptive .rbc-time-slot { border-color: #e5e7eb; }
-      .calendar-adaptive .rbc-day-slot { background-color: white; }
-      .calendar-adaptive .rbc-today { background-color: #dbeafe !important; }
-      .calendar-adaptive .rbc-timeslot-group { border-color: #e5e7eb; background-color: white; }
-      .calendar-adaptive .rbc-time-header-content { border-color: #e5e7eb; }
-      .calendar-adaptive .rbc-time-header-gutter { background-color: #f3f4f6; }
-      .calendar-adaptive .rbc-label { color: #6b7280; }
-      .calendar-adaptive .rbc-current-time-indicator { background-color: #ef4444; }
-      .calendar-adaptive .rbc-toolbar { padding: 15px 10px; background-color: white; border-radius: 8px; margin-bottom: 15px; border: 1px solid #e5e7eb; }
-      .calendar-adaptive .rbc-toolbar button { color: #374151; background-color: white; border: 1px solid #d1d5db; padding: 8px 16px; border-radius: 6px; font-weight: 500; }
-      .calendar-adaptive .rbc-toolbar button:hover { background-color: #f9fafb; }
-      .calendar-adaptive .rbc-toolbar button.rbc-active { background-color: #3b82f6; color: white; border-color: #3b82f6; }
-      .calendar-adaptive .rbc-toolbar-label { color: #111827; font-weight: 600; font-size: 1.1rem; }
-      .calendar-adaptive .rbc-month-view { background-color: white; border-color: #e5e7eb; }
-      .calendar-adaptive .rbc-month-row { border-color: #e5e7eb; }
-      .calendar-adaptive .rbc-day-bg { background-color: white; border-color: #e5e7eb; }
-      .calendar-adaptive .rbc-off-range-bg { background-color: #f9fafb; }
-      .calendar-adaptive .rbc-off-range .rbc-date-cell { color: #9ca3af; }
-      .calendar-adaptive .rbc-date-cell { color: #111827 !important; }
-      .calendar-adaptive .rbc-date-cell button { color: #111827 !important; }
-      .calendar-adaptive .rbc-button-link { color: #111827 !important; }
-      .calendar-adaptive .rbc-event { font-size: 0.875rem; }
-      .calendar-adaptive .rbc-show-more { background-color: #3b82f6; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; }
-      .calendar-adaptive .rbc-agenda-view { background-color: white; }
-      .calendar-adaptive .rbc-agenda-view table { background-color: white; border-color: #e5e7eb; }
-      .calendar-adaptive .rbc-agenda-view thead { background-color: #f3f4f6; }
-      .calendar-adaptive .rbc-agenda-view thead th { background-color: #f3f4f6; color: #111827; border-color: #d1d5db; font-weight: 600; padding: 12px; }
-      .calendar-adaptive .rbc-agenda-view tbody { background-color: white; }
-      .calendar-adaptive .rbc-agenda-view tbody tr { border-color: #e5e7eb; }
-      .calendar-adaptive .rbc-agenda-view tbody tr:hover { background-color: #f9fafb; }
-      .calendar-adaptive .rbc-agenda-table { border-color: #e5e7eb; }
-      .calendar-adaptive .rbc-agenda-date-cell, .calendar-adaptive .rbc-agenda-time-cell { background-color: white; color: #111827; border-color: #e5e7eb; padding: 12px; }
-      .calendar-adaptive .rbc-agenda-event-cell { background-color: white; color: #111827; border-color: #e5e7eb; padding: 12px; }
-      .calendar-adaptive .rbc-agenda-empty { color: #6b7280; }
-    `}
+    .rbc-calendar {
+      font-family: inherit;
+      background: ${isDark ? '#1f2937' : 'white'};
+      color: ${isDark ? '#f3f4f6' : '#111827'};
+      border-radius: 12px;
+      overflow: hidden;
+    }
 
-    /* === RESPONSIVE MOBILE (< 768px) === */
+    .rbc-header {
+      padding: 12px 8px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: ${isDark ? '#374151' : '#f9fafb'};
+      color: ${isDark ? '#f3f4f6' : '#374151'};
+      border-bottom: 2px solid ${isDark ? '#4b5563' : '#e5e7eb'};
+    }
+
+    .rbc-today {
+      background-color: ${isDark ? '#1e3a8a22' : '#dbeafe'};
+    }
+
+    .rbc-off-range-bg {
+      background: ${isDark ? '#111827' : '#f9fafb'};
+    }
+
+    .rbc-event {
+      border: none !important;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      min-height: 20px !important; /* Hauteur minimum pour la vue mois */
+    }
+
+    .rbc-event:hover {
+      opacity: 1 !important;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      z-index: 10;
+    }
+
+    /* Cacher l'heure automatique du calendrier pour garder juste le title */
+    .rbc-event-label {
+      display: none;
+    }
+
+    .rbc-event-content {
+      font-weight: 600;
+      padding: 2px 4px;
+      overflow: hidden;
+    }
+
+    /* Améliorer l'affichage en vue mois */
+    .rbc-month-view .rbc-event,
+    .rbc-month-view .rbc-row-segment,
+    .rbc-month-view .rbc-event-content {
+      display: none !important; /* Masquer complètement tous les événements individuels en vue mois */
+      visibility: hidden !important;
+      height: 0 !important;
+      width: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+
+    .rbc-month-view .rbc-show-more {
+      display: none !important; /* Masquer le "show more" */
+    }
+
+    .rbc-month-view .rbc-row-content {
+      position: relative;
+      min-height: 120px !important;
+    }
+
+    .rbc-month-view .rbc-date-cell {
+      padding: 4px;
+      min-height: 120px !important;
+    }
+
+    .rbc-month-view .rbc-day-bg {
+      cursor: pointer;
+      min-height: 120px !important;
+    }
+
+    .rbc-month-view .rbc-month-row {
+      min-height: 120px !important;
+    }
+
+    .rbc-month-view .rbc-event-content {
+      font-size: 0.7rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .rbc-day-slot .rbc-time-slot {
+      border-top: 1px solid ${isDark ? '#374151' : '#e5e7eb'};
+    }
+
+    /* === STYLES AMÉLIORÉS POUR LA VUE AGENDA === */
+    .rbc-agenda-view {
+      background: ${isDark ? '#1f2937' : 'white'};
+      border-radius: 8px;
+    }
+
+    .rbc-agenda-view table.rbc-agenda-table {
+      border: none;
+    }
+
+    .rbc-agenda-view .rbc-agenda-date-cell,
+    .rbc-agenda-view .rbc-agenda-time-cell,
+    .rbc-agenda-view .rbc-agenda-event-cell {
+      padding: 12px 16px;
+      vertical-align: middle;
+    }
+
+    .rbc-agenda-view thead {
+      display: none; /* Masquer les en-têtes de tableau */
+    }
+
+    .rbc-agenda-view .rbc-agenda-date-cell {
+      width: 100%;
+      border-bottom: none !important;
+      padding: 0 !important;
+    }
+
+    .rbc-agenda-view .rbc-agenda-time-cell {
+      font-weight: 600;
+      color: ${isDark ? '#9ca3af' : '#6b7280'};
+      white-space: nowrap;
+      font-size: 0.875rem;
+    }
+
+    .rbc-agenda-view tbody > tr {
+      border-bottom: 1px solid ${isDark ? '#374151' : '#f3f4f6'};
+    }
+
+    .rbc-agenda-view tbody > tr:hover {
+      background: ${isDark ? '#374151' : '#f9fafb'};
+    }
+
+    .rbc-agenda-view tbody > tr > td:first-child {
+      font-weight: 600;
+    }
+
+    .rbc-time-header-content {
+      border-left: 1px solid ${isDark ? '#374151' : '#e5e7eb'};
+    }
+
+    .rbc-time-content {
+      border-top: 2px solid ${isDark ? '#4b5563' : '#e5e7eb'};
+    }
+
+    .rbc-timeslot-group {
+      border-left: 1px solid ${isDark ? '#374151' : '#e5e7eb'};
+    }
+
+    .rbc-day-bg + .rbc-day-bg {
+      border-left: 1px solid ${isDark ? '#374151' : '#e5e7eb'};
+    }
+
+    .rbc-month-view {
+      border: 1px solid ${isDark ? '#374151' : '#e5e7eb'};
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .rbc-month-row {
+      border-top: 1px solid ${isDark ? '#374151' : '#e5e7eb'};
+    }
+
+    .rbc-date-cell {
+      padding: 8px;
+    }
+
+    .rbc-button-link {
+      color: ${isDark ? '#f3f4f6' : '#111827'};
+    }
+
+    .rbc-show-more {
+      background: ${isDark ? '#374151' : '#f3f4f6'};
+      color: ${isDark ? '#f3f4f6' : '#374151'};
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      margin-top: 2px;
+    }
+
+    .rbc-toolbar {
+      padding: 16px;
+      background: ${isDark ? '#111827' : 'white'};
+      border-bottom: 2px solid ${isDark ? '#374151' : '#e5e7eb'};
+      margin-bottom: 0;
+    }
+
+    .rbc-toolbar button {
+      color: ${isDark ? '#f3f4f6' : '#374151'};
+      border: 1px solid ${isDark ? '#4b5563' : '#d1d5db'};
+      background: ${isDark ? '#374151' : 'white'};
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .rbc-toolbar button:hover {
+      background: ${isDark ? '#4b5563' : '#f3f4f6'};
+    }
+
+    .rbc-toolbar button.rbc-active {
+      background: #3b82f6;
+      color: white;
+      border-color: #3b82f6;
+    }
+
+    .rbc-toolbar button:focus {
+      outline: 2px solid #3b82f6;
+      outline-offset: 2px;
+    }
+
+    /* Vue mois - événements plus visibles */
+    .rbc-month-view .rbc-event {
+      padding: 3px 5px !important;
+      margin: 2px !important;
+      border-radius: 4px;
+      font-size: 12px !important;
+      line-height: 1.4 !important;
+      min-height: 22px;
+      display: block !important;
+      overflow: visible !important;
+    }
+
+    .rbc-month-view .rbc-event-content {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: block !important;
+    }
+
+    .rbc-month-view .rbc-event-label {
+      display: block !important;
+    }
+
+    .rbc-month-view .rbc-row-segment {
+      padding: 1px 2px;
+    }
+
+    /* Vue agenda */
+    .rbc-agenda-view {
+      padding: 10px;
+    }
+
+    .rbc-agenda-view table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .rbc-agenda-view .rbc-agenda-table tbody > tr > td {
+      padding: 8px;
+      border-bottom: 1px solid ${isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)'};
+    }
+
+    .rbc-agenda-view .rbc-agenda-event-cell {
+      font-size: 14px;
+    }
+
+    .rbc-agenda-date-cell,
+    .rbc-agenda-time-cell {
+      font-weight: 500;
+    }
+
+    /* Mobile responsive */
     @media (max-width: 768px) {
-      /* Toolbar responsive */
-      .calendar-adaptive .rbc-toolbar {
+      .rbc-toolbar {
         flex-direction: column;
-        gap: 10px;
-        padding: 10px 5px !important;
+        gap: 12px;
       }
 
-      .calendar-adaptive .rbc-toolbar-label {
-        font-size: 0.95rem !important;
+      .rbc-toolbar-label {
+        font-size: 1rem;
         text-align: center;
-        width: 100%;
-        order: -1;
       }
 
-      .calendar-adaptive .rbc-toolbar button {
-        padding: 6px 10px !important;
-        font-size: 0.8rem !important;
+      .rbc-toolbar button {
+        padding: 6px 12px;
+        font-size: 0.875rem;
       }
 
-      .calendar-adaptive .rbc-btn-group {
-        display: flex;
-        gap: 4px;
+      .rbc-header {
+        padding: 8px 4px;
+        font-size: 0.75rem;
       }
 
-      /* Headers plus compacts */
-      .calendar-adaptive .rbc-header {
-        padding: 5px 2px !important;
-        font-size: 0.75rem !important;
-      }
-
-      /* Événements plus lisibles */
-      .calendar-adaptive .rbc-event {
-        font-size: 0.7rem !important;
-        padding: 2px 4px !important;
-      }
-
-      /* Labels horaires plus petits */
-      .calendar-adaptive .rbc-label {
-        font-size: 0.65rem !important;
-      }
-
-      /* Time slots plus compacts */
-      .calendar-adaptive .rbc-time-slot {
-        min-height: 30px !important;
-      }
-
-      /* Vue agenda responsive */
-      .calendar-adaptive .rbc-agenda-view table {
-        font-size: 0.8rem;
-      }
-
-      .calendar-adaptive .rbc-agenda-view thead th {
-        padding: 8px 4px !important;
-        font-size: 0.75rem !important;
-      }
-
-      .calendar-adaptive .rbc-agenda-date-cell,
-      .calendar-adaptive .rbc-agenda-time-cell,
-      .calendar-adaptive .rbc-agenda-event-cell {
-        padding: 8px 4px !important;
-        font-size: 0.8rem !important;
-      }
-
-      /* Bouton "show more" */
-      .calendar-adaptive .rbc-show-more {
-        font-size: 0.65rem !important;
-        padding: 2px 6px !important;
-      }
-
-      /* Scroll optimization */
-      .calendar-adaptive .rbc-time-content {
-        -webkit-overflow-scrolling: touch;
-      }
-    }
-
-    /* === PETITS ÉCRANS (< 480px) === */
-    @media (max-width: 480px) {
-      .calendar-adaptive .rbc-toolbar-label {
-        font-size: 0.85rem !important;
-      }
-
-      .calendar-adaptive .rbc-header {
-        font-size: 0.7rem !important;
-        padding: 4px 1px !important;
-      }
-
-      .calendar-adaptive .rbc-event {
-        font-size: 0.65rem !important;
-        padding: 1px 2px !important;
-      }
-
-      .calendar-adaptive .rbc-event-label {
-        display: none;
-      }
-
-      .calendar-adaptive .rbc-time-slot {
-        min-height: 25px !important;
-      }
-    }
-
-    /* === PAYSAGE MOBILE === */
-    @media (max-width: 768px) and (orientation: landscape) {
-      .calendar-adaptive .rbc-toolbar {
-        flex-direction: row;
-        padding: 5px !important;
-      }
-
-      .calendar-adaptive .rbc-toolbar-label {
-        font-size: 0.9rem !important;
+      .rbc-event {
+        font-size: 0.7rem;
+        padding: 2px;
       }
     }
   `;
@@ -406,7 +634,7 @@ export default function PlanningAgenda({
         date={date}
         onNavigate={setDate}
         eventPropGetter={eventStyleGetter}
-        onSelectSlot={handleSelectSlot}
+        onSelectSlot={handleSelectSlotMonth}
         onSelectEvent={handleSelectEvent}
         onEventDrop={handleEventDrop}
         onEventResize={handleEventResize}
@@ -415,8 +643,14 @@ export default function PlanningAgenda({
         step={60}
         timeslots={1}
         defaultView="week"
-        views={['month', 'week', 'day', 'agenda']}
+        views={['month', 'week', 'day']}
         dayLayoutAlgorithm="no-overlap"
+        components={{
+          month: {
+            event: MonthEvent,
+            dateHeader: MonthDateCell,
+          }
+        }}
         messages={{
           next: "Suivant",
           previous: "Précédent",
@@ -424,7 +658,6 @@ export default function PlanningAgenda({
           month: "Mois",
           week: "Semaine",
           day: "Jour",
-          agenda: "Agenda",
           date: "Date",
           time: "Heure",
           event: "Événement",
@@ -519,11 +752,11 @@ export default function PlanningAgenda({
                   </label>
                   <input
                     type="number"
+                    min="15"
+                    step="15"
                     value={selectedEvent.duration || 30}
                     onChange={(e) => setSelectedEvent({...selectedEvent, duration: parseInt(e.target.value)})}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                    min="15"
-                    step="15"
                   />
                 </div>
 
@@ -534,10 +767,7 @@ export default function PlanningAgenda({
                   </label>
                   <select
                     value={selectedEvent.status}
-                    onChange={(e) => setSelectedEvent({
-                      ...selectedEvent, 
-                      status: e.target.value as "Prévu" | "En cours" | "Chargé" | "Terminé"
-                    })}
+                    onChange={(e) => setSelectedEvent({...selectedEvent, status: e.target.value as any})}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
                     <option value="Prévu">Prévu</option>
@@ -549,34 +779,35 @@ export default function PlanningAgenda({
               </div>
 
               {/* Boutons d'action */}
-              <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex flex-wrap gap-2">
                 <button
-                  onClick={async () => {
-                    await onUpdate(selectedEvent);
-                    closeEventDetail();
-                  }}
-                  className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  onClick={handleUpdateEvent}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
-                  <Check className="w-4 h-4" />
                   Enregistrer
                 </button>
                 
+                {selectedEvent.status !== "Terminé" && (
+                  <button
+                    onClick={handleValidateEvent}
+                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    <Check size={18} />
+                    Valider
+                  </button>
+                )}
+                
                 <button
-                  onClick={() => {
-                    if (confirm('Êtes-vous sûr de vouloir supprimer cet événement ?')) {
-                      onDelete(selectedEvent.id!);
-                      closeEventDetail();
-                    }
-                  }}
-                  className="flex items-center justify-center gap-2 bg-red-600 text-white px-4 py-2.5 rounded-lg hover:bg-red-700 transition-colors font-medium"
+                  onClick={handleDeleteEvent}
+                  className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 size={18} />
                   Supprimer
                 </button>
                 
                 <button
                   onClick={closeEventDetail}
-                  className="flex items-center justify-center gap-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2.5 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-medium"
+                  className="flex-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
                   Annuler
                 </button>

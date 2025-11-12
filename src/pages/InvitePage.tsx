@@ -336,7 +336,7 @@ export default function InvitePage() {
               Se connecter pour accepter
             </button>
             <button
-              onClick={() => navigate(`/signup?redirect=/app/invite/${token}`)}
+              onClick={() => navigate(`/app/signup-invite/${token}`)}
               className="w-full px-6 py-3 bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors font-semibold flex items-center justify-center gap-2"
             >
               <UserPlus size={20} />

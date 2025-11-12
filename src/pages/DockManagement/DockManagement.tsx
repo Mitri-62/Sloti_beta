@@ -1,15 +1,13 @@
-// src/pages/DockManagement/DockManagement.tsx
+// src/pages/DockManagement/DockManagement.tsx - VERSION COMPLÈTE AVEC MAINTENANCE
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDocks } from '../../hooks/useDocks';
-import { Plus, LayoutGrid, Calendar, BarChart3, Truck } from 'lucide-react';
+import { Plus, LayoutGrid, Wrench } from 'lucide-react';
 import DockList from './DockList';
-import DockPlanning from './DockPlanning';
-import DockDashboard from './DockDashboard';
-import DockCheckIn from './DockCheckIn';
+import DockMaintenance from './DockMaintenance';
 import DockForm from '../../components/DockForm';
 
-type ViewType = 'list' | 'planning' | 'dashboard' | 'checkin';
+type ViewType = 'list' | 'maintenance';
 
 export default function DockManagement() {
   const { user } = useAuth();
@@ -45,75 +43,80 @@ export default function DockManagement() {
     }
   };
 
+  // ✅ NOUVEAU : Gérer les mises à jour de maintenance
+  const handleUpdateMaintenance = async (dockId: string, maintenanceData: any) => {
+    await update({ 
+      id: dockId, 
+      ...maintenanceData 
+    });
+  };
+
+  // Stats simples pour l'en-tête
+  const availableDocks = docks.filter(d => d.status === 'available').length;
+  const maintenanceDocks = docks.filter(d => d.status === 'maintenance').length;
+  const occupiedDocks = docks.filter(d => d.status === 'occupied').length;
+
   return (
-    <div className="h-full flex flex-col bg-gray-50">
+    <div className="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
       {/* HEADER */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Gestion des Quais</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              {docks.length} quai{docks.length > 1 ? 's' : ''} configuré{docks.length > 1 ? 's' : ''}
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Gestion des Quais</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {docks.length} quai{docks.length > 1 ? 's' : ''} • {availableDocks} disponible{availableDocks > 1 ? 's' : ''} • {maintenanceDocks} en maintenance • {occupiedDocks} occupé{occupiedDocks > 1 ? 's' : ''}
             </p>
           </div>
 
           <button
             onClick={handleCreateDock}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-md"
           >
             <Plus className="w-5 h-5" />
             Nouveau Quai
           </button>
         </div>
 
-        {/* NAVIGATION TABS */}
+        {/* NAVIGATION TABS - SIMPLIFIÉ */}
         <div className="flex gap-2 mt-4">
           <button
             onClick={() => setCurrentView('list')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors font-medium ${
               currentView === 'list'
-                ? 'bg-blue-50 text-blue-600 font-medium'
-                : 'text-gray-600 hover:bg-gray-100'
+                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
           >
             <LayoutGrid className="w-5 h-5" />
             Liste des Quais
+            <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+              currentView === 'list' 
+                ? 'bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300' 
+                : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+            }`}>
+              {docks.length}
+            </span>
           </button>
 
           <button
-            onClick={() => setCurrentView('planning')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              currentView === 'planning'
-                ? 'bg-blue-50 text-blue-600 font-medium'
-                : 'text-gray-600 hover:bg-gray-100'
+            onClick={() => setCurrentView('maintenance')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors font-medium ${
+              currentView === 'maintenance'
+                ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
             }`}
           >
-            <Calendar className="w-5 h-5" />
-            Planning
-          </button>
-
-          <button
-            onClick={() => setCurrentView('checkin')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              currentView === 'checkin'
-                ? 'bg-blue-50 text-blue-600 font-medium'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <Truck className="w-5 h-5" />
-            Check-in / Check-out
-          </button>
-
-          <button
-            onClick={() => setCurrentView('dashboard')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-              currentView === 'dashboard'
-                ? 'bg-blue-50 text-blue-600 font-medium'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            <BarChart3 className="w-5 h-5" />
-            Statistiques
+            <Wrench className="w-5 h-5" />
+            Quais en Maintenance
+            {maintenanceDocks > 0 && (
+              <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                currentView === 'maintenance' 
+                  ? 'bg-orange-100 dark:bg-orange-800 text-orange-700 dark:text-orange-300' 
+                  : 'bg-orange-200 dark:bg-orange-600 text-orange-700 dark:text-orange-300'
+              }`}>
+                {maintenanceDocks}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -124,7 +127,7 @@ export default function DockManagement() {
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Chargement...</p>
+              <p className="mt-4 text-gray-600 dark:text-gray-400">Chargement...</p>
             </div>
           </div>
         ) : (
@@ -137,16 +140,16 @@ export default function DockManagement() {
               />
             )}
 
-            {currentView === 'planning' && (
-              <DockPlanning docks={docks} companyId={user?.company_id} />
-            )}
-
-            {currentView === 'checkin' && (
-              <DockCheckIn companyId={user?.company_id} />
-            )}
-
-            {currentView === 'dashboard' && (
-              <DockDashboard companyId={user?.company_id} />
+            {currentView === 'maintenance' && (
+              <DockMaintenance
+                docks={docks.filter(d => d.status === 'maintenance')}
+                allDocks={docks}
+                onEdit={handleEditDock}
+                onStatusChange={async (dockId, newStatus) => {
+                  await update({ id: dockId, status: newStatus });
+                }}
+                onUpdateMaintenance={handleUpdateMaintenance}  // ✅ AJOUTÉ
+              />
             )}
           </>
         )}

@@ -1,5 +1,5 @@
-// src/components/PlanningKanban.tsx - VERSION COMPLÈTE AVEC DESIGN COMPACT
-import { useState, useMemo, useCallback } from "react";
+// src/components/PlanningKanban.tsx - VERSION SIMPLE AVEC CLIC DIRECT SUR QUAI
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   format,
   startOfWeek,
@@ -13,7 +13,12 @@ import {
   ChevronRight, 
   Calendar,
   Warehouse,
-  AlertTriangle,
+  GripVertical,
+  Edit2,
+  Copy,
+  Trash2,
+  MoreVertical,
+  Plus,
 } from "lucide-react";
 import {
   DndContext,
@@ -32,30 +37,174 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Menu } from "@headlessui/react";
 import type { Planning } from "../hooks/useOptimizedPlannings";
+import { toast } from "sonner";
 
 interface Props {
   events: Planning[];
   onDelete: (id: string) => void;
   onValidate: (id: string, updates: Partial<Planning>) => Promise<void>;
   onAssignDock?: (eventId: string) => void;
+  onEdit?: (event: Planning) => void;
+  onDuplicate?: (event: Planning) => void;
+  onQuickAdd?: (date: string) => void;
   showDocks?: boolean;
 }
 
 // ============================================================
-// COMPOSANT : CARTE DRAGGABLE D'ÉVÉNEMENT (VERSION COMPACTE)
+// CONFIGURATION DES TYPES D'ÉVÉNEMENTS
+// ============================================================
+const EVENT_CONFIG: Record<
+  "Réception" | "Expédition",
+  {
+    gradient: string;
+    iconBg: string;
+    icon: string;
+    textColor: string;
+  }
+> = {
+  Réception: {
+    gradient: "from-green-400 to-emerald-500",
+    iconBg: "bg-green-100 dark:bg-green-900",
+    icon: "📦",
+    textColor: "text-green-600 dark:text-green-400",
+  },
+  Expédition: {
+    gradient: "from-blue-400 to-cyan-500",
+    iconBg: "bg-blue-100 dark:bg-blue-900",
+    icon: "🚚",
+    textColor: "text-blue-600 dark:text-blue-400",
+  },
+};
+
+// ============================================================
+// MENU CONTEXTUEL D'ACTIONS
+// ============================================================
+function EventContextMenu({ 
+  event, 
+  onEdit, 
+  onDuplicate, 
+  onDelete,
+  onMenuOpen,
+}: { 
+  event: Planning;
+  onEdit?: (event: Planning) => void;
+  onDuplicate?: (event: Planning) => void;
+  onDelete: (id: string) => void;
+  onMenuOpen?: (isOpen: boolean) => void;
+}) {
+  const handleDelete = () => {
+    if (window.confirm(`Supprimer l'événement ${event.transporter} ?`)) {
+      onDelete(event.id);
+      toast.success("Événement supprimé");
+    }
+  };
+
+  return (
+    <Menu as="div" className="relative">
+      {({ open }) => {
+        // Notifier le parent quand le menu s'ouvre/ferme
+        if (onMenuOpen) {
+          onMenuOpen(open);
+        }
+
+        return (
+          <>
+            <Menu.Button 
+              className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
+            >
+              <MoreVertical className="w-4 h-4 text-gray-500" />
+            </Menu.Button>
+
+            <Menu.Items className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-[100] py-1">
+              {onEdit && (
+                <Menu.Item>
+                  {({ active }: { active: boolean}) => (
+                    <button
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        onEdit(event);
+                      }}
+                      className={`${
+                        active ? 'bg-gray-100 dark:bg-gray-700' : ''
+                      } flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300`}
+                    >
+                      <Edit2 className="w-4 h-4" />
+                      Modifier
+                    </button>
+                  )}
+                </Menu.Item>
+              )}
+              
+              {onDuplicate && (
+                <Menu.Item>
+                  {({ active }: { active: boolean }) => (
+                    <button
+                      onClick={(e: React.MouseEvent) => {
+                        e.stopPropagation();
+                        onDuplicate(event);
+                      }}
+                      className={`${
+                        active ? 'bg-gray-100 dark:bg-gray-700' : ''
+                      } flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-300`}
+                    >
+                      <Copy className="w-4 h-4" />
+                      Dupliquer
+                    </button>
+                  )}
+                </Menu.Item>
+              )}
+
+              <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+
+              <Menu.Item>
+                {({ active }: { active: boolean }) => (
+                  <button
+                    onClick={(e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      handleDelete();
+                    }}
+                    className={`${
+                      active ? 'bg-red-50 dark:bg-red-900/20' : ''
+                    } flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 dark:text-red-400`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Supprimer
+                  </button>
+                )}
+              </Menu.Item>
+            </Menu.Items>
+          </>
+        );
+      }}
+    </Menu>
+  );
+}
+
+// ============================================================
+// CARTE DRAGGABLE D'ÉVÉNEMENT (VERSION SIMPLE)
 // ============================================================
 function DraggableEventCard({ 
   event, 
   onDelete,
+  onEdit,
+  onDuplicate,
   onAssignDock,
-  showDocks 
+  showDocks,
+  isDragActive,
 }: { 
   event: Planning; 
   onDelete: (id: string) => void;
+  onEdit?: (event: Planning) => void;
+  onDuplicate?: (event: Planning) => void;
   onAssignDock?: (eventId: string) => void;
   showDocks?: boolean;
+  isDragActive?: boolean;
 }) {
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   const {
     attributes,
     listeners,
@@ -73,69 +222,39 @@ function DraggableEventCard({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const typeConfig: Record<string, { gradient: string; icon: string; iconBg: string; textColor: string }> = {
-    Réception: {
-      gradient: "from-blue-500 to-blue-600",
-      icon: "📦",
-      iconBg: "bg-blue-100 dark:bg-blue-900",
-      textColor: "text-blue-700 dark:text-blue-300"
-    },
-    Expédition: {
-      gradient: "from-orange-500 to-orange-600",
-      icon: "🚚",
-      iconBg: "bg-orange-100 dark:bg-orange-900",
-      textColor: "text-orange-700 dark:text-orange-300"
-    },
-  };
-
-  const statusConfig: Record<string, { bg: string; text: string; dot: string }> = {
-    Prévu: { 
-      bg: "bg-blue-50 dark:bg-blue-950", 
-      text: "text-blue-700 dark:text-blue-300",
-      dot: "bg-blue-500"
-    },
-    "En cours": { 
-      bg: "bg-yellow-50 dark:bg-yellow-950", 
-      text: "text-yellow-700 dark:text-yellow-300",
-      dot: "bg-yellow-500"
-    },
-    Chargé: { 
-      bg: "bg-purple-50 dark:bg-purple-950", 
-      text: "text-purple-700 dark:text-purple-300",
-      dot: "bg-purple-500"
-    },
-    Terminé: { 
-      bg: "bg-green-50 dark:bg-green-950", 
-      text: "text-green-700 dark:text-green-300",
-      dot: "bg-green-500"
-    },
-  };
-
-  const config = typeConfig[event.type];
-  const statusStyle = statusConfig[event.status];
+  const config = EVENT_CONFIG[event.type];
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      {...attributes}
-      {...listeners}
-      className="group relative mb-2.5 cursor-move"
+      className={`group relative mb-2.5 ${isMenuOpen ? 'z-[110]' : 'z-10'}`}
     >
       {/* Carte principale */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden border border-gray-200 dark:border-gray-700">
+      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-lg transition-all duration-200 border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500">
         
         {/* Barre gradient supérieure */}
         <div className={`h-1 bg-gradient-to-r ${config.gradient}`} />
         
         <div className="p-3">
-          {/* En-tête compact avec type et heure */}
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-lg ${config.iconBg} flex items-center justify-center text-base shadow-sm`}>
+          {/* En-tête avec type, heure et actions */}
+          <div className="flex items-start justify-between mb-2">
+            <div className="flex items-center gap-2 flex-1">
+              {/* Grip handle - TOUJOURS VISIBLE */}
+              <div
+                {...listeners}
+                {...attributes}
+                className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors touch-none"
+                title="Glisser pour déplacer"
+              >
+                <GripVertical className="w-4 h-4 text-gray-400" />
+              </div>
+
+              <div className={`w-8 h-8 rounded-lg ${config.iconBg} flex items-center justify-center text-base shadow-sm flex-shrink-0`}>
                 {config.icon}
               </div>
-              <div>
+              
+              <div className="flex-1 min-w-0">
                 <p className={`text-[10px] font-medium ${config.textColor} uppercase tracking-wide`}>
                   {event.type}
                 </p>
@@ -145,16 +264,18 @@ function DraggableEventCard({
               </div>
             </div>
             
-            {/* Badge statut - visible au hover uniquement */}
-            <div className={`
-              flex items-center gap-1.5 px-2 py-0.5 rounded-full ${statusStyle.bg}
-              opacity-0 group-hover:opacity-100 transition-opacity
-            `}>
-              <span className={`w-1.5 h-1.5 rounded-full ${statusStyle.dot}`} />
-              <span className={`text-[10px] font-semibold ${statusStyle.text}`}>
-                {event.status}
-              </span>
-            </div>
+            {/* Actions menu - visible au hover */}
+            <EventContextMenu 
+              event={event}
+              onEdit={onEdit}
+              onDuplicate={onDuplicate}
+              onDelete={onDelete}
+              onMenuOpen={(isOpen) => {
+                if (isOpen !== isMenuOpen) {
+                  setIsMenuOpen(isOpen);
+                }
+              }}
+            />
           </div>
 
           {/* Transporteur */}
@@ -169,113 +290,75 @@ function DraggableEventCard({
             </p>
           )}
 
-          {/* Métadonnées compactes */}
-          <div className="flex items-center gap-2 mb-2 text-[10px] text-gray-500 dark:text-gray-400">
-            {event.duration && (
-              <div className="flex items-center gap-1">
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>{event.duration} min</span>
-              </div>
-            )}
-          </div>
-
-          {/* Badge Quai OU Bouton Assigner */}
-          {showDocks && (
-            <div className="mb-2">
+          {/* Gestion des quais - CLIC DIRECT POUR ASSIGNER/MODIFIER */}
+          {showDocks && onAssignDock && (
+            <div className="mt-2">
               {event.dock_booking ? (
                 <button
-                  onClick={(e) => {
+                  onClick={(e: React.MouseEvent) => {
                     e.stopPropagation();
-                    if (onAssignDock) {
-                      onAssignDock(event.id);
-                    }
+                    onAssignDock(event.id);
                   }}
-                  className="w-full flex items-center gap-2 p-2 bg-green-50 dark:bg-green-950 hover:bg-green-100 dark:hover:bg-green-900 border border-green-200 dark:border-green-800 rounded-lg transition-colors group/dock"
+                  className="w-full flex items-center gap-2 px-2 py-1.5 bg-purple-50 dark:bg-purple-900/30 rounded-lg border border-purple-200 dark:border-purple-700 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors cursor-pointer group/dock"
+                  title="Cliquer pour changer le quai"
                 >
-                  <Warehouse className="w-3.5 h-3.5 text-green-600 dark:text-green-400 flex-shrink-0" />
-                  <div className="flex-1 min-w-0 text-left">
-                    <p className="text-xs font-semibold text-green-800 dark:text-green-200">
-                      {event.dock_booking.dock.name}
-                    </p>
-                    {event.dock_booking.dock.zone && (
-                      <p className="text-[10px] text-green-600 dark:text-green-400">
-                        Zone {event.dock_booking.dock.zone}
-                      </p>
-                    )}
-                  </div>
-                  <svg className="w-3 h-3 text-green-600 dark:text-green-400 opacity-0 group-hover/dock:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
+                  <Warehouse className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                  <span className="text-xs font-medium text-purple-700 dark:text-purple-300 flex-1 text-left">
+                    {(event.dock_booking as any).dock?.name || 'Quai assigné'}
+                  </span>
+                  <Edit2 className="w-3 h-3 text-purple-400 dark:text-purple-500 opacity-0 group-hover/dock:opacity-100 transition-opacity" />
                 </button>
               ) : (
                 <button
-                  onClick={(e) => {
+                  onClick={(e: React.MouseEvent) => {
                     e.stopPropagation();
-                    if (onAssignDock) {
-                      onAssignDock(event.id);
-                    }
+                    onAssignDock(event.id);
                   }}
-                  className="w-full flex items-center justify-center gap-2 p-2 bg-orange-50 dark:bg-orange-950 hover:bg-orange-100 dark:hover:bg-orange-900 border border-orange-200 dark:border-orange-800 rounded-lg transition-colors"
+                  className="w-full flex items-center justify-center gap-1.5 px-2 py-1.5 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-600 transition-colors text-xs font-medium text-gray-600 dark:text-gray-300"
+                  title="Cliquer pour assigner un quai"
                 >
-                  <AlertTriangle className="w-3.5 h-3.5 text-orange-600 dark:text-orange-400" />
-                  <span className="text-xs font-medium text-orange-800 dark:text-orange-200">
-                    Assigner un quai
-                  </span>
+                  <Warehouse className="w-3.5 h-3.5" />
+                  Assigner un quai
                 </button>
               )}
             </div>
           )}
-
-          {/* Bouton supprimer - icône seule */}
-          <div className="flex justify-end">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (confirm("Êtes-vous sûr de vouloir supprimer cet événement ?")) {
-                  onDelete(event.id);
-                }
-              }}
-              className="p-1.5 bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-800 text-white rounded-lg transition-colors shadow-sm hover:shadow-md"
-              title="Supprimer"
-              aria-label="Supprimer l'événement"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
-          </div>
         </div>
 
-        {/* Indicateur de drag (3 points verticaux) */}
-        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-30 transition-opacity pointer-events-none">
-          <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-          </svg>
-        </div>
+        {/* Indicateur de drag actif */}
+        {isDragActive && !isDragging && (
+          <div className="absolute inset-0 bg-blue-500/5 border-2 border-dashed border-blue-400 rounded-lg pointer-events-none" />
+        )}
       </div>
     </div>
   );
 }
 
 // ============================================================
-// COMPOSANT : COLONNE DROPPABLE (JOUR)
+// COLONNE DROPPABLE (JOUR)
 // ============================================================
 function DroppableDay({ 
   day,
   events,
   onDelete,
+  onEdit,
+  onDuplicate,
   onAssignDock,
+  onQuickAdd,
   showDocks,
-  isToday
+  isToday,
+  isDragActive,
 }: { 
   day: Date;
   events: Planning[];
   onDelete: (id: string) => void;
+  onEdit?: (event: Planning) => void;
+  onDuplicate?: (event: Planning) => void;
   onAssignDock?: (eventId: string) => void;
+  onQuickAdd?: (date: string) => void;
   showDocks?: boolean;
   isToday: boolean;
+  isDragActive: boolean;
 }) {
   const dateKey = format(day, "yyyy-MM-dd");
   const { setNodeRef, isOver } = useDroppable({
@@ -284,105 +367,154 @@ function DroppableDay({
 
   return (
     <div
-      className={`bg-white dark:bg-gray-800 rounded-lg shadow border overflow-hidden transition-colors flex flex-col ${
+      className={`bg-white dark:bg-gray-800 rounded-lg shadow border overflow-hidden transition-all duration-200 flex flex-col ${
         isToday
           ? "ring-2 ring-blue-500 dark:ring-blue-400"
           : "border-gray-200 dark:border-gray-700"
       } ${
-        isOver ? 'ring-2 ring-green-400 dark:ring-green-500 bg-green-50 dark:bg-green-950' : ''
+        isOver ? 'ring-2 ring-green-400 dark:ring-green-500 bg-green-50 dark:bg-green-950 scale-105' : ''
       }`}
     >
       {/* En-tête du jour */}
       <div
-        className={`p-3 text-center border-b ${
+        className={`p-3 border-b ${
           isToday
-            ? "bg-blue-600 text-white"
+            ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white"
             : "bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700"
         }`}
       >
-        <div
-          className={`text-sm font-medium uppercase ${
-            isToday ? "text-white" : "text-gray-600 dark:text-gray-400"
-          }`}
-        >
-          {format(day, "EEE", { locale: fr })}
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex-1">
+            <div
+              className={`text-sm font-medium uppercase ${
+                isToday ? "text-white" : "text-gray-600 dark:text-gray-400"
+              }`}
+            >
+              {format(day, "EEE", { locale: fr })}
+            </div>
+            <div
+              className={`text-2xl font-bold ${
+                isToday ? "text-white" : "text-gray-900 dark:text-white"
+              }`}
+            >
+              {format(day, "d")}
+            </div>
+          </div>
+          
+          {/* Bouton + pour ajouter un événement */}
+          {onQuickAdd && (
+            <button
+              onClick={() => onQuickAdd(dateKey)}
+              className={`p-1.5 rounded-lg transition-all hover:scale-110 ${
+                isToday
+                  ? "bg-white/20 hover:bg-white/30 text-white"
+                  : "bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300"
+              }`}
+              title="Ajouter un événement"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          )}
         </div>
+        
         <div
-          className={`text-2xl font-bold mt-1 ${
-            isToday ? "text-white" : "text-gray-900 dark:text-white"
-          }`}
-        >
-          {format(day, "d")}
-        </div>
-        <div
-          className={`text-xs mt-1 ${
+          className={`text-xs flex items-center justify-center gap-1 ${
             isToday ? "text-blue-100" : "text-gray-500 dark:text-gray-400"
           }`}
         >
-          {events.length} événement{events.length > 1 ? "s" : ""}
+          <span>{events.length}</span>
+          <span>événement{events.length > 1 ? "s" : ""}</span>
         </div>
       </div>
 
-      {/* Zone de drop élargie */}
+      {/* Zone de drop avec scroll */}
       <div 
         ref={setNodeRef}
         className="p-2 space-y-2 overflow-y-auto flex-1"
-        style={{ minHeight: '400px' }}
+        style={{ minHeight: '400px', maxHeight: '600px' }}
       >
         <SortableContext
           items={events.map(e => e.id)}
           strategy={verticalListSortingStrategy}
         >
           {events.length > 0 ? (
-            <>
-              {events.map((event) => (
-                <DraggableEventCard
-                  key={event.id}
-                  event={event}
-                  onDelete={onDelete}
-                  onAssignDock={onAssignDock}
-                  showDocks={showDocks}
-                />
-              ))}
-              {/* Zone de drop supplémentaire en bas */}
-              <div 
-                className="h-24 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg flex items-center justify-center text-gray-400 dark:text-gray-500 hover:border-green-400 dark:hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-950 transition-colors"
-              >
-                <p className="text-xs">Déposer ici</p>
-              </div>
-            </>
+            events.map((event) => (
+              <DraggableEventCard
+                key={event.id}
+                event={event}
+                onDelete={onDelete}
+                onEdit={onEdit}
+                onDuplicate={onDuplicate}
+                onAssignDock={onAssignDock}
+                showDocks={showDocks}
+                isDragActive={isDragActive}
+              />
+            ))
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500">
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500 py-8">
               <Calendar className="w-8 h-8 mb-2 opacity-30" />
-              <p className="text-xs italic">Aucun événement</p>
-              <p className="text-xs mt-1">Glissez une carte ici</p>
+              <p className="text-xs italic mb-3">Aucun événement</p>
+              
+              {/* CTA Quick Add */}
+              {onQuickAdd && (
+                <button
+                  onClick={() => onQuickAdd(dateKey)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Ajouter un événement
+                </button>
+              )}
             </div>
           )}
         </SortableContext>
+
+        {/* Zone de drop visible pendant le drag */}
+        {isDragActive && events.length > 0 && (
+          <div className="h-16 border-2 border-dashed border-green-400 dark:border-green-500 rounded-lg flex items-center justify-center text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950 transition-all">
+            <p className="text-xs font-medium">Déposer ici</p>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 // ============================================================
-// COMPOSANT PRINCIPAL : KANBAN AVEC VUE SEMAINE
+// COMPOSANT PRINCIPAL : KANBAN SIMPLE
 // ============================================================
 export default function PlanningKanban({ 
   events, 
   onDelete, 
   onValidate,
+  onEdit,
+  onDuplicate,
   onAssignDock,
+  onQuickAdd,
   showDocks = true 
 }: Props) {
   const [currentWeekStart, setCurrentWeekStart] = useState(() =>
     startOfWeek(new Date(), { weekStartsOn: 1, locale: fr })
   );
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
-  // Générer les 7 jours de la semaine
+  // Détection du mode mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Générer les 7 jours de la semaine (ou 3 sur mobile)
   const weekDays = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i));
-  }, [currentWeekStart]);
+    const daysToShow = isMobile ? 3 : 7;
+    return Array.from({ length: daysToShow }, (_, i) => addDays(currentWeekStart, i));
+  }, [currentWeekStart, isMobile]);
 
   // Grouper les événements par jour
   const eventsByDay = useMemo(() => {
@@ -414,12 +546,14 @@ export default function PlanningKanban({
 
   // Navigation
   const goToPreviousWeek = useCallback(() => {
-    setCurrentWeekStart((prev) => addDays(prev, -7));
-  }, []);
+    const daysToMove = isMobile ? 3 : 7;
+    setCurrentWeekStart((prev) => addDays(prev, -daysToMove));
+  }, [isMobile]);
 
   const goToNextWeek = useCallback(() => {
-    setCurrentWeekStart((prev) => addDays(prev, 7));
-  }, []);
+    const daysToMove = isMobile ? 3 : 7;
+    setCurrentWeekStart((prev) => addDays(prev, daysToMove));
+  }, [isMobile]);
 
   const goToToday = useCallback(() => {
     setCurrentWeekStart(startOfWeek(new Date(), { weekStartsOn: 1, locale: fr }));
@@ -427,7 +561,7 @@ export default function PlanningKanban({
 
   // Configuration drag & drop
   const sensors = useSensors(
-    useSensor(PointerSensor, {
+    useSensor(PointerSensor,{
       activationConstraint: {
         distance: 8,
       },
@@ -473,8 +607,10 @@ export default function PlanningKanban({
     if (targetDate && draggedEvent.date !== targetDate) {
       try {
         await onValidate(draggedId, { date: targetDate });
+        toast.success("Événement déplacé");
       } catch (error) {
         console.error("Erreur lors du déplacement:", error);
+        toast.error("Erreur lors du déplacement");
       }
     }
   };
@@ -485,47 +621,80 @@ export default function PlanningKanban({
 
   const activeEvent = activeId ? events.find(e => e.id === activeId) : null;
 
+  // Raccourcis clavier
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft" && !e.shiftKey) {
+        goToPreviousWeek();
+      } else if (e.key === "ArrowRight" && !e.shiftKey) {
+        goToNextWeek();
+      } else if (e.key === "t" || e.key === "T") {
+        goToToday();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [goToPreviousWeek, goToNextWeek, goToToday]);
+
   return (
     <div className="space-y-4">
-      {/* Header avec navigation */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
+      {/* Header avec navigation améliorée */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3">
           <button
             onClick={goToPreviousWeek}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            aria-label="Semaine précédente"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors group"
+            aria-label="Période précédente"
+            title="← Période précédente"
           >
-            <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <ChevronLeft className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
           </button>
 
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white min-w-[200px] text-center">
-            Semaine du {format(weekDays[0], "d MMM", { locale: fr })} au{" "}
-            {format(weekDays[6], "d MMM yyyy", { locale: fr })}
+            {isMobile ? (
+              format(weekDays[0], "d MMM yyyy", { locale: fr })
+            ) : (
+              <>
+                Semaine du {format(weekDays[0], "d MMM", { locale: fr })} au{" "}
+                {format(weekDays[weekDays.length - 1], "d MMM yyyy", { locale: fr })}
+              </>
+            )}
           </h2>
 
           <button
             onClick={goToNextWeek}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-            aria-label="Semaine suivante"
+            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors group"
+            aria-label="Période suivante"
+            title="→ Période suivante"
           >
-            <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+            <ChevronRight className="w-5 h-5 text-gray-600 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
           </button>
         </div>
 
         <button
           onClick={goToToday}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all text-sm font-medium shadow-md hover:shadow-lg"
+          title="T - Aller à aujourd'hui"
         >
           <Calendar className="w-4 h-4" />
           Aujourd'hui
         </button>
       </div>
 
-      {/* Info drag & drop */}
-      <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-        <p className="text-sm text-blue-800 dark:text-blue-200">
-          💡 Glissez-déposez les événements entre les jours pour changer leur date
-        </p>
+      {/* Info drag & drop avec raccourcis clavier */}
+      <div className="p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 rounded-lg border border-blue-200 dark:border-blue-800">
+        <div className="flex items-start gap-2">
+          <GripVertical className="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm text-blue-800 dark:text-blue-200 font-medium">
+              💡 Glissez-déposez les événements entre les jours pour changer leur date
+            </p>
+            <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">
+              Raccourcis : <kbd className="px-1.5 py-0.5 bg-white dark:bg-gray-800 rounded text-xs">←</kbd> <kbd className="px-1.5 py-0.5 bg-white dark:bg-gray-800 rounded text-xs">→</kbd> pour naviguer • <kbd className="px-1.5 py-0.5 bg-white dark:bg-gray-800 rounded text-xs">T</kbd> pour aujourd'hui
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Grille Kanban avec DnD */}
@@ -536,7 +705,9 @@ export default function PlanningKanban({
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-3">
+        <div className={`grid gap-3 ${
+          isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-7'
+        }`}>
           {weekDays.map((day) => {
             const dateKey = format(day, "yyyy-MM-dd");
             const dayEvents = eventsByDay[dateKey] || [];
@@ -548,26 +719,29 @@ export default function PlanningKanban({
                 day={day}
                 events={dayEvents}
                 onDelete={onDelete}
+                onEdit={onEdit}
+                onDuplicate={onDuplicate}
                 onAssignDock={onAssignDock}
+                onQuickAdd={onQuickAdd}
                 showDocks={showDocks}
                 isToday={isToday}
+                isDragActive={!!activeId}
               />
             );
           })}
         </div>
 
-        {/* Overlay pendant le drag */}
+        {/* Overlay pendant le drag avec preview amélioré */}
         <DragOverlay>
-          {activeEvent ? (
-            <div className="p-3 bg-white dark:bg-gray-800 rounded-lg shadow-xl border-2 border-blue-400 dark:border-blue-600 rotate-3 opacity-90">
-              <p className="font-medium text-sm text-gray-900 dark:text-white">
-                {activeEvent.hour} - {activeEvent.transporter}
-              </p>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                {activeEvent.type}
-              </p>
+          {activeEvent && (
+            <div className="rotate-2 scale-105 opacity-90">
+              <DraggableEventCard
+                event={activeEvent}
+                onDelete={onDelete}
+                showDocks={showDocks}
+              />
             </div>
-          ) : null}
+          )}
         </DragOverlay>
       </DndContext>
     </div>
