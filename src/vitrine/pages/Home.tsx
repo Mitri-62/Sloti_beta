@@ -1,7 +1,7 @@
 import { lazy, Suspense } from "react";
 import Navbar from "../components/Navbar";
 import Hero from "../components/Hero";
-import BetaBenefits from "../components/Betabenefits"; // 👈 AJOUTER
+import BetaBenefits from "../components/BetaBenefits"; // 👈 AJOUTER
 //import About from "../components/About";
 import News from "../components/News";
 
