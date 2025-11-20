@@ -26,7 +26,7 @@ serve(async (req) => {
       body: JSON.stringify({
         from: "Sloti <noreply@getsloti.fr>",
         to: ["dimitri.deremarque@gmail.com"],
-        subject: ` Nouvelle demande de devis - ${company || name}`,
+        subject: `Nouvelle demande de devis - ${company || name}`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <div style="background: linear-gradient(135deg, #2792B0 0%, #207A94 100%); padding: 30px; border-radius: 10px 10px 0 0;">
