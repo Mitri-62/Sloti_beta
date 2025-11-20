@@ -26,8 +26,13 @@ export default function OptimizationResultModal({
 }: OptimizationResultModalProps) {
   if (!isOpen) return null;
 
+  // ✅ ARRONDIS PROPRES
   const hours = Math.floor(result.totalDuration / 60);
-  const minutes = result.totalDuration % 60;
+  const minutes = Math.round(result.totalDuration % 60);
+  const totalDistanceRounded = result.totalDistance.toFixed(1);
+  const previousDistanceRounded = result.previousDistance ? result.previousDistance.toFixed(1) : null;
+  const savedKmRounded = result.savedKm ? result.savedKm.toFixed(1) : null;
+  const feasibilityScoreRounded = Math.round(result.feasibilityScore);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -56,7 +61,7 @@ export default function OptimizationResultModal({
         {/* Contenu */}
         <div className="p-6 space-y-4">
           {/* Économies */}
-          {result.savedKm && result.savedKm > 0 && (
+          {savedKmRounded && parseFloat(savedKmRounded) > 0 && (
             <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-lg p-4 border-2 border-green-200 dark:border-green-800">
               <div className="flex items-center gap-3">
                 <div className="bg-green-500 text-white p-3 rounded-full">
@@ -64,7 +69,7 @@ export default function OptimizationResultModal({
                 </div>
                 <div className="flex-1">
                   <div className="text-2xl font-bold text-green-700 dark:text-green-400">
-                    -{result.savedKm} km
+                    -{savedKmRounded} km
                   </div>
                   <div className="text-sm text-green-600 dark:text-green-500">
                     Économisé ({result.savedPercent}% de réduction)
@@ -82,11 +87,11 @@ export default function OptimizationResultModal({
                 <span className="text-sm text-blue-600 dark:text-blue-400 font-medium">Distance</span>
               </div>
               <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                {result.totalDistance} km
+                {totalDistanceRounded} km
               </div>
-              {result.previousDistance && (
+              {previousDistanceRounded && (
                 <div className="text-xs text-blue-600 dark:text-blue-500 mt-1">
-                  Avant: {result.previousDistance} km
+                  Avant: {previousDistanceRounded} km
                 </div>
               )}
             </div>
@@ -97,7 +102,7 @@ export default function OptimizationResultModal({
                 <span className="text-sm text-purple-600 dark:text-purple-400 font-medium">Durée</span>
               </div>
               <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                {hours > 0 && `${hours}h`}{minutes}min
+                {hours > 0 && `${hours}h`}{minutes > 0 && `${minutes}`}
               </div>
               <div className="text-xs text-purple-600 dark:text-purple-500 mt-1">
                 {result.stopsCount} arrêts
@@ -112,28 +117,65 @@ export default function OptimizationResultModal({
                 Score de faisabilité
               </span>
               <span className="text-lg font-bold text-gray-900 dark:text-white">
-                {result.feasibilityScore}%
+                {feasibilityScoreRounded}%
               </span>
             </div>
             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-1000 ${
-                  result.feasibilityScore >= 80
+                  feasibilityScoreRounded >= 80
                     ? 'bg-gradient-to-r from-green-500 to-emerald-500'
-                    : result.feasibilityScore >= 60
+                    : feasibilityScoreRounded >= 60
                     ? 'bg-gradient-to-r from-yellow-500 to-orange-500'
                     : 'bg-gradient-to-r from-red-500 to-pink-500'
                 }`}
-                style={{ width: `${result.feasibilityScore}%` }}
+                style={{ width: `${feasibilityScoreRounded}%` }}
               />
             </div>
-            <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
-              {result.feasibilityScore >= 80
-                ? '✅ Excellent : Toutes les contraintes respectées'
-                : result.feasibilityScore >= 60
-                ? '⚠️ Acceptable : Quelques ajustements possibles'
-                : '❌ À améliorer : Certaines contraintes non respectées'}
-            </p>
+            
+            {/* Détails selon le score */}
+            <div className="mt-3 space-y-2">
+              {feasibilityScoreRounded >= 80 ? (
+                <div className="flex items-start gap-2 text-sm text-green-700 dark:text-green-300">
+                  <span className="text-green-600 dark:text-green-400">✅</span>
+                  <div>
+                    <p className="font-medium">Excellent : Toutes les contraintes respectées</p>
+                    <ul className="text-xs mt-1 space-y-1 ml-4 list-disc">
+                      <li>Créneaux horaires respectés</li>
+                      <li>Capacité du véhicule optimale</li>
+                      <li>Priorités prises en compte</li>
+                      <li>Temps de conduite conforme</li>
+                    </ul>
+                  </div>
+                </div>
+              ) : feasibilityScoreRounded >= 60 ? (
+                <div className="flex items-start gap-2 text-sm text-orange-700 dark:text-orange-300">
+                  <span className="text-orange-600 dark:text-orange-400">⚠️</span>
+                  <div>
+                    <p className="font-medium">Acceptable : Quelques ajustements possibles</p>
+                    <ul className="text-xs mt-1 space-y-1 ml-4 list-disc">
+                      <li>Certains créneaux horaires serrés</li>
+                      <li>Charge du véhicule élevée (&gt;80%)</li>
+                      <li>Temps de trajet optimisable</li>
+                      <li>Considérer une pause supplémentaire</li>
+                    </ul>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
+                  <span className="text-red-600 dark:text-red-400">❌</span>
+                  <div>
+                    <p className="font-medium">À améliorer : Certaines contraintes non respectées</p>
+                    <ul className="text-xs mt-1 space-y-1 ml-4 list-disc">
+                      <li>Plusieurs créneaux horaires dépassés</li>
+                      <li>Risque de surcharge du véhicule</li>
+                      <li>Amplitude de travail excessive</li>
+                      <li>Recommandation : diviser en 2 tournées</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Info */}

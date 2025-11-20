@@ -442,7 +442,7 @@ export default function Header() {
               </button>
 
               {showSearch && (
-                <div className="absolute top-12 right-0 bg-white dark:bg-gray-800 shadow-xl rounded-lg w-80 sm:w-96 p-4 z-50 border border-gray-200 dark:border-gray-700">
+                <div className="absolute top-12 right-0 bg-white dark:bg-gray-800 shadow-xl rounded-lg w-80 sm:w-96 p-4 z- border border-gray-200 dark:border-gray-700">
                   <div className="relative mb-3">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <input

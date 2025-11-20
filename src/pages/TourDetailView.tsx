@@ -1,16 +1,21 @@
-// src/pages/TourDetailView.tsx - VERSION MOBILE OPTIMISÉE
+// src/pages/TourDetailView.tsx - VERSION COMPLÈTE CORRIGÉE
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, MapPin, User, Truck, Clock, Package, 
   AlertCircle, Edit2, Navigation, Download, 
-  Printer, Smartphone
+  Printer, Smartphone, Zap, TrendingUp
 } from "lucide-react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../contexts/AuthContext";
 import TourMap from '../components/TourMap';
+import TourFormModal from '../components/TourFormModal';
+import ShareDriverModal from '../components/ShareDriverModal';
 import { downloadTourPDF, printTourPDF } from '../services/pdfExport';
 import { toast } from 'sonner';
+import { OSRMService } from "../services/osrmService";
+import { optimizeTour } from "../utils/TourOptimizer";
+import OptimizationResultModal from '../components/OptimizationResultModal';
 
 interface DeliveryStop {
   id: string;
@@ -40,6 +45,9 @@ interface Tour {
   driver: any;
   vehicle: any;
   total_distance_km: number;
+  estimated_duration_minutes: number;
+  access_token?: string;
+  token_expires_at?: string;
 }
 
 interface DriverLocation {
@@ -118,8 +126,6 @@ export default function TourDetailView() {
   const [stops, setStops] = useState<DeliveryStop[]>([]);
   const [loading, setLoading] = useState(true);
   const [showMap, setShowMap] = useState(true);
-  
-  // ✅ STATE MOBILE POUR TOGGLE LISTE/CARTE
   const [mobileView, setMobileView] = useState<'list' | 'map'>('list');
   
   const [showProblemModal, setShowProblemModal] = useState(false);
@@ -127,48 +133,71 @@ export default function TourDetailView() {
   const [problemReason, setProblemReason] = useState('');
   const [problemType, setProblemType] = useState<'customer_absent' | 'address_incorrect' | 'access_denied' | 'other'>('customer_absent');
   
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [driverUrl, setDriverUrl] = useState('');
+  
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  
+  const [calculatingRoutes, setCalculatingRoutes] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
+  const [optimizationResult, setOptimizationResult] = useState<any>(null);
+  const [showOptimizationModal, setShowOptimizationModal] = useState(false);
+  
   const driverLocation = useDriverLocationRealtime(tour?.driver?.id);
 
-  useEffect(() => {
+  const loadTourDetails = async () => {
     if (!tourId || !user?.company_id) return;
 
-    async function loadTourDetails() {
-      setLoading(true);
+    setLoading(true);
 
-      const { data: tourData, error: tourError } = await supabase
-        .from('tours')
-        .select(`
-          *,
-          driver:drivers(id, name, phone),
-          vehicle:vehicles(id, name, license_plate, type, capacity_kg, capacity_m3)
-        `)
-        .eq('id', tourId)
-        .eq('company_id', user!.company_id)
-        .single();
+    const { data: tourData, error: tourError } = await supabase
+      .from('tours')
+      .select(`
+        *,
+        driver:drivers(id, name, phone, current_location_lat, current_location_lng),
+        vehicle:vehicles(
+          id, 
+          name,
+          registration,
+          type, 
+          capacity_kg, 
+          capacity_m3,
+          current_location_lat, 
+          current_location_lng, 
+          last_location_update
+        )
+      `)
+      .eq('id', tourId)
+      .eq('company_id', user!.company_id)
+      .single();
 
-      if (tourError) {
-        console.error('Erreur chargement tournée:', tourError);
-        toast.error('Erreur lors du chargement de la tournée');
-        setLoading(false);
-        return;
-      }
-
-      setTour(tourData);
-
-      const { data: stopsData, error: stopsError } = await supabase
-        .from('delivery_stops')
-        .select('*')
-        .eq('tour_id', tourId)
-        .order('sequence_order', { ascending: true });
-
-      if (!stopsError && stopsData) {
-        setStops(stopsData);
-      }
-
+    if (tourError) {
+      console.error('Erreur chargement tournée:', tourError);
+      toast.error('Erreur lors du chargement de la tournée');
       setLoading(false);
+      return;
     }
 
+    setTour(tourData);
+
+    const { data: stopsData, error: stopsError } = await supabase
+      .from('delivery_stops')
+      .select('*')
+      .eq('tour_id', tourId)
+      .order('sequence_order', { ascending: true });
+
+    if (!stopsError && stopsData) {
+      setStops(stopsData);
+    }
+
+    setLoading(false);
+  };
+
+  useEffect(() => {
     loadTourDetails();
+
+    if (!tourId) return;
 
     const channel = supabase
       .channel(`tour-${tourId}`)
@@ -186,6 +215,289 @@ export default function TourDetailView() {
       supabase.removeChannel(channel);
     };
   }, [tourId, user?.company_id]);
+
+  const getStartLocation = () => {
+    if (driverLocation?.latitude && driverLocation?.longitude) {
+      return {
+        latitude: driverLocation.latitude,
+        longitude: driverLocation.longitude,
+        source: 'driver_gps'
+      };
+    }
+
+    if (tour?.vehicle?.current_location_lat && tour?.vehicle?.current_location_lng) {
+      return {
+        latitude: tour.vehicle.current_location_lat,
+        longitude: tour.vehicle.current_location_lng,
+        source: 'vehicle'
+      };
+    }
+
+    if (tour?.driver?.current_location_lat && tour?.driver?.current_location_lng) {
+      return {
+        latitude: tour.driver.current_location_lat,
+        longitude: tour.driver.current_location_lng,
+        source: 'driver'
+      };
+    }
+
+    if (stops.length > 0) {
+      const stopsWithCoords = stops.filter(s => s.latitude && s.longitude);
+      if (stopsWithCoords.length > 0) {
+        const avgLat = stopsWithCoords.reduce((sum, s) => sum + s.latitude, 0) / stopsWithCoords.length;
+        const avgLng = stopsWithCoords.reduce((sum, s) => sum + s.longitude, 0) / stopsWithCoords.length;
+        return {
+          latitude: avgLat,
+          longitude: avgLng,
+          source: 'estimated'
+        };
+      }
+    }
+
+    return {
+      latitude: 50.2928,
+      longitude: 2.8828,
+      source: 'default'
+    };
+  };
+
+  const calculateTourRoutes = async () => {
+    if (!tourId || !tour) return;
+
+    try {
+      setCalculatingRoutes(true);
+
+      const stopsWithCoords = stops.filter(s => s.latitude && s.longitude);
+      if (stopsWithCoords.length === 0) {
+        toast.error('Aucun arrêt n\'a de coordonnées GPS');
+        setCalculatingRoutes(false);
+        return;
+      }
+
+      const startLocation = getStartLocation();
+      
+      let startMessage = '';
+      if (startLocation.source === 'driver_gps') {
+        startMessage = '🚚 Départ depuis la position GPS temps réel du chauffeur';
+      } else if (startLocation.source === 'vehicle') {
+        startMessage = '🅿️ Départ depuis la position du véhicule (garage)';
+      } else if (startLocation.source === 'driver') {
+        startMessage = '👤 Départ depuis la dernière position du chauffeur';
+      } else if (startLocation.source === 'estimated') {
+        startMessage = '📍 Départ estimé (centre des livraisons)';
+      } else {
+        startMessage = '⚠️ Position de départ par défaut utilisée';
+      }
+
+      toast.loading(`${startMessage} - Calcul en cours...`, { id: 'calc-route' });
+
+      if (stopsWithCoords.length < stops.length) {
+        toast.warning(`${stops.length - stopsWithCoords.length} arrêt(s) sans coordonnées GPS ignoré(s)`);
+      }
+
+      const routes = [];
+      
+      routes.push({
+        from: { lat: startLocation.latitude, lng: startLocation.longitude },
+        to: { lat: stopsWithCoords[0].latitude, lng: stopsWithCoords[0].longitude }
+      });
+
+      for (let i = 0; i < stopsWithCoords.length - 1; i++) {
+        routes.push({
+          from: { lat: stopsWithCoords[i].latitude, lng: stopsWithCoords[i].longitude },
+          to: { lat: stopsWithCoords[i + 1].latitude, lng: stopsWithCoords[i + 1].longitude }
+        });
+      }
+
+      const results = await OSRMService.getRoutesInBatch(routes);
+
+      let totalDistance = 0;
+      let totalDuration = 0;
+
+      results.forEach((result) => {
+        if (result) {
+          totalDistance += result.distance_km;
+          totalDuration += result.duration_minutes;
+        }
+      });
+
+      const { error: updateError } = await supabase
+        .from('tours')
+        .update({
+          total_distance_km: Math.round(totalDistance * 10) / 10,
+          estimated_duration_minutes: Math.round(totalDuration)
+        })
+        .eq('id', tourId);
+
+      if (updateError) throw updateError;
+
+      toast.success(
+        `✅ Trajet calculé depuis ${startLocation.source === 'vehicle' ? 'le véhicule' : 'le point de départ'} !\n📏 Distance totale: ${Math.round(totalDistance)} km\n⏱️ Durée estimée: ${Math.round(totalDuration)} min`,
+        { id: 'calc-route', duration: 5000 }
+      );
+
+      await loadTourDetails();
+
+    } catch (error) {
+      console.error('Erreur calcul routes:', error);
+      toast.error('Erreur lors du calcul des routes', { id: 'calc-route' });
+    } finally {
+      setCalculatingRoutes(false);
+    }
+  };
+
+  const handleOptimizeTour = async () => {
+    if (!tourId || !tour) return;
+
+    try {
+      setOptimizing(true);
+
+      const stopsWithCoords = stops.filter(s => s.latitude && s.longitude);
+
+      if (stopsWithCoords.length < 2) {
+        toast.error('Au moins 2 points de livraison avec coordonnées GPS requis pour optimiser');
+        setOptimizing(false);
+        return;
+      }
+
+      if (stopsWithCoords.length < stops.length) {
+        toast.warning(`${stops.length - stopsWithCoords.length} stop(s) sans coordonnées seront ignorés`);
+      }
+
+      const stopsData = stopsWithCoords.map((s: any) => ({
+        id: s.id,
+        address: s.address,
+        latitude: s.latitude,
+        longitude: s.longitude,
+        time_window_start: s.time_window_start || '08:00',
+        time_window_end: s.time_window_end || '18:00',
+        service_duration: 15,
+        weight_kg: s.weight_kg || 0,
+        volume_m3: s.volume_m3 || 0,
+        priority: 'medium' as 'high' | 'medium' | 'low'
+      }));
+
+      const vehicle = {
+        max_capacity_kg: tour.vehicle?.capacity_kg || 1000,
+        max_volume_m3: tour.vehicle?.capacity_m3 || 15,
+        avg_speed_kmh: 40
+      };
+
+      const startTime = tour.start_time 
+        ? new Date(tour.start_time).toTimeString().slice(0, 5)
+        : '08:00';
+
+      const startLocation = getStartLocation();
+
+      let optimizationMessage = '';
+      if (startLocation.source === 'driver_gps') {
+        optimizationMessage = '🚚 Optimisation depuis la position GPS temps réel du chauffeur...';
+      } else if (startLocation.source === 'vehicle') {
+        optimizationMessage = '🅿️ Optimisation depuis la position du véhicule (garage)...';
+      } else if (startLocation.source === 'driver') {
+        optimizationMessage = '👤 Optimisation depuis la dernière position du chauffeur...';
+      } else if (startLocation.source === 'estimated') {
+        optimizationMessage = '📍 Optimisation depuis un point central...';
+      } else {
+        optimizationMessage = '⚠️ Optimisation avec position par défaut...';
+      }
+
+      toast.loading(optimizationMessage, { id: 'optimizing' });
+
+      const depotLocation = {
+        latitude: startLocation.latitude,
+        longitude: startLocation.longitude
+      };
+
+      const result = optimizeTour(stopsData, depotLocation, vehicle, startTime);
+
+      toast.loading('🗺️ Calcul des routes réelles avec OSRM...', { id: 'optimizing' });
+
+      const optimizedStops = result.stops;
+      const routes = [];
+
+      routes.push({
+        from: { lat: depotLocation.latitude, lng: depotLocation.longitude },
+        to: { lat: optimizedStops[0].latitude, lng: optimizedStops[0].longitude }
+      });
+
+      for (let i = 0; i < optimizedStops.length - 1; i++) {
+        routes.push({
+          from: { lat: optimizedStops[i].latitude, lng: optimizedStops[i].longitude },
+          to: { lat: optimizedStops[i + 1].latitude, lng: optimizedStops[i + 1].longitude }
+        });
+      }
+
+      const routeResults = await OSRMService.getRoutesInBatch(routes);
+
+      let totalRealDistance = 0;
+      let totalRealDuration = 0;
+
+      routeResults.forEach((route) => {
+        if (route) {
+          totalRealDistance += route.distance_km;
+          totalRealDuration += route.duration_minutes;
+        }
+      });
+
+      for (let i = 0; i < optimizedStops.length; i++) {
+        const arrivalTime = result.estimated_arrival_times[i];
+
+        const [hours, minutes] = arrivalTime.split(':');
+        const estimatedDate = new Date(tour.date);
+        estimatedDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+        const estimatedArrivalISO = estimatedDate.toISOString();
+
+        await supabase
+          .from('delivery_stops')
+          .update({
+            sequence_order: i + 1,
+            estimated_arrival: estimatedArrivalISO
+          })
+          .eq('id', optimizedStops[i].id);
+      }
+
+      await supabase
+        .from('tours')
+        .update({
+          total_distance_km: Math.round(totalRealDistance * 10) / 10,
+          estimated_duration_minutes: Math.round(totalRealDuration)
+        })
+        .eq('id', tourId);
+
+      toast.dismiss('optimizing');
+
+      const savedDistance = tour.total_distance_km 
+        ? Math.round((tour.total_distance_km - totalRealDistance) * 10) / 10
+        : 0;
+
+      const savedPercent = tour.total_distance_km && savedDistance > 0
+        ? Math.round((savedDistance / tour.total_distance_km) * 100)
+        : 0;
+
+      setOptimizationResult({
+        totalDistance: totalRealDistance,
+        previousDistance: tour.total_distance_km,
+        totalDuration: totalRealDuration,
+        feasibilityScore: result.feasibility_score,
+        stopsCount: optimizedStops.length,
+        savedKm: savedDistance > 0 ? savedDistance : undefined,
+        savedPercent: savedPercent > 0 ? savedPercent : undefined,
+        tourName: tour.name,
+        startLocationSource: startLocation.source
+      });
+      setShowOptimizationModal(true);
+
+      await loadTourDetails();
+
+    } catch (error) {
+      console.error('Erreur optimisation:', error);
+      toast.error('Erreur lors de l\'optimisation');
+    } finally {
+      setOptimizing(false);
+    }
+  };
 
   const updateStopStatus = async (stopId: string, newStatus: string, failureReason?: string) => {
     const updateData: any = { 
@@ -206,16 +518,7 @@ export default function TourDetailView() {
       toast.error('Erreur lors de la mise à jour');
     } else {
       toast.success('Statut mis à jour');
-      
-      const { data: updatedStops, error: fetchError } = await supabase
-        .from('delivery_stops')
-        .select('*')
-        .eq('tour_id', tourId)
-        .order('sequence_order', { ascending: true });
-        
-      if (!fetchError && updatedStops) {
-        setStops(updatedStops);
-      }
+      await loadTourDetails();
     }
   };
 
@@ -306,12 +609,159 @@ export default function TourDetailView() {
     printTourPDF(tour, stops);
   };
 
-  const openDriverView = () => {
-    const driverUrl = `${window.location.origin}/app/driver-app/${tourId}`;
-    navigator.clipboard.writeText(driverUrl).then(() => {
-      toast.success('Lien copié !', { duration: 5000 });
+  const openDriverView = async () => {
+    if (!tour?.id) return;
+
+    try {
+      toast.loading('Génération du lien sécurisé...', { id: 'driver-link' });
+      
+      let { data: tourData, error } = await supabase
+        .from('tours')
+        .select('access_token, token_expires_at')
+        .eq('id', tour.id)
+        .single();
+
+      if (error) {
+        toast.error('Erreur lors de la génération du lien', { id: 'driver-link' });
+        return;
+      }
+
+      let token = tourData?.access_token;
+      let expiresAt = tourData?.token_expires_at;
+
+      const needsNewToken = !token || (expiresAt && new Date(expiresAt) < new Date());
+
+      if (needsNewToken) {
+        token = btoa(Math.random().toString(36).substring(2) + Date.now().toString(36));
+        
+        const newExpiry = new Date();
+        newExpiry.setHours(newExpiry.getHours() + 48);
+        expiresAt = newExpiry.toISOString();
+        
+        const { error: updateError } = await supabase
+          .from('tours')
+          .update({ 
+            access_token: token,
+            token_expires_at: expiresAt
+          })
+          .eq('id', tour.id);
+
+        if (updateError) {
+          toast.error('Erreur lors de la génération du token', { id: 'driver-link' });
+          return;
+        }
+      }
+
+      const url = `${window.location.origin}/app/driver-app/${tour.id}?token=${token}`;
+      setDriverUrl(url);
+      
+      toast.success('Lien prêt !', { id: 'driver-link' });
+      setShowShareModal(true);
+      
+    } catch (error) {
+      console.error('Erreur génération lien:', error);
+      toast.error('Erreur lors de la génération du lien', { id: 'driver-link' });
+    }
+  };
+
+  const regenerateToken = async () => {
+    if (!tour?.id) return;
+
+    const newToken = btoa(Math.random().toString(36).substring(2) + Date.now().toString(36));
+    const newExpiry = new Date();
+    newExpiry.setHours(newExpiry.getHours() + 48);
+
+    const { error } = await supabase
+      .from('tours')
+      .update({
+        access_token: newToken,
+        token_expires_at: newExpiry.toISOString()
+      })
+      .eq('id', tour.id);
+
+    if (error) throw error;
+
+    const url = `${window.location.origin}/app/driver-app/${tour.id}?token=${newToken}`;
+    setDriverUrl(url);
+    
+    setTour({
+      ...tour,
+      access_token: newToken,
+      token_expires_at: newExpiry.toISOString()
     });
-    window.open(driverUrl, '_blank');
+  };
+
+  const handleUpdateTour = async (tourData: any) => {
+    if (!tour || !user?.company_id) return;
+
+    try {
+      setUpdating(true);
+
+      let startTimeTimestamp = null;
+      if (tourData.start_time) {
+        if (tourData.start_time.includes('T') || tourData.start_time.includes(' ')) {
+          startTimeTimestamp = tourData.start_time;
+        } else {
+          const tourDate = tourData.date || tour.date;
+          startTimeTimestamp = `${tourDate}T${tourData.start_time}:00`;
+        }
+      }
+
+      const { error: tourError } = await supabase
+        .from('tours')
+        .update({
+          name: tourData.name,
+          date: tourData.date,
+          driver_id: tourData.driver_id || null,
+          vehicle_id: tourData.vehicle_id || null,
+          start_time: startTimeTimestamp
+        })
+        .eq('id', tour.id)
+        .eq('company_id', user.company_id);
+
+      if (tourError) throw tourError;
+
+      if (tourData.stops && Array.isArray(tourData.stops) && tourData.stops.length > 0) {
+        const { error: deleteError } = await supabase
+          .from('delivery_stops')
+          .delete()
+          .eq('tour_id', tour.id);
+
+        if (deleteError) throw deleteError;
+
+        const stopsToInsert = tourData.stops.map((stop: any, index: number) => ({
+          tour_id: tour.id,
+          sequence_order: index + 1,
+          address: stop.address || '',
+          customer_name: stop.customer_name || stop.customerName || '',
+          customer_phone: stop.customer_phone || stop.customerPhone || null,
+          time_window_start: stop.time_window_start || stop.timeWindowStart || '09:00',
+          time_window_end: stop.time_window_end || stop.timeWindowEnd || '17:00',
+          weight_kg: stop.weight_kg || 0,
+          volume_m3: stop.volume_m3 || 0,
+          notes: stop.notes || null,
+          latitude: stop.latitude || null,
+          longitude: stop.longitude || null,
+          status: 'pending'
+        }));
+
+        const { error: insertError } = await supabase
+          .from('delivery_stops')
+          .insert(stopsToInsert);
+
+        if (insertError) throw insertError;
+      }
+
+      toast.success('Tournée modifiée avec succès !');
+      setShowEditModal(false);
+      await loadTourDetails();
+
+    } catch (error: any) {
+      console.error('Erreur modification:', error);
+      toast.error(`Erreur: ${error.message}`);
+    } finally {
+      setUpdating(false);
+    }
   };
 
   if (loading) {
@@ -340,13 +790,13 @@ export default function TourDetailView() {
   }
 
   const totalWeight = stops.reduce((sum, s) => sum + s.weight_kg, 0);
-  const totalVolume = stops.reduce((sum, s) => sum + s.volume_m3, 0);
   const completedStops = stops.filter(s => s.status === 'completed').length;
-  const progress = stops.length > 0 ? (completedStops / stops.length) * 100 : 0;
+
+  const startLocation = getStartLocation();
+  const hasRealLocation = startLocation.source === 'driver_gps' || startLocation.source === 'vehicle' || startLocation.source === 'driver';
 
   return (
     <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900 overflow-hidden">
-      {/* Header compact mobile */}
       <div className="flex-shrink-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-2 sm:p-6">
         <div className="flex items-center justify-between gap-2 mb-2 sm:mb-4">
           <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -361,9 +811,11 @@ export default function TourDetailView() {
             </div>
           </div>
 
-          {/* Actions desktop uniquement */}
           <div className="hidden lg:flex items-center gap-2">
-            <button onClick={openDriverView} className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2">
+            <button 
+              onClick={openDriverView} 
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center gap-2 transition-all shadow-md hover:shadow-lg"
+            >
               <Smartphone size={16} />
               Vue Chauffeur
             </button>
@@ -374,7 +826,7 @@ export default function TourDetailView() {
               <Printer size={20} className="text-gray-600 dark:text-gray-400" />
             </button>
             <button
-              onClick={() => navigate(`/app/tour-planning/edit/${tour.id}`)}
+              onClick={() => setShowEditModal(true)}
               className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 flex items-center gap-2"
             >
               <Edit2 size={16} />
@@ -394,42 +846,80 @@ export default function TourDetailView() {
           </div>
         </div>
 
-        {/* Infos compactes mobile */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
-          <div className="flex items-start gap-1.5 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <User className="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] text-gray-500 dark:text-gray-400">Chauffeur</p>
-              <p className="font-medium truncate text-gray-900 dark:text-white">{tour.driver?.name || 'N/A'}</p>
+        <div className="space-y-2">
+          {!hasRealLocation && (
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 flex items-start gap-2">
+              <AlertCircle size={16} className="text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+              <div className="flex-1 text-xs">
+                <p className="font-medium text-yellow-900 dark:text-yellow-100">
+                  Aucune position GPS disponible
+                </p>
+                <p className="text-yellow-700 dark:text-yellow-300 mt-1">
+                  Le calcul utilisera une position estimée. Activez le GPS du chauffeur ou configurez la position du véhicule pour des trajets précis.
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-start gap-1.5 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <Truck className="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] text-gray-500 dark:text-gray-400">Véhicule</p>
-              <p className="font-medium truncate text-gray-900 dark:text-white">{tour.vehicle?.name || 'N/A'}</p>
+          )}
+
+          {hasRealLocation && (
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 flex items-start gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse mt-1 flex-shrink-0"></div>
+              <div className="flex-1 text-xs">
+                <p className="font-medium text-green-900 dark:text-green-100">
+                  {startLocation.source === 'driver_gps' && '🚚 Position GPS temps réel active'}
+                  {startLocation.source === 'vehicle' && '🅿️ Position du véhicule configurée'}
+                  {startLocation.source === 'driver' && '👤 Dernière position du chauffeur disponible'}
+                </p>
+                <p className="text-green-700 dark:text-green-300 mt-1">
+                  Les trajets seront calculés depuis cette position réelle.
+                </p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-start gap-1.5 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <Package className="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-            <div>
-              <p className="text-[10px] text-gray-500 dark:text-gray-400">Charge</p>
-              <p className="font-medium text-gray-900 dark:text-white">{totalWeight} kg</p>
+          )}
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+            <div className="flex items-start gap-1.5 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <User className="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] text-gray-500 dark:text-gray-400">Chauffeur</p>
+                <p className="font-medium truncate text-gray-900 dark:text-white">{tour.driver?.name || 'N/A'}</p>
+              </div>
             </div>
-          </div>
-          <div className="flex items-start gap-1.5 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-            <Clock className="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-            <div>
-              <p className="text-[10px] text-gray-500 dark:text-gray-400">Départ</p>
-              <p className="font-medium text-gray-900 dark:text-white">
-                {new Date(tour.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
-              </p>
+            <div className="flex items-start gap-1.5 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <Truck className="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] text-gray-500 dark:text-gray-400">Véhicule</p>
+                <p className="font-medium truncate text-gray-900 dark:text-white">{tour.vehicle?.name || 'N/A'}</p>
+                {hasRealLocation && (
+                  <span className="text-[9px] text-green-600 dark:text-green-400 flex items-center gap-1 mt-0.5">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                    {startLocation.source === 'driver_gps' && 'GPS Temps Réel'}
+                    {startLocation.source === 'vehicle' && 'Position Garage'}
+                    {startLocation.source === 'driver' && 'Dernière Position'}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex items-start gap-1.5 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <Package className="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400">Charge</p>
+                <p className="font-medium text-gray-900 dark:text-white">{totalWeight} kg</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-1.5 p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+              <Clock className="w-4 h-4 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400">Départ</p>
+                <p className="font-medium text-gray-900 dark:text-white">
+                  {new Date(tour.start_time).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* ✅ TOGGLE MOBILE LISTE/CARTE */}
       <div className="lg:hidden flex bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <button
           onClick={() => setMobileView('list')}
@@ -453,23 +943,119 @@ export default function TourDetailView() {
         </button>
       </div>
 
-      {/* ✅ LAYOUT RESPONSIVE */}
       <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        
-        {/* LISTE DES STOPS */}
         <div className={`flex-col lg:w-2/5 w-full bg-gray-50 dark:bg-gray-900 overflow-y-auto lg:border-r border-gray-200 dark:border-gray-700 ${mobileView === 'list' ? 'flex' : 'hidden'} lg:flex`}>
           <div className="p-3 sm:p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm sm:text-lg font-bold text-gray-900 dark:text-white">
-                Points de livraison ({stops.length})
-              </h2>
-              <button
-                onClick={() => setShowMap(!showMap)}
-                className="hidden lg:flex px-3 py-1.5 text-sm bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 items-center gap-2"
-              >
-                <MapPin size={14} />
-                {showMap ? 'Masquer' : 'Afficher'}
-              </button>
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm sm:text-lg font-bold text-gray-900 dark:text-white">
+                  Points de livraison ({stops.length})
+                </h2>
+              </div>
+
+              {stops.length >= 2 && (
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mb-4">
+                  {tour.total_distance_km && tour.total_distance_km > 0 && (
+                    <div className="mb-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-blue-200 dark:border-blue-700">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <TrendingUp size={16} className="text-blue-600 dark:text-blue-400" />
+                          <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">Distance actuelle</span>
+                        </div>
+                        <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                          {tour.total_distance_km.toFixed(1)} km
+                        </span>
+                      </div>
+                      {tour.estimated_duration_minutes && (
+                        <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center gap-2">
+                            <Clock size={14} className="text-indigo-600 dark:text-indigo-400" />
+                            <span className="text-xs text-gray-600 dark:text-gray-400 font-medium">Durée estimée</span>
+                          </div>
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {Math.floor(tour.estimated_duration_minutes / 60)}h{tour.estimated_duration_minutes % 60}min
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-start gap-2 mb-3">
+                    <div className="text-blue-600 dark:text-blue-400 mt-0.5">
+                      {hasRealLocation ? '🚚' : '⚠️'}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs sm:text-sm text-blue-900 dark:text-blue-100 font-medium">
+                        {hasRealLocation 
+                          ? (tour.total_distance_km && tour.total_distance_km > 0 
+                              ? "Optimisez pour économiser jusqu'à 30% de carburant"
+                              : startLocation.source === 'driver_gps' 
+                                ? "Calculez le trajet depuis la position GPS temps réel"
+                                : "Calculez le trajet depuis la position réelle")
+                          : "Aucune position GPS - calcul avec estimation"
+                        }
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      onClick={calculateTourRoutes}
+                      disabled={calculatingRoutes || stops.length < 2}
+                      className={`relative flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all text-sm font-medium ${
+                        calculatingRoutes
+                          ? 'bg-cyan-200 dark:bg-cyan-800 text-cyan-700 dark:text-cyan-300 cursor-wait'
+                          : stops.length < 2
+                          ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white hover:from-cyan-700 hover:to-blue-700 shadow-md hover:shadow-lg'
+                      }`}
+                    >
+                      <TrendingUp size={18} className={calculatingRoutes ? "animate-spin" : ""} />
+                      <span className="font-semibold text-xs">{calculatingRoutes ? "Calcul..." : "Calculer"}</span>
+                      <span className="text-[9px] opacity-80">
+                        {startLocation.source === 'driver_gps' && "GPS temps réel"}
+                        {startLocation.source === 'vehicle' && "Depuis garage"}
+                        {startLocation.source === 'driver' && "Dernière pos."}
+                        {!hasRealLocation && "Position estimée"}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={handleOptimizeTour}
+                      disabled={optimizing || stops.length < 2}
+                      className={`relative flex flex-col items-center justify-center gap-1 px-3 py-2 rounded-lg transition-all text-sm font-medium ${
+                        optimizing
+                          ? 'bg-purple-200 dark:bg-purple-800 text-purple-700 dark:text-purple-300 cursor-wait'
+                          : stops.length < 2
+                          ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 shadow-md hover:shadow-lg'
+                      }`}
+                    >
+                      {!optimizing && stops.length >= 2 && (
+                        <div className="absolute -top-1 -right-1 bg-yellow-400 text-yellow-900 text-[8px] font-bold px-1 py-0.5 rounded-full shadow-lg">
+                          PRO
+                        </div>
+                      )}
+                      <Zap size={18} className={optimizing ? "animate-spin" : ""} />
+                      <span className="font-semibold text-xs">{optimizing ? "..." : "Optimiser"}</span>
+                      <span className="text-[9px] opacity-80">
+                        {startLocation.source === 'driver_gps' && "GPS temps réel"}
+                        {startLocation.source === 'vehicle' && "Depuis garage"}
+                        {startLocation.source === 'driver' && "Dernière pos."}
+                        {!hasRealLocation && "Position estimée"}
+                      </span>
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => setShowMap(!showMap)}
+                    className="hidden lg:flex w-full mt-2 px-3 py-1.5 text-xs bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 items-center justify-center gap-2"
+                  >
+                    <MapPin size={12} />
+                    {showMap ? 'Masquer la carte' : 'Afficher la carte'}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -612,7 +1198,6 @@ export default function TourDetailView() {
           </div>
         </div>
 
-        {/* CARTE */}
         {showMap && stops.length > 0 && (
           <div className={`flex-1 bg-white dark:bg-gray-800 ${mobileView === 'map' ? 'flex' : 'hidden'} lg:flex flex-col`}>
             <div className="h-full flex flex-col">
@@ -649,7 +1234,6 @@ export default function TourDetailView() {
         )}
       </div>
 
-      {/* Modal problème */}
       {showProblemModal && (
         <div className="fixed inset-0 flex items-center justify-center p-4 z-[9999]">
           <div className="fixed inset-0 bg-black/50" onClick={() => {
@@ -711,6 +1295,40 @@ export default function TourDetailView() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      <ShareDriverModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        driverUrl={driverUrl}
+        tourName={tour.name}
+        expiresAt={tour.token_expires_at}
+        onRegenerate={regenerateToken}
+      />
+
+      {showEditModal && (
+        <TourFormModal
+          isOpen={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          onSave={handleUpdateTour}
+          selectedDate={new Date(tour.date)}
+          initialData={{
+            ...tour,
+            stops: stops
+          }}
+          isEditMode={true}
+        />
+      )}
+
+      {showOptimizationModal && optimizationResult && (
+        <div style={{ zIndex: 10000 }}>
+          <OptimizationResultModal
+            isOpen={showOptimizationModal}
+            onClose={() => setShowOptimizationModal(false)}
+            result={optimizationResult}
+            tourName={optimizationResult.tourName}
+          />
         </div>
       )}
     </div>

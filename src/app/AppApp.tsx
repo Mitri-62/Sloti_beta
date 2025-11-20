@@ -1,4 +1,4 @@
-// src/app/AppApp.tsx - VERSION AVEC DRIVER-APP ET INVITATIONS EN DEHORS DU LAYOUT
+// src/app/AppApp.tsx - VERSION AVEC FLOTTE
 import { Routes, Route } from "react-router-dom";
 import { AuthProvider } from "../contexts/AuthContext";
 import { ThemeProvider } from "../contexts/ThemeContext";
@@ -31,6 +31,10 @@ import HelpCenter from "../pages/HelpCenter";
 import DriverApp from "../pages/DriverApp";
 import DockManagement from '../pages/DockManagement/DockManagement';
 
+// ✅ NOUVEAU : Pages Flotte
+import VehiclesManagement from "../pages/Fleet/VehiclesManagement";
+import DriversManagement from "../pages/Fleet/DriversManagement";
+
 // Pages Administration
 import TeamManagement from "../pages/TeamManagement";
 import FounderDashboard from "../pages/FounderDashboard";
@@ -43,23 +47,13 @@ function AppContent() {
       {/* Routes SANS Layout (standalone)          */}
       {/* ========================================= */}
       
-      {/* 
-        Page de visualisation de l'invitation
-        Public - L'utilisateur peut voir les détails avant de se connecter
-      */}
+      {/* Page de visualisation de l'invitation */}
       <Route path="/invite/:token" element={<InvitePage />} />
       
-      {/* 
-        ✅ NOUVELLE ROUTE : Page d'inscription via invitation
-        Public - Permet de créer un compte directement lié à l'invitation
-        L'utilisateur rejoint automatiquement la company du canal
-      */}
+      {/* Page d'inscription via invitation */}
       <Route path="/signup-invite/:token" element={<SignupInvitePage />} />
       
-      {/* 
-        Application chauffeur
-        Public (mais protégée par tourId dans l'URL)
-      */}
+      {/* Application chauffeur */}
       <Route path="/driver-app/:tourId" element={<DriverApp />} />
 
       {/* ========================================= */}
@@ -86,6 +80,10 @@ function AppContent() {
         <Route path="tour-planning" element={<PrivateRoute><TourPlanning /></PrivateRoute>} />
         <Route path="tour-planning/:tourId" element={<PrivateRoute><TourDetailView /></PrivateRoute>} />
         <Route path="dock-management" element={<PrivateRoute><DockManagement /></PrivateRoute>} />
+        
+        {/* ✅ NOUVEAU : Gestion de la Flotte */}
+        <Route path="fleet/vehicles" element={<PrivateRoute><VehiclesManagement /></PrivateRoute>} />
+        <Route path="fleet/drivers" element={<PrivateRoute><DriversManagement /></PrivateRoute>} />
         
         {/* Paramètres et profil */}
         <Route path="profile" element={<PrivateRoute><Profile /></PrivateRoute>} />

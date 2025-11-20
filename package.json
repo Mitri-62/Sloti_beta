@@ -45,6 +45,7 @@
     "react-leaflet": "^4.2.1",
     "react-markdown": "^10.1.0",
     "react-qr-barcode-scanner": "^2.1.9",
+    "react-qr-code": "^2.0.18",
     "react-resizable": "^3.0.5",
     "react-router-dom": "^6.30.1",
     "react-simple-maps": "^3.0.0",

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Mail, User, MessageSquare, Send, CheckCircle } from "lucide-react";
+import { supabase } from "../../supabaseClient";
 
 export default function DevisForm() {
   const [formData, setFormData] = useState({
@@ -16,7 +17,6 @@ export default function DevisForm() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
-    // Effacer l'erreur du champ modifié
     if (errors[name]) {
       setErrors({ ...errors, [name]: "" });
     }
@@ -55,31 +55,59 @@ export default function DevisForm() {
     setLoading(true);
 
     try {
-      // Simuler l'envoi (à remplacer par votre vraie API)
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Décommenter quand l'API est prête
-      /*
-      const response = await fetch(
-        "https://<PROJECT>.functions.supabase.co/send-lead-email",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(formData),
-        }
-      );
+      // 1️⃣ Sauvegarder dans Supabase
+      const { error: insertError } = await supabase
+        .from('leads')
+        .insert([{
+          name: formData.name,
+          email: formData.email,
+          company: formData.company || null,
+          phone: formData.phone || null,
+          message: formData.message
+        }]);
 
-      if (!response.ok) {
-        throw new Error("Erreur lors de l'envoi du devis");
+      if (insertError) {
+        console.error("Erreur Supabase:", insertError);
+        throw new Error("Erreur lors de l'envoi de votre demande");
       }
-      */
+
+      console.log("✅ Lead sauvegardé avec succès !");
+
+      // 2️⃣ Envoyer la notification email
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+        console.log("📧 Envoi de l'email...");
+        
+        const emailResponse = await fetch(
+          `${supabaseUrl}/functions/v1/send-lead-notification`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${supabaseAnonKey}`,
+            },
+            body: JSON.stringify(formData),
+          }
+        );
+
+        if (!emailResponse.ok) {
+          const errorData = await emailResponse.json();
+          console.error("⚠️ Email notification failed:", errorData);
+        } else {
+          console.log("📧 Email envoyé avec succès !");
+        }
+      } catch (emailError) {
+        // Ne pas bloquer si l'email échoue
+        console.error("⚠️ Email error:", emailError);
+      }
 
       setSubmitted(true);
-    } catch (err) {
-      console.error("Erreur:", err);
-      setErrors({ submit: "Une erreur est survenue, veuillez réessayer." });
+      
+    } catch (err: any) {
+      console.error("❌ Erreur:", err);
+      setErrors({ submit: err.message || "Une erreur est survenue, veuillez réessayer." });
     } finally {
       setLoading(false);
     }

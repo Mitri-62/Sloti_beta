@@ -1,6 +1,8 @@
+// src/hooks/useTourData.ts - VERSION AVEC GPS AUTOMATIQUE
 import { useEffect, useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { GeocodingService } from '../services/geocodingService';
 
 export function useVehicles() {
   const { user } = useAuth();
@@ -14,15 +16,15 @@ export function useVehicles() {
     }
   
     async function fetchVehicles() {
-        const { data, error } = await supabase
-          .from('vehicles')
-          .select('*')
-          .eq('company_id', user!.company_id)  // Ajoutez !
-          .order('name');
-        
-        if (!error) setVehicles(data || []);
-        setLoading(false);
-      }
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('company_id', user!.company_id)
+        .order('name');
+      
+      if (!error) setVehicles(data || []);
+      setLoading(false);
+    }
     fetchVehicles();
   }, [user?.company_id]);
 
@@ -38,15 +40,15 @@ export function useDrivers() {
     if (!user?.company_id) return;
 
     async function fetchDrivers() {
-        const { data, error } = await supabase
-          .from('drivers')
-          .select('*')
-          .eq('company_id', user!.company_id)  // Ajoutez !
-          .order('name');
-        
-        if (!error) setDrivers(data || []);
-        setLoading(false);
-      }
+      const { data, error } = await supabase
+        .from('drivers')
+        .select('*')
+        .eq('company_id', user!.company_id)
+        .order('name');
+      
+      if (!error) setDrivers(data || []);
+      setLoading(false);
+    }
 
     fetchDrivers();
   }, [user?.company_id]);
@@ -63,16 +65,16 @@ export function useTours(selectedDate?: Date) {
     if (!user?.company_id) return;
 
     async function fetchTours() {
-        setLoading(true);
-        
-        let query = supabase
-          .from('tours')
-          .select(`
-            *,
-            driver:drivers(id, name, phone, status),
-            vehicle:vehicles(id, name, license_plate, type, capacity_kg, status)
-          `)
-          .eq('company_id', user!.company_id);  // Ajoutez !
+      setLoading(true);
+      
+      let query = supabase
+        .from('tours')
+        .select(`
+          *,
+          driver:drivers(id, name, phone, status),
+          vehicle:vehicles(id, name, license_plate, type, capacity_kg, status)
+        `)
+        .eq('company_id', user!.company_id);
 
       if (selectedDate) {
         const dateStr = selectedDate.toISOString().split('T')[0];
@@ -82,7 +84,6 @@ export function useTours(selectedDate?: Date) {
       const { data: toursData, error } = await query.order('date', { ascending: true });
 
       if (!error && toursData) {
-        // Compter les stops pour chaque tournée
         const toursWithStops = await Promise.all(
           toursData.map(async (tour) => {
             const { count } = await supabase
@@ -108,36 +109,40 @@ export function useTours(selectedDate?: Date) {
 
     fetchTours();
 
-    // Realtime
     const channel = supabase
-    .channel('tours_changes')
-    .on('postgres_changes', { 
-      event: '*', 
-      schema: 'public', 
-      table: 'tours',
-      filter: `company_id=eq.${user!.company_id}` // Ajoutez ! pour dire à TS que user existe ici
-    }, fetchTours)
-    .subscribe();
+      .channel('tours_changes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'tours',
+        filter: `company_id=eq.${user!.company_id}`
+      }, fetchTours)
+      .subscribe();
 
-  return () => {
-    channel.unsubscribe();
-  };
-}, [user?.company_id, selectedDate]);
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [user?.company_id, selectedDate]);
 
   return { tours, loading };
 }
 
+// ✅ FONCTION AVEC GPS AUTOMATIQUE
 export async function createTour(tourData: any, userId: string, companyId: string) {
   try {
-    console.log('Données envoyées:', {
-      company_id: companyId,
-      name: tourData.name,
-      date: tourData.date,
-      driver_id: tourData.driver_id,
-      vehicle_id: tourData.vehicle_id,
-      start_time: tourData.start_time ? `${tourData.date}T${tourData.start_time}:00` : null,
-      status: 'planned'
-    });
+    console.log('🚀 Création tournée avec GPS automatique...');
+    
+    // Générer un token unique et sécurisé
+    const accessToken = btoa(
+      Math.random().toString(36).substring(2) + 
+      Date.now().toString(36) + 
+      Math.random().toString(36).substring(2)
+    );
+    
+    const tokenExpiry = new Date();
+    tokenExpiry.setHours(tokenExpiry.getHours() + 48);
+    
+    console.log('✅ Token généré:', accessToken.substring(0, 15) + '...');
 
     // 1. Créer la tournée
     const { data: tour, error: tourError } = await supabase
@@ -149,60 +154,87 @@ export async function createTour(tourData: any, userId: string, companyId: strin
         driver_id: tourData.driver_id,
         vehicle_id: tourData.vehicle_id,
         start_time: tourData.start_time ? `${tourData.date}T${tourData.start_time}:00` : null,
-        status: 'planned'
+        status: 'planned',
+        access_token: accessToken
       })
       .select()
       .single();
 
     if (tourError) {
-      console.error('Erreur SQL détaillée:', tourError);
-      console.error('Code:', tourError.code);
-      console.error('Message:', tourError.message);
-      console.error('Details:', tourError.details);
+      console.error('❌ Erreur SQL:', tourError);
       throw tourError;
     }
 
-    console.log('Tournée créée:', tour);
+    console.log('✅ Tournée créée avec ID:', tour.id);
 
-    // 2. Créer les stops
+    // 2. ✅ GÉOCODAGE AUTOMATIQUE DES ADRESSES
     if (tourData.stops && tourData.stops.length > 0) {
-      console.log('Création de', tourData.stops.length, 'stops');
+      console.log('📍 Création de', tourData.stops.length, 'stops avec géocodage automatique...');
       
-      const stopsData = tourData.stops.map((stop: any, index: number) => ({
-        tour_id: tour.id,
-        sequence_order: index + 1,
-        address: stop.address,
-        customer_name: stop.customerName,
-        customer_phone: stop.customerPhone || '',
-        time_window_start: stop.timeWindowStart,
-        time_window_end: stop.timeWindowEnd,
-        weight_kg: stop.weight_kg || 0,
-        volume_m3: stop.volume_m3 || 0,
-        notes: stop.notes || '',
-        status: 'pending',
-        latitude: null,
-        longitude: null
-      }));
+      const stopsWithGPS = await Promise.all(
+        tourData.stops.map(async (stop: any, index: number) => {
+          let latitude = stop.latitude;
+          let longitude = stop.longitude;
 
-      console.log('Stops à créer:', stopsData);
+          // Si pas de coordonnées, géocoder automatiquement
+          if (!latitude || !longitude) {
+            try {
+              console.log(`🗺️ Géocodage: ${stop.address}...`);
+              
+              const result = await GeocodingService.geocodeAddress(
+                stop.address,
+                stop.postalCode || '',
+                stop.city || ''
+              );
+              
+              if (result) {
+                latitude = result.latitude;
+                longitude = result.longitude;
+                console.log(`✅ ${stop.address} → ${latitude}, ${longitude}`);
+              } else {
+                console.warn(`⚠️ Impossible de géocoder: ${stop.address}`);
+              }
+            } catch (error) {
+              console.error(`❌ Erreur géocodage ${stop.address}:`, error);
+            }
+          }
+
+          return {
+            tour_id: tour.id,
+            sequence_order: index + 1,
+            address: stop.address,
+            customer_name: stop.customerName,
+            customer_phone: stop.customerPhone || null,
+            time_window_start: stop.timeWindowStart,
+            time_window_end: stop.timeWindowEnd,
+            weight_kg: stop.weight_kg || 0,
+            volume_m3: stop.volume_m3 || 0,
+            notes: stop.notes || null,
+            status: 'pending',
+            latitude: latitude,
+            longitude: longitude
+          };
+        })
+      );
 
       const { error: stopsError } = await supabase
         .from('delivery_stops')
-        .insert(stopsData);
+        .insert(stopsWithGPS);
 
       if (stopsError) {
-        console.error('Erreur création stops:', stopsError);
-        console.error('Code:', stopsError.code);
-        console.error('Message:', stopsError.message);
+        console.error('❌ Erreur création stops:', stopsError);
         throw stopsError;
       }
 
-      console.log('Stops créés avec succès');
+      const geocodedCount = stopsWithGPS.filter(s => s.latitude && s.longitude).length;
+      console.log(`✅ ${geocodedCount}/${stopsWithGPS.length} adresses géocodées avec succès`);
     }
 
+    console.log('🎉 Tournée créée avec GPS automatique !');
     return { success: true, tour };
+    
   } catch (error: any) {
-    console.error('Erreur création tournée complète:', error);
+    console.error('💥 Erreur création tournée:', error);
     return { success: false, error: error.message || error.toString() };
   }
 }

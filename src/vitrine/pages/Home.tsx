@@ -1,7 +1,8 @@
 import { lazy, Suspense } from "react";
 import Navbar from "../components/Navbar";
 import Hero from "../components/Hero";
-import About from "../components/About"; // 👈 AJOUTE ÇA (pas de lazy pour About car léger)
+import BetaBenefits from "../components/Betabenefits"; // 👈 AJOUTER
+//import About from "../components/About";
 import News from "../components/News";
 
 // Lazy loading des composants lourds pour optimiser les performances
@@ -25,9 +26,9 @@ export default function Home() {
       <main className="min-h-screen">
         <Hero />
 
-        {/* Section About - Pas de lazy car contenu léger et important pour SEO */}
-        <section id="about" aria-labelledby="about-title">
-          <About />
+        {/* Section BetaBenefits - Avantages de la bêta privée */}
+        <section id="beta-benefits" aria-labelledby="beta-benefits-title">
+          <BetaBenefits />
         </section>
 
         {/* Section Features avec lazy loading */}

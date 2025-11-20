@@ -1,4 +1,4 @@
-// src/components/TourMap.tsx - VERSION AMÉLIORÉE
+// src/components/TourMap.tsx - VERSION CORRIGÉE
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -32,7 +32,6 @@ interface TourMapProps {
   tourId?: string;
 }
 
-// 🗺️ DIFFÉRENTS FOURNISSEURS DE CARTES
 const MAP_PROVIDERS = {
   osm: {
     name: 'OpenStreetMap',
@@ -125,7 +124,6 @@ export default function TourMap({
   const [showProviderMenu, setShowProviderMenu] = useState(false);
   const [currentProvider, setCurrentProvider] = useState<keyof typeof MAP_PROVIDERS>('osm');
 
-  // Charger le fournisseur sauvegardé
   useEffect(() => {
     const saved = localStorage.getItem('map-provider');
     if (saved && MAP_PROVIDERS[saved as keyof typeof MAP_PROVIDERS]) {
@@ -133,7 +131,6 @@ export default function TourMap({
     }
   }, []);
 
-  // Charger le parcours depuis localStorage
   useEffect(() => {
     if (tourId) {
       const saved = localStorage.getItem(`driver-path-${tourId}`);
@@ -150,7 +147,6 @@ export default function TourMap({
     }
   }, [tourId]);
 
-  // Sauvegarder le parcours
   useEffect(() => {
     if (tourId && driverPath.length > 0) {
       localStorage.setItem(`driver-path-${tourId}`, JSON.stringify({
@@ -161,7 +157,6 @@ export default function TourMap({
     }
   }, [driverPath, pathDistance, tourId]);
 
-  // Calculer la distance (Haversine)
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
     const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -176,21 +171,17 @@ export default function TourMap({
     return R * c;
   };
 
-  // ✅ Initialiser la carte - PRIORITÉ AU CAMION
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
-    let initialCenter: [number, number] = [48.8566, 2.3522]; // Paris par défaut
+    let initialCenter: [number, number] = [48.8566, 2.3522];
     let initialZoom = 12;
 
-    // ✅ PRIORITÉ 1 : Position du camion si disponible
     if (driverLocation?.latitude && driverLocation?.longitude) {
       initialCenter = [driverLocation.latitude, driverLocation.longitude];
       initialZoom = 14;
       console.log('🚚 Carte centrée sur le camion:', initialCenter);
-    } 
-    // PRIORITÉ 2 : Sinon, centrer sur les stops
-    else {
+    } else {
       const validStops = stops.filter(s => s.latitude && s.longitude);
       
       if (validStops.length > 0) {
@@ -221,26 +212,22 @@ export default function TourMap({
     tileLayerRef.current = tileLayer;
     mapRef.current = map;
 
-    // Ajuster la vue pour inclure tous les éléments visibles
     setTimeout(() => {
       if (mapRef.current) {
         const bounds = L.latLngBounds([]);
         let hasPoints = false;
 
-        // Ajouter le camion aux bounds
         if (driverLocation?.latitude && driverLocation?.longitude) {
           bounds.extend([driverLocation.latitude, driverLocation.longitude]);
           hasPoints = true;
         }
 
-        // Ajouter les stops aux bounds
         const validStops = stops.filter(s => s.latitude && s.longitude);
         validStops.forEach(s => {
           bounds.extend([s.latitude, s.longitude]);
           hasPoints = true;
         });
 
-        // Ajuster la vue si on a plusieurs points
         if (hasPoints && bounds.isValid()) {
           mapRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 15 });
         }
@@ -248,16 +235,13 @@ export default function TourMap({
     }, 100);
   }, [stops, currentProvider, driverLocation]);
 
-  // Changer de fournisseur de tuiles
   const changeProvider = (providerId: keyof typeof MAP_PROVIDERS) => {
     if (!mapRef.current) return;
 
-    // Supprimer l'ancienne couche
     if (tileLayerRef.current) {
       mapRef.current.removeLayer(tileLayerRef.current);
     }
 
-    // Ajouter la nouvelle couche
     const provider = MAP_PROVIDERS[providerId];
     const newTileLayer = L.tileLayer(provider.url, {
       attribution: provider.attribution,
@@ -270,30 +254,18 @@ export default function TourMap({
     setShowProviderMenu(false);
   };
 
-  // Créer l'icône personnalisée avec meilleure visibilité
   const createCustomIcon = (stop: Stop) => {
     const color = markerColors[stop.status as keyof typeof markerColors] || markerColors.pending;
     
     const svgIcon = `
       <svg width="50" height="60" viewBox="0 0 50 60" xmlns="http://www.w3.org/2000/svg">
-        <!-- Ombre portée -->
         <ellipse cx="25" cy="56" rx="8" ry="3" fill="rgba(0,0,0,0.3)" />
-        
-        <!-- Contour blanc épais pour visibilité -->
         <path d="M25 2C13.954 2 5 10.954 5 22c0 14 20 35 20 35s20-21 20-35C45 10.954 36.046 2 25 2z" 
               fill="white" />
-        
-        <!-- Marqueur principal -->
         <path d="M25 5C15.611 5 8 12.611 8 22c0 12 17 30 17 30s17-18 17-30C42 12.611 34.389 5 25 5z" 
               fill="${color}" stroke="white" stroke-width="2.5"/>
-        
-        <!-- Cercle intérieur blanc -->
         <circle cx="25" cy="22" r="13" fill="white" opacity="0.95"/>
-        
-        <!-- Cercle de couleur -->
         <circle cx="25" cy="22" r="11" fill="${color}"/>
-        
-        <!-- Numéro avec contour -->
         <text x="25" y="29" font-size="16" font-weight="900" fill="white" text-anchor="middle" 
               stroke="rgba(0,0,0,0.3)" stroke-width="3" paint-order="stroke">
           ${stop.sequence_order}
@@ -313,7 +285,6 @@ export default function TourMap({
     });
   };
 
-  // Créer le popup
   const createPopupContent = (stop: Stop) => {
     const statusIcon = stop.status === 'completed' ? '✓' : 
                        stop.status === 'arrived' ? '→' : '○';
@@ -343,7 +314,6 @@ export default function TourMap({
     `;
   };
 
-  // Mettre à jour les markers
   useEffect(() => {
     if (!mapRef.current || stops.length === 0) return;
 
@@ -368,7 +338,6 @@ export default function TourMap({
     });
   }, [stops, onStopClick]);
 
-  // 🆕 AMÉLIORATION: Dessiner le parcours réel avec protection erreurs GPS
   useEffect(() => {
     if (!mapRef.current || !driverLocation) return;
 
@@ -377,17 +346,14 @@ export default function TourMap({
     setDriverPath(prev => {
       const updated = [...prev];
       
-      // Éviter les doublons (même position)
       if (updated.length > 0) {
         const last = updated[updated.length - 1];
         if (last[0] === newPoint[0] && last[1] === newPoint[1]) {
           return prev;
         }
         
-        // Calculer la distance
         const distance = calculateDistance(last[0], last[1], newPoint[0], newPoint[1]);
         
-        // 🆕 Ignorer les sauts trop importants (>1km = erreur GPS)
         if (distance > 1) {
           console.warn('⚠️ Saut GPS détecté:', distance.toFixed(2), 'km - ignoré');
           return prev;
@@ -402,7 +368,6 @@ export default function TourMap({
     });
   }, [driverLocation]);
 
-  // 🆕 AMÉLIORATION: Ligne bleue au lieu de verte avec meilleur style
   useEffect(() => {
     if (!mapRef.current || driverPath.length < 2) {
       if (driverPathRef.current) {
@@ -416,19 +381,18 @@ export default function TourMap({
       driverPathRef.current.setLatLngs(driverPath);
     } else {
       driverPathRef.current = L.polyline(driverPath, {
-        color: '#3B82F6',      // 🆕 Bleu au lieu de vert
-        weight: 5,              // 🆕 Plus épais
-        opacity: 0.8,           // 🆕 Plus opaque
-        smoothFactor: 1.5,      // 🆕 Plus lisse
-        lineCap: 'round',       // 🆕 Bouts arrondis
-        lineJoin: 'round'       // 🆕 Jointures arrondies
+        color: '#3B82F6',
+        weight: 5,
+        opacity: 0.8,
+        smoothFactor: 1.5,
+        lineCap: 'round',
+        lineJoin: 'round'
       }).addTo(mapRef.current);
     }
 
     console.log('🔵 Parcours mis à jour:', driverPath.length, 'points');
   }, [driverPath]);
 
-  // 🆕 AMÉLIORATION: Marker chauffeur avec animation pulse et design moderne
   useEffect(() => {
     if (!mapRef.current || !driverLocation) return;
 
@@ -438,7 +402,6 @@ export default function TourMap({
       const driverIcon = L.divIcon({
         html: `
           <div style="position: relative; width: 60px; height: 60px;">
-            <!-- Cercle pulsant bleu -->
             <div style="
               position: absolute; top: 50%; left: 50%; 
               transform: translate(-50%, -50%);
@@ -448,7 +411,6 @@ export default function TourMap({
               animation: pulse-ring 2s ease-in-out infinite;">
             </div>
             
-            <!-- Cercle blanc avec ombre -->
             <div style="
               position: absolute; top: 50%; left: 50%; 
               transform: translate(-50%, -50%);
@@ -458,7 +420,6 @@ export default function TourMap({
               box-shadow: 0 6px 20px rgba(0,0,0,0.3);">
             </div>
             
-            <!-- Cercle bleu avec dégradé -->
             <div style="
               position: absolute; top: 50%; left: 50%; 
               transform: translate(-50%, -50%);
@@ -528,59 +489,112 @@ export default function TourMap({
       driverMarkerRef.current = marker;
     }
 
-    // Centrer sur le chauffeur (avec animation)
     mapRef.current.setView([driverLocation.latitude, driverLocation.longitude], mapRef.current.getZoom(), { 
       animate: true, 
       duration: 0.5 
     });
   }, [driverLocation, pathDistance]);
 
-  // Gérer l'itinéraire planifié
+  // ✅ CORRECTION RADICALE: Détruire complètement le control avant d'en créer un nouveau
   useEffect(() => {
-    if (!mapRef.current || !showRoute || stops.length < 2) {
+    if (!mapRef.current || !showRoute || stops.length < 1) {
+      // Détruire le control existant
       if (routingControlRef.current) {
-        mapRef.current?.removeControl(routingControlRef.current);
+        try {
+          // Supprimer tous les event listeners
+          if (routingControlRef.current.off) {
+            routingControlRef.current.off();
+          }
+          // Supprimer de la map si attaché
+          if (mapRef.current && routingControlRef.current._map) {
+            mapRef.current.removeControl(routingControlRef.current);
+          }
+          // Supprimer manuellement les layers de route
+          if (routingControlRef.current._line) {
+            try {
+              mapRef.current?.removeLayer(routingControlRef.current._line);
+            } catch (e) {}
+          }
+        } catch (e) {
+          console.warn('⚠️ Erreur nettoyage routingControl:', e);
+        }
         routingControlRef.current = null;
       }
       return;
     }
 
     const validStops = stops.filter(s => s.latitude && s.longitude);
-    if (validStops.length < 2) return;
+    if (validStops.length < 1) return;
 
+    // Détruire complètement l'ancien control
     if (routingControlRef.current) {
-      mapRef.current.removeControl(routingControlRef.current);
+      try {
+        if (routingControlRef.current.off) {
+          routingControlRef.current.off();
+        }
+        if (routingControlRef.current._line && mapRef.current) {
+          try {
+            mapRef.current.removeLayer(routingControlRef.current._line);
+          } catch (e) {}
+        }
+        if (routingControlRef.current._map && mapRef.current) {
+          mapRef.current.removeControl(routingControlRef.current);
+        }
+      } catch (e) {
+        console.warn('⚠️ Erreur destruction routingControl:', e);
+      }
+      routingControlRef.current = null;
     }
 
-    const waypoints = validStops.map(stop => 
-      L.latLng(stop.latitude, stop.longitude)
-    );
+    const waypoints = [];
 
-    routingControlRef.current = (L as any).Routing.control({
-      waypoints: waypoints,
-      routeWhileDragging: false,
-      addWaypoints: false,
-      draggableWaypoints: false,
-      fitSelectedRoutes: false,
-      showAlternatives: false,
-      lineOptions: {
-        styles: [
-          { color: '#9CA3AF', opacity: 0.5, weight: 4, dashArray: '10, 10' }  // 🆕 Gris pointillé
-        ],
-        extendToWaypoints: true,
-        missingRouteTolerance: 0
-      },
-      createMarker: () => null,
-      show: false,
-    }).addTo(mapRef.current);
-
-    const container = routingControlRef.current.getContainer();
-    if (container) {
-      container.style.display = 'none';
+    if (driverLocation?.latitude && driverLocation?.longitude) {
+      waypoints.push(L.latLng(driverLocation.latitude, driverLocation.longitude));
+      console.log('🚚 Route depuis le camion:', [driverLocation.latitude, driverLocation.longitude]);
     }
-  }, [stops, showRoute]);
 
-  // 🆕 AMÉLIORATION: Fonction effacer le parcours
+    validStops.forEach(stop => {
+      waypoints.push(L.latLng(stop.latitude, stop.longitude));
+    });
+
+    console.log('📍 Waypoints totaux:', waypoints.length, '(camion + stops)');
+
+    if (waypoints.length < 2) return;
+
+    try {
+      routingControlRef.current = (L as any).Routing.control({
+        waypoints: waypoints,
+        routeWhileDragging: false,
+        addWaypoints: false,
+        draggableWaypoints: false,
+        fitSelectedRoutes: false,
+        showAlternatives: false,
+        lineOptions: {
+          styles: [
+            { 
+              color: '#EF4444',
+              opacity: 0.8,
+              weight: 5,
+              dashArray: '15, 10'
+            }
+          ],
+          extendToWaypoints: true,
+          missingRouteTolerance: 0
+        },
+        createMarker: () => null,
+        show: false,
+      }).addTo(mapRef.current);
+
+      const container = routingControlRef.current.getContainer();
+      if (container) {
+        container.style.display = 'none';
+      }
+    } catch (e) {
+      console.error('❌ Erreur lors de la création du routingControl:', e);
+      routingControlRef.current = null;
+    }
+  }, [stops, showRoute, driverLocation]);
+
   const clearDriverPath = () => {
     setDriverPath([]);
     setPathDistance(0);
@@ -594,61 +608,103 @@ export default function TourMap({
     console.log('🗑️ Parcours effacé');
   };
 
-  // CLEANUP COMPLET
+  // ✅ CLEANUP AMÉLIORÉ - Détruire le routingControl en priorité
   useEffect(() => {
     return () => {
       console.log('🧹 Cleanup TourMap');
 
-      if (routingControlRef.current && mapRef.current) {
+      // ✅ PRIORITÉ 1: Détruire le routingControl AVANT tout le reste
+      if (routingControlRef.current) {
         try {
-          mapRef.current.removeControl(routingControlRef.current);
+          // Désactiver tous les event listeners
+          if (routingControlRef.current.off) {
+            routingControlRef.current.off();
+          }
+          // Supprimer la ligne de route manuellement
+          if (routingControlRef.current._line && mapRef.current) {
+            try {
+              mapRef.current.removeLayer(routingControlRef.current._line);
+            } catch (e) {}
+          }
+          // Supprimer les waypoints markers
+          if (routingControlRef.current._markers) {
+            routingControlRef.current._markers.forEach((marker: any) => {
+              try {
+                if (mapRef.current) mapRef.current.removeLayer(marker);
+              } catch (e) {}
+            });
+          }
+          // Enfin supprimer le control de la map
+          if (routingControlRef.current._map && mapRef.current) {
+            mapRef.current.removeControl(routingControlRef.current);
+          }
         } catch (e) {
-          console.warn('Erreur cleanup routingControl:', e);
+          console.warn('⚠️ Erreur cleanup routingControl:', e);
         }
         routingControlRef.current = null;
       }
 
+      // ✅ Nettoyer les markers
       markersRef.current.forEach(marker => {
         try {
-          marker.remove();
+          if (marker && mapRef.current) {
+            marker.remove();
+          }
         } catch (e) {
-          console.warn('Erreur cleanup marker:', e);
+          console.warn('⚠️ Erreur cleanup marker:', e);
         }
       });
       markersRef.current = [];
 
+      // ✅ Nettoyer le marker du chauffeur
       if (driverMarkerRef.current) {
         try {
-          driverMarkerRef.current.remove();
+          if (mapRef.current) {
+            driverMarkerRef.current.remove();
+          }
         } catch (e) {
-          console.warn('Erreur cleanup driverMarker:', e);
+          console.warn('⚠️ Erreur cleanup driverMarker:', e);
         }
         driverMarkerRef.current = null;
       }
 
-      if (driverPathRef.current && mapRef.current) {
+      // ✅ Nettoyer le parcours
+      if (driverPathRef.current) {
         try {
-          mapRef.current.removeLayer(driverPathRef.current);
+          if (mapRef.current) {
+            mapRef.current.removeLayer(driverPathRef.current);
+          }
         } catch (e) {
-          console.warn('Erreur cleanup driverPath:', e);
+          console.warn('⚠️ Erreur cleanup driverPath:', e);
         }
         driverPathRef.current = null;
       }
 
-      if (tileLayerRef.current && mapRef.current) {
+      // ✅ Nettoyer la couche de tuiles
+      if (tileLayerRef.current) {
         try {
-          mapRef.current.removeLayer(tileLayerRef.current);
+          if (mapRef.current) {
+            mapRef.current.removeLayer(tileLayerRef.current);
+          }
         } catch (e) {
-          console.warn('Erreur cleanup tileLayer:', e);
+          console.warn('⚠️ Erreur cleanup tileLayer:', e);
         }
         tileLayerRef.current = null;
       }
 
+      // ✅ Détruire la carte en DERNIER
       if (mapRef.current) {
         try {
+          // Supprimer tous les layers restants
+          mapRef.current.eachLayer((layer: any) => {
+            try {
+              mapRef.current?.removeLayer(layer);
+            } catch (e) {}
+          });
+          // Détruire la map
           mapRef.current.remove();
         } catch (e) {
-          console.warn('Erreur cleanup map:', e);
+          console.warn('⚠️ Erreur cleanup map:', e);
         }
         mapRef.current = null;
       }
@@ -659,8 +715,7 @@ export default function TourMap({
 
   return (
     <div style={{ position: 'relative', height }}>
-      {/* Sélecteur de fournisseur de carte */}
-      <div style={{ position: 'absolute', top: '10px', left: '10px', zIndex: 1000 }}>
+      <div style={{ position: 'absolute', top: '10px', left: '60px', zIndex: 400 }}>
         <button
           onClick={() => setShowProviderMenu(!showProviderMenu)}
           style={{
@@ -679,7 +734,8 @@ export default function TourMap({
             position: 'absolute', top: '50px', left: 0,
             background: 'white', borderRadius: '8px',
             boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-            overflow: 'hidden', minWidth: '200px'
+            overflow: 'hidden', minWidth: '200px',
+            zIndex: 400
           }}>
             {Object.entries(MAP_PROVIDERS).map(([id, provider]) => (
               <button
@@ -711,7 +767,6 @@ export default function TourMap({
         )}
       </div>
 
-      {/* 🆕 AMÉLIORATION: Panneau info moderne avec bouton effacer */}
       {driverPath.length > 0 && (
         <div style={{
           position: 'absolute', top: '10px', right: '10px', zIndex: 1000,
@@ -824,6 +879,14 @@ export default function TourMap({
         .leaflet-popup-close-button {
           font-size: 20px !important;
           padding: 4px 8px !important;
+        }
+        
+        .leaflet-control-zoom {
+          z-index: 500 !important;
+        }
+        
+        .leaflet-top, .leaflet-bottom {
+          z-index: 500 !important;
         }
       `}</style>
     </div>
