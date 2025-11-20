@@ -43,7 +43,7 @@ export default function Hero() {
             </span>
             <Rocket size={20} className="text-white" />
             <span className="text-sm font-bold text-white drop-shadow-lg">
-              🚀 BÊTA PRIVÉE - 15 places disponibles - Lancement Février 2025
+              BÊTA PRIVÉE - 15 places disponibles - Lancement Février 2025
             </span>
           </div>
 
