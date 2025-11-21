@@ -165,7 +165,7 @@ export default function BetaBenefits() {
               </div>
               <div className="flex-1 bg-white rounded-xl p-5 border-2 border-green-500 shadow-lg">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-bold text-lg text-gray-900">Novembre 2024 - Février 2025</h4>
+                  <h4 className="font-bold text-lg text-gray-900">Novembre 2025 - Février 2026</h4>
                   <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
                     EN COURS
                   </span>
@@ -185,7 +185,7 @@ export default function BetaBenefits() {
               </div>
               <div className="flex-1 bg-white rounded-xl p-5 border-2 border-blue-200">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-bold text-lg text-gray-900">Février 2025</h4>
+                  <h4 className="font-bold text-lg text-gray-900">Février 2026</h4>
                   <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">
                     LANCEMENT
                   </span>
@@ -205,7 +205,7 @@ export default function BetaBenefits() {
               </div>
               <div className="flex-1 bg-white rounded-xl p-5 border-2 border-purple-200">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-bold text-lg text-gray-900">Mars - Juin 2025</h4>
+                  <h4 className="font-bold text-lg text-gray-900">2026</h4>
                   <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-xs font-bold">
                     PROCHAINEMENT
                   </span>
@@ -231,7 +231,7 @@ export default function BetaBenefits() {
             </h3>
             
             <p className="text-lg mb-6 text-white/90 max-w-2xl mx-auto">
-              Il reste <strong className="text-2xl">12 places</strong> sur les 15 disponibles pour la bêta privée
+              Il reste <strong className="text-2xl">15 places</strong> sur les 15 disponibles pour la bêta privée
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
