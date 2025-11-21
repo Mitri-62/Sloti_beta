@@ -68,7 +68,7 @@ export default function Hero() {
               isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
             }`}
             style={{
-              textShadow: '0 2px 8px rgba(0,0,0,0.8)'
+              textShadow: '0 2px 8px rgba(0,0,0,0.8), 0 2px 4px rgba(0,0,0,0.6)'
             }}
           >
             Rejoignez les <span className="text-[#fafaf9] font-bold">15 premiers</span> utilisateurs

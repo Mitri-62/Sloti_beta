@@ -1,14 +1,17 @@
-// src/vitrine/components/Features.tsx - SCREENSHOTS ALTERNÉS GAUCHE/DROITE
-import { LayoutDashboard, Calendar, Box, Layers, Truck, Package, TrendingUp, TrendingDown, Boxes, BarChart3, MessageSquare, Shield, Zap, ArrowRight } from "lucide-react";
+// src/vitrine/components/Features.tsx
+import { useState } from "react";
+import { LayoutDashboard, Calendar, Box, Layers, Truck, TrendingUp, TrendingDown, Boxes, MessageSquare, Zap, ArrowRight, Warehouse, CarFront, Users, ClipboardCheck, Database, } from "lucide-react";
 
 const features = [
+  // PRINCIPAL
   {
     icon: LayoutDashboard,
-    title: "Dashboard intuitif",
-    description: "Toutes vos métriques clés en un coup d'œil : stocks, tournées, planning.",
+    title: "Accueil / Dashboard",
+    description: "Toutes vos métriques clés en un coup d'œil : stocks, tournées, planning, alertes.",
     benefit: "Gain de temps : 45 min/jour",
     color: "blue",
-    category: "pilotage"
+    category: "principal",
+    screenshot: "/screenshots/dashboard.png"
   },
   {
     icon: Calendar,
@@ -16,23 +19,8 @@ const features = [
     description: "Planifiez réceptions et expéditions en équipe, avec notifications automatiques.",
     benefit: "Zéro conflit de planning",
     color: "purple",
-    category: "pilotage"
-  },
-  {
-    icon: Box,
-    title: "Chargement 3D",
-    description: "Visualisez vos camions en temps réel et optimisez chaque centimètre cube.",
-    benefit: "Jusqu'à 30% d'espace gagné",
-    color: "cyan",
-    category: "optimisation"
-  },
-  {
-    icon: Layers,
-    title: "Chargement Auto",
-    description: "L'algorithme calcule le meilleur gerbage pour vos palettes en 5 secondes.",
-    benefit: "Optimisation instantanée",
-    color: "green",
-    category: "optimisation"
+    category: "principal",
+    screenshot: "/screenshots/planning.png"
   },
   {
     icon: Truck,
@@ -40,23 +28,65 @@ const features = [
     description: "Optimisez routes et plannings de livraison avec GPS et suivi temps réel.",
     benefit: "Jusqu'à 20% de km en moins",
     color: "orange",
-    category: "optimisation"
+    category: "principal",
+    screenshot: "/screenshots/tournees.png"
+  },
+  // OPÉRATIONS
+  {
+    icon: Box,
+    title: "Chargement 3D",
+    description: "Visualisez vos camions en temps réel et optimisez chaque centimètre cube.",
+    benefit: "Jusqu'à 30% d'espace gagné",
+    color: "cyan",
+    category: "operations",
+    screenshot: "/screenshots/chargement-3d.png"
   },
   {
-    icon: Package,
-    title: "Gestion des stocks",
-    description: "Suivi en temps réel des entrées/sorties avec alertes de rupture automatiques.",
-    benefit: "Stocks toujours à jour",
-    color: "indigo",
-    category: "stocks"
+    icon: Layers,
+    title: "Chargement Auto",
+    description: "L'algorithme calcule le meilleur gerbage pour vos palettes en 5 secondes.",
+    benefit: "Optimisation instantanée",
+    color: "green",
+    category: "operations",
+    screenshot: "/screenshots/chargement-auto.png"
   },
+  {
+    icon: Warehouse,
+    title: "Gestion des Quais",
+    description: "Planifiez l'occupation de vos quais et évitez les engorgements.",
+    benefit: "Fluidité des opérations",
+    color: "indigo",
+    category: "operations",
+    screenshot: "/screenshots/quais.png"
+  },
+  // FLOTTE
+  {
+    icon: CarFront,
+    title: "Véhicules",
+    description: "Gérez votre parc de véhicules : capacités, disponibilités, maintenance.",
+    benefit: "Flotte optimisée",
+    color: "blue",
+    category: "flotte",
+    screenshot: "/screenshots/vehicules.png"
+  },
+  {
+    icon: Users,
+    title: "Chauffeurs",
+    description: "Assignez vos chauffeurs aux tournées avec suivi GPS en temps réel.",
+    benefit: "Équipes coordonnées",
+    color: "teal",
+    category: "flotte",
+    screenshot: "/screenshots/chauffeurs.png"
+  },
+  // STOCKS
   {
     icon: TrendingUp,
     title: "Entrées de stock",
     description: "Scannez, validez et tracez chaque réception avec historique complet.",
     benefit: "Traçabilité totale",
     color: "green",
-    category: "stocks"
+    category: "stocks",
+    screenshot: "/screenshots/entrees-stock.png"
   },
   {
     icon: TrendingDown,
@@ -64,40 +94,48 @@ const features = [
     description: "Gérez expéditions et préparations avec validation multi-niveaux.",
     benefit: "Zéro erreur d'expédition",
     color: "red",
-    category: "stocks"
+    category: "stocks",
+    screenshot: "/screenshots/sorties-stock.png"
   },
   {
     icon: Boxes,
-    title: "Vue Synoptique 3D",
+    title: "Vue Synoptique",
     description: "Explorez votre entrepôt en 3D et localisez n'importe quelle palette instantanément.",
     benefit: "Recherche en 3 secondes",
-    color: "teal",
-    category: "stocks"
+    color: "purple",
+    category: "stocks",
+    screenshot: "/screenshots/vue-synoptique.png"
   },
   {
-    icon: BarChart3,
+    icon: ClipboardCheck,
+    title: "Inventaires",
+    description: "Réalisez vos inventaires tournants ou complets avec validation mobile.",
+    benefit: "Inventaire précis",
+    color: "orange",
+    category: "stocks",
+    screenshot: "/screenshots/inventaires.png"
+  },
+  // DONNÉES
+  {
+    icon: Database,
     title: "MasterData",
     description: "Base centralisée de tous vos articles, clients et fournisseurs avec import Excel.",
     benefit: "Une seule source de vérité",
-    color: "purple",
-    category: "pilotage"
+    color: "indigo",
+    category: "donnees",
+    screenshot: "/screenshots/masterdata.png"
   },
+  // COMMUNICATION & ADMIN
   {
     icon: MessageSquare,
-    title: "Chat intégré",
+    title: "Messages",
     description: "Communiquez en direct avec toute l'équipe, sans quitter la plateforme.",
     benefit: "Communication instantanée",
     color: "pink",
-    category: "collaboration"
+    category: "communication",
+    screenshot: "/screenshots/messages.png"
   },
-  {
-    icon: Shield,
-    title: "Sécurité renforcée",
-    description: "Chiffrement de bout en bout, sauvegardes automatiques et conformité RGPD.",
-    benefit: "Données 100% sécurisées",
-    color: "gray",
-    category: "collaboration"
-  },
+  
 ];
 
 const colorClasses = {
@@ -114,41 +152,70 @@ const colorClasses = {
 };
 
 const categoryLabels = {
-  pilotage: { 
-    label: "Pilotage", 
+  principal: { 
+    label: "Principal", 
     icon: "🎯", 
     color: "blue",
-    screenshot: "/screenshots/dashboard.png",
-    screenshotAlt: "Interface du dashboard Sloti avec métriques en temps réel",
-    layout: "right" // Screenshot à droite
+    defaultScreenshot: "/screenshots/dashboard.png",
+    layout: "right"
   },
-  optimisation: { 
-    label: "Optimisation", 
+  operations: { 
+    label: "Opérations", 
     icon: "⚡", 
-    color: "green",
-    screenshot: "/screenshots/chargement-3d.png",
-    screenshotAlt: "Visualisation 3D du chargement optimisé d'un camion",
-    layout: "left" // Screenshot à gauche
+    color: "cyan",
+    defaultScreenshot: "/screenshots/chargement-3d.png",
+    layout: "left"
+  },
+  flotte: { 
+    label: "Flotte", 
+    icon: "🚚", 
+    color: "teal",
+    defaultScreenshot: "/screenshots/vehicules.png",
+    layout: "right"
   },
   stocks: { 
     label: "Stocks", 
     icon: "📦", 
     color: "purple",
-    screenshot: "/screenshots/stock-3d.png",
-    screenshotAlt: "Vue synoptique 3D de l'entrepôt avec localisation des palettes",
-    layout: "right" // Screenshot à droite
+    defaultScreenshot: "/screenshots/entrees-stock.png",
+    layout: "left"
   },
-  collaboration: { 
-    label: "Collaboration", 
-    icon: "🤝", 
-    color: "pink",
-    screenshot: "/screenshots/chat.png",
-    screenshotAlt: "Interface de chat d'équipe intégré",
-    layout: "left" // Screenshot à gauche
+  donnees: { 
+    label: "Données", 
+    icon: "🗄️", 
+    color: "indigo",
+    defaultScreenshot: "/screenshots/masterdata.png",
+    layout: "right"
+  },
+  communication: { 
+    label: "Communication", 
+    icon: "💬", 
+    color: "gray",
+    defaultScreenshot: "/screenshots/messages.png",
+    layout: "left"
   }
 };
 
 export default function Features() {
+  // État pour tracker le screenshot actif par catégorie
+  const [activeScreenshots, setActiveScreenshots] = useState<Record<string, string>>({});
+
+  // Fonction pour changer le screenshot au hover
+  const handleFeatureHover = (category: string, screenshot: string) => {
+    setActiveScreenshots(prev => ({
+      ...prev,
+      [category]: screenshot
+    }));
+  };
+
+  // Fonction pour réinitialiser au screenshot par défaut
+  const handleFeatureLeave = (category: string, defaultScreenshot: string) => {
+    setActiveScreenshots(prev => ({
+      ...prev,
+      [category]: defaultScreenshot
+    }));
+  };
+
   return (
     <section 
       id="features" 
@@ -161,7 +228,7 @@ export default function Features() {
           <div className="inline-flex items-center gap-2 bg-blue-100 px-4 py-2 rounded-full mb-4">
             <Zap size={18} className="text-blue-600" />
             <span className="text-sm font-semibold text-blue-600">
-              12 fonctionnalités puissantes
+              15 fonctionnalités puissantes
             </span>
           </div>
           
@@ -179,9 +246,16 @@ export default function Features() {
         </div>
 
         {/* Catégories avec alternance screenshot/cards */}
-        {Object.entries(categoryLabels).map(([categoryKey, categoryInfo],) => {
+        {Object.entries(categoryLabels).map(([categoryKey, categoryInfo]) => {
           const categoryFeatures = features.filter(f => f.category === categoryKey);
           const isImageLeft = categoryInfo.layout === "left";
+          
+          // Screenshot actuel (hover ou défaut)
+          const currentScreenshot = activeScreenshots[categoryKey] || categoryInfo.defaultScreenshot;
+          
+          // Trouver le titre de la feature active
+          const activeFeature = categoryFeatures.find(f => f.screenshot === currentScreenshot);
+          const activeTitle = activeFeature?.title || categoryInfo.label;
           
           return (
             <div key={categoryKey} className="mb-16 sm:mb-20">
@@ -195,65 +269,96 @@ export default function Features() {
                 </h3>
               </div>
 
-              {/* Layout alterné : Screenshot + Cards */}
-              <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center ${
-                isImageLeft ? 'lg:flex-row-reverse' : ''
-              }`}>
+              {/* Layout alternÃ© : Screenshot + Cards */}
+              <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center`}>
                 
-                {/* Screenshot */}
+                {/* Screenshot - Position dynamique */}
                 <div className={`${isImageLeft ? 'lg:order-1' : 'lg:order-2'}`}>
                   <div className="group relative overflow-hidden rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300">
-                    <img 
-                      src={categoryInfo.screenshot} 
-                      alt={categoryInfo.screenshotAlt}
-                      className="w-full h-auto group-hover:scale-105 transition-transform duration-500"
-                      loading="lazy"
-                    />
-                    {/* Overlay au hover */}
+                    {/* Image avec transition fluide */}
+                    <div className="relative aspect-video bg-gray-100">
+                      <img 
+                        src={currentScreenshot} 
+                        alt={`Interface ${activeTitle}`}
+                        className="w-full h-full object-cover transition-opacity duration-300"
+                        loading="lazy"
+                      />
+                    </div>
+                    
+                    {/* Overlay avec titre dynamique */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                       <div className="absolute bottom-0 left-0 right-0 p-6">
                         <p className="text-white text-lg font-semibold flex items-center gap-2">
                           <Zap size={20} className="text-yellow-400" />
-                          {categoryInfo.label} en action
+                          {activeTitle}
                         </p>
                       </div>
                     </div>
                   </div>
+                  
+                  {/* Indicateur de feature active */}
+                  <div className="mt-4 flex justify-center gap-2">
+                    {categoryFeatures.map((feature, idx) => (
+                      <div 
+                        key={idx}
+                        className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                          currentScreenshot === feature.screenshot 
+                            ? 'bg-[#2792B0] w-6' 
+                            : 'bg-gray-300'
+                        }`}
+                      />
+                    ))}
+                  </div>
                 </div>
 
                 {/* Cards des fonctionnalités */}
-                <div className={`space-y-6 ${isImageLeft ? 'lg:order-2' : 'lg:order-1'}`}>
+                <div className={`space-y-4 ${isImageLeft ? 'lg:order-2' : 'lg:order-1'}`}>
                   {categoryFeatures.map((feature, i) => (
                     <article
                       key={i}
-                      className="group flex items-start gap-4 p-6 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 bg-white border border-gray-100 hover:border-[#2792B0] hover:-translate-x-1"
+                      className={`group flex items-start gap-4 p-5 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 bg-white border-2 cursor-pointer ${
+                        currentScreenshot === feature.screenshot 
+                          ? 'border-[#2792B0] bg-blue-50/30' 
+                          : 'border-gray-100 hover:border-[#2792B0]'
+                      }`}
+                      onMouseEnter={() => handleFeatureHover(categoryKey, feature.screenshot)}
+                      onMouseLeave={() => handleFeatureLeave(categoryKey, categoryInfo.defaultScreenshot)}
                     >
                       {/* Icône */}
                       <div 
-                        className={`flex-shrink-0 w-14 h-14 flex items-center justify-center rounded-xl transition-all duration-300 ${
+                        className={`flex-shrink-0 w-12 h-12 flex items-center justify-center rounded-xl transition-all duration-300 ${
                           colorClasses[feature.color as keyof typeof colorClasses]
                         }`}
                       >
-                        <feature.icon className="w-7 h-7" strokeWidth={2} />
+                        <feature.icon className="w-6 h-6" strokeWidth={2} />
                       </div>
 
                       {/* Contenu */}
                       <div className="flex-1 min-w-0">
-                        <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                        <h4 className="text-base font-semibold text-gray-900 mb-1">
                           {feature.title}
                         </h4>
-                        <p className="text-sm text-gray-600 leading-relaxed mb-3">
+                        <p className="text-sm text-gray-600 leading-relaxed mb-2">
                           {feature.description}
                         </p>
                         
-                        {/* Bénéfice */}
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        {/* Bénéfice - toujours visible sur la card active */}
+                        <div className={`transition-all duration-300 ${
+                          currentScreenshot === feature.screenshot 
+                            ? 'opacity-100' 
+                            : 'opacity-0 group-hover:opacity-100'
+                        }`}>
                           <p className="text-sm font-semibold text-[#2792B0] flex items-center gap-2">
                             <ArrowRight size={14} />
                             {feature.benefit}
                           </p>
                         </div>
                       </div>
+
+                      {/* Indicateur actif */}
+                      {currentScreenshot === feature.screenshot && (
+                        <div className="flex-shrink-0 w-2 h-full bg-[#2792B0] rounded-full self-stretch" />
+                      )}
                     </article>
                   ))}
                 </div>
@@ -262,15 +367,15 @@ export default function Features() {
           );
         })}
 
-        {/* Bannière finale - VERSION CORRIGÉE */}
+        {/* Bannière finale */}
         <div className="mt-16 bg-gradient-to-r from-[#2792B0] to-[#207A94] rounded-2xl shadow-xl p-8 sm:p-10 text-white text-center">
-        <h3 className="text-2xl sm:text-3xl font-bold mb-4">
-        Toutes les fonctionnalités. Aucun module caché.
-        </h3>
-        <p className="text-base sm:text-lg mb-6 text-white/90 max-w-2xl mx-auto">
-        Du plan Starter au plan Enterprise, chaque fonctionnalité annoncée est 
-        accessible immédiatement. Testez gratuitement pendant 14 jours.
-        </p>
+          <h3 className="text-2xl sm:text-3xl font-bold mb-4">
+            Toutes les fonctionnalités. Aucun module caché.
+          </h3>
+          <p className="text-base sm:text-lg mb-6 text-white/90 max-w-2xl mx-auto">
+            Du plan Starter au plan Enterprise, chaque fonctionnalité annoncée est 
+            accessible immédiatement. Testez gratuitement pendant 14 jours.
+          </p>
           <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
             <a
               href="#pricing"

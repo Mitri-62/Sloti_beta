@@ -16,12 +16,10 @@ export default function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Fermer le menu mobile lors du clic sur un lien
   const handleLinkClick = () => {
     setMobileMenuOpen(false);
   };
 
-  // Empêcher le scroll quand le menu mobile est ouvert
   useEffect(() => {
     if (mobileMenuOpen) {
       document.body.style.overflow = 'hidden';
@@ -64,6 +62,11 @@ export default function Navbar() {
             className={`text-xl sm:text-2xl font-bold transition-colors duration-300 ${
               scrolled ? "text-[#F91974]" : "text-white"
             }`}
+            style={{
+              textShadow: scrolled 
+                ? 'none' 
+                : '0 2px 8px rgba(0,0,0,0.8), 0 2px 4px rgba(0,0,0,0.6)'
+            }}
           >
             Sloti.
           </span>
@@ -74,6 +77,11 @@ export default function Navbar() {
           className={`hidden md:flex items-center gap-6 lg:gap-8 font-medium transition-colors duration-300 ${
             scrolled ? "text-gray-800" : "text-white"
           }`}
+          style={{
+            textShadow: scrolled 
+              ? 'none' 
+              : '0 2px 8px rgba(0,0,0,0.8), 0 2px 4px rgba(0,0,0,0.6)'
+          }}
           aria-label="Navigation principale"
         >
           {navLinks.map((link) => (
@@ -96,6 +104,11 @@ export default function Navbar() {
                 ? "text-gray-700 hover:bg-gray-100"
                 : "text-white hover:bg-white/10"
             }`}
+            style={{
+              textShadow: scrolled 
+                ? 'none' 
+                : '0 2px 8px rgba(0,0,0,0.8), 0 2px 4px rgba(0,0,0,0.6)'
+            }}
           >
             Connexion
           </Link>
@@ -107,6 +120,11 @@ export default function Navbar() {
           className={`md:hidden p-2 rounded-lg transition-colors duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
             scrolled ? "text-gray-800" : "text-white"
           }`}
+          style={{
+            filter: scrolled 
+              ? 'none' 
+              : 'drop-shadow(0 2px 4px rgba(0,0,0,0.6))'
+          }}
           aria-label={mobileMenuOpen ? "Fermer le menu" : "Ouvrir le menu"}
           aria-expanded={mobileMenuOpen}
         >
