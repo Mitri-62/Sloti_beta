@@ -1,4 +1,4 @@
-// src/pages/StockSynoptique.tsx - VERSION COMPLÈTE AVEC LES 3 VUES
+// src/pages/StockSynoptique.tsx - VERSION COMPLÈTE AVEC TUS
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../contexts/AuthContext";
@@ -33,6 +33,7 @@ type StockItem = {
   movement_name?: string;
   created_at?: string;
   updated_at?: string;
+  tus?: string | null; // ✅ AJOUTÉ : Type d'Unité de Stockage
 };
 
 type ForecastData = {
@@ -70,14 +71,54 @@ export default function StockSynoptique() {
     }
 
     try {
-      const { data, error } = await supabase
+      // ✅ 1. Charger les stocks
+      const { data: stocksData, error: stocksError } = await supabase
         .from("stocks")
         .select("*")
         .eq("company_id", companyId)
         .order("name");
 
-      if (error) throw error;
-      if (data) setItems(data);
+      if (stocksError) throw stocksError;
+
+      if (stocksData && stocksData.length > 0) {
+        // ✅ 2. Récupérer les noms uniques (= SKU dans masterdata)
+        const uniqueNames = [...new Set(stocksData.map(s => s.name).filter(Boolean))];
+
+        // ✅ 3. Charger le TUS depuis masterdata pour ces SKUs
+        const { data: mdData, error: mdError } = await supabase
+          .from("masterdata")
+          .select("sku, tus, designation")
+          .eq("company_id", companyId)
+          .in("sku", uniqueNames);
+
+        if (mdError) {
+          console.warn("Erreur chargement masterdata:", mdError);
+        }
+
+        // ✅ 4. Créer une map SKU -> TUS pour un accès rapide
+        const tusMap = new Map<string, { tus: string | null; designation: string | null }>();
+        mdData?.forEach(m => {
+          tusMap.set(m.sku, { tus: m.tus, designation: m.designation });
+        });
+
+        // ✅ 5. Enrichir les stocks avec le TUS
+        const itemsWithTus = stocksData.map(item => {
+          const mdInfo = tusMap.get(item.name);
+          return {
+            ...item,
+            tus: mdInfo?.tus || null,
+            designation: item.designation || mdInfo?.designation || null,
+          };
+        });
+
+        setItems(itemsWithTus);
+        
+        // Debug : afficher combien ont un TUS
+        const withTus = itemsWithTus.filter(i => i.tus).length;
+        console.log(`✅ Stocks chargés: ${itemsWithTus.length} | Avec TUS: ${withTus}`);
+      } else {
+        setItems([]);
+      }
 
       // Charger l'historique des mouvements
       await loadStockHistory();
@@ -287,7 +328,7 @@ export default function StockSynoptique() {
     const headers = [
       "EAN", "Article", "Type", "Quantité", "Lot", "DLC", 
       "Désignation", "Type Mag. Prenant", "Empl. Prenant", 
-      "Empl. Cédant", "Ordre Transfert", "Qté Théor. Prenant", "Mouvement"
+      "Empl. Cédant", "Ordre Transfert", "Qté Théor. Prenant", "Mouvement", "TUS"
     ];
 
     const rows = filteredItems.map(item => [
@@ -304,6 +345,7 @@ export default function StockSynoptique() {
       item.ordre_transfert || "",
       item.qte_theorique_prenant || "",
       item.movement_name || "",
+      item.tus || "",
     ]);
 
     const csvContent = [headers, ...rows]
@@ -503,7 +545,7 @@ export default function StockSynoptique() {
               </div>
             </div>
 
-            {/* Graphiques ... (reste du code forecast) */}
+            {/* Graphique évolution stock */}
             <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <BarChart3 size={20} className="text-blue-600" />
@@ -714,8 +756,7 @@ export default function StockSynoptique() {
             <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
               <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 flex items-center justify-between">
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {filteredItems.length} résultat
-                  {filteredItems.length > 1 ? "s" : ""}{" "}
+                  {filteredItems.length} résultat{filteredItems.length > 1 ? "s" : ""}{" "}
                   {search && ` pour "${search}"`}
                 </p>
                 {editingId && (
@@ -738,16 +779,14 @@ export default function StockSynoptique() {
                       <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Lot</th>
                       <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">DLC</th>
                       <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Désignation</th>
-                      <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Empl. Prenant</th>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">Empl.</th>
+                      <th className="px-4 py-3 text-left font-semibold text-gray-700 dark:text-gray-300">TUS</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                     {filteredItems.length === 0 ? (
                       <tr>
-                        <td
-                          colSpan={9}
-                          className="px-4 py-8 text-center text-gray-500 dark:text-gray-400"
-                        >
+                        <td colSpan={10} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                           Aucun résultat trouvé
                         </td>
                       </tr>
@@ -770,7 +809,7 @@ export default function StockSynoptique() {
                                   <button
                                     onClick={saveEditing}
                                     disabled={saving}
-                                    className="p-1 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300 disabled:opacity-50"
+                                    className="p-1 text-green-600 hover:text-green-700 dark:text-green-400 disabled:opacity-50"
                                     title="Sauvegarder"
                                   >
                                     {saving ? (
@@ -782,7 +821,7 @@ export default function StockSynoptique() {
                                   <button
                                     onClick={cancelEditing}
                                     disabled={saving}
-                                    className="p-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 disabled:opacity-50"
+                                    className="p-1 text-red-600 hover:text-red-700 dark:text-red-400 disabled:opacity-50"
                                     title="Annuler"
                                   >
                                     <X size={18} />
@@ -791,7 +830,7 @@ export default function StockSynoptique() {
                               ) : (
                                 <button
                                   onClick={() => startEditing(item)}
-                                  className="p-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                  className="p-1 text-blue-600 hover:text-blue-700 dark:text-blue-400"
                                   title="Modifier"
                                 >
                                   <Edit2 size={18} />
@@ -892,9 +931,7 @@ export default function StockSynoptique() {
                                   >
                                     {new Date(item.expiration_date).toLocaleDateString("fr-FR")}
                                   </span>
-                                ) : (
-                                  "-"
-                                )
+                                ) : "-"
                               )}
                             </td>
 
@@ -908,10 +945,7 @@ export default function StockSynoptique() {
                                   placeholder="Désignation"
                                 />
                               ) : (
-                                <span
-                                  className="text-gray-600 dark:text-gray-400 max-w-xs truncate block"
-                                  title={item.designation || ""}
-                                >
+                                <span className="text-gray-600 dark:text-gray-400 max-w-xs truncate block" title={item.designation || ""}>
                                   {item.designation || "-"}
                                 </span>
                               )}
@@ -929,6 +963,19 @@ export default function StockSynoptique() {
                               ) : (
                                 <span className="text-gray-600 dark:text-gray-400">{item.emplacement_prenant || "-"}</span>
                               )}
+                            </td>
+
+                            {/* ✅ NOUVELLE COLONNE TUS */}
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                item.tus === 'FCH' 
+                                  ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' 
+                                  : item.tus === 'FEU'
+                                  ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+                                  : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                              }`}>
+                                {item.tus || "-"}
+                              </span>
                             </td>
                           </tr>
                         );
