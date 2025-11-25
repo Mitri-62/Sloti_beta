@@ -19,7 +19,7 @@ const getMaterial = (key: string, props: THREE.MeshStandardMaterialParameters): 
   if (!materialCache.has(cacheKey)) {
     materialCache.set(cacheKey, new THREE.MeshStandardMaterial(props));
   }
-  return materialCache.get(cacheKey)!;
+  return materialCache.get(cacheKey)!.clone(); // ✅ Clone pour permettre modification individuelle
 };
 
 interface CreateRackOptions {
@@ -32,14 +32,15 @@ interface CreateRackOptions {
   hoveredRack: string | null;
   showLabels: boolean;
   labelSprites: THREE.Sprite[];
-  heatmapColor?: number | null; // ✅ NOUVEAU: Couleur heatmap optionnelle
-  heatmapLabel?: string | null; // ✅ NOUVEAU: Label heatmap optionnel
+  heatmapColor?: number | null;
+  heatmapLabel?: string | null;
 }
 
+// ✅ Retourne le groupe maintenant
 export const createRack = ({
   scene, rackData, config, colors, isEditMode, selectedRackId, hoveredRack, showLabels, labelSprites,
   heatmapColor, heatmapLabel
-}: CreateRackOptions): void => {
+}: CreateRackOptions): THREE.Group => {
   const { rackCode, stockByLevel, id, rotation } = rackData;
   const { rackHeight, rackDepth, bayWidth, levelCount } = config;
   const group = new THREE.Group();
@@ -61,11 +62,13 @@ export const createRack = ({
   const isHov = hoveredRack === rackCode;
   const isSel = selectedRackId === id;
 
-  // ✅ Couleur frame : heatmap prioritaire, sinon logique normale
+  // Couleur frame : heatmap prioritaire, sinon logique normale
   const useHeatmap = heatmapColor != null;
-  const frameColor = useHeatmap 
+  const baseFrameColor = useHeatmap 
     ? heatmapColor 
-    : (hasOverflow ? 0xef4444 : (isSel ? 0x22c55e : colors.rack));
+    : (hasOverflow ? 0xef4444 : colors.rack);
+  
+  const frameColor = isSel ? 0x22c55e : baseFrameColor;
   
   const frameEmissive = useHeatmap
     ? heatmapColor
@@ -96,6 +99,7 @@ export const createRack = ({
     upright.scale.y = rackHeight;
     upright.position.set(px, rackHeight / 2, pz);
     upright.castShadow = true;
+    upright.userData.isRackFrame = true; // ✅ Marqueur pour highlight dynamique
     group.add(upright);
   });
 
@@ -123,6 +127,7 @@ export const createRack = ({
       beam.scale.x = bayWidth - 0.1;
       beam.position.set(0, y, bz);
       beam.castShadow = true;
+      beam.userData.isRackFrame = true; // ✅ Marqueur pour highlight dynamique
       group.add(beam);
     });
 
@@ -180,15 +185,14 @@ export const createRack = ({
           box.castShadow = true;
           group.add(box);
 
-          // Label collé sur la face avant de la box
+          // Label avec EAN
           const qtySprite = createQuantitySprite(
             slot.totalQuantity, 
             slot.tus, 
             slot.position, 
             alveole.isOverflow,
-            slot.items.map(i => ({ name: i.name, lot: i.lot, designation: i.designation }))
+            slot.items.map(i => ({ name: i.name, lot: i.lot, ean: i.ean, designation: i.designation }))
           );
-          // Position sur la face avant (Z positif = face avant)
           qtySprite.position.set(posX, y + 0.07 + pCfg.h + h / 2, pCfg.d / 2 + 0.02);
           group.add(qtySprite);
         }
@@ -222,6 +226,8 @@ export const createRack = ({
   });
 
   scene.add(group);
+  
+  return group; // ✅ Retourne le groupe
 };
 
 // ========== Sprites helpers ==========
@@ -256,64 +262,75 @@ function createQuantitySprite(
   items: { name: string; lot?: string | null; ean?: string | null; designation?: string | null }[]
 ): THREE.Sprite {
   const canvas = document.createElement('canvas');
-  canvas.width = 220;
-  canvas.height = 140;
+  canvas.width = 160;
+  canvas.height = 180;
   const ctx = canvas.getContext('2d')!;
+  const cx = 80;
   
-  // Fond avec transparence
   ctx.fillStyle = isOverflow ? 'rgba(239,68,68,0.95)' : 'rgba(15,23,42,0.92)';
   ctx.beginPath();
-  ctx.roundRect(4, 4, 212, 132, 10);
+  ctx.roundRect(4, 4, 152, 172, 10);
   ctx.fill();
   
-  // Bordure colorée selon type palette
   ctx.strokeStyle = tus === 'CHEP' ? '#3b82f6' : '#f59e0b';
   ctx.lineWidth = 3;
   ctx.stroke();
 
-  // Quantité (gros)
   ctx.fillStyle = '#fff';
-  ctx.font = 'bold 34px Arial';
+  ctx.font = 'bold 38px Arial';
   ctx.textAlign = 'center';
-  ctx.fillText(`${qty}`, 110, 40);
+  ctx.fillText(`${qty}`, cx, 45);
   
-  // Type palette + position
-  ctx.font = 'bold 13px Arial';
+  ctx.font = 'bold 12px Arial';
   ctx.fillStyle = tus === 'CHEP' ? '#60a5fa' : '#fbbf24';
-  ctx.fillText(`${tus || 'EUR'} • Pos ${position}`, 110, 58);
+  ctx.fillText(`${tus || 'EUR'} • Pos ${position}`, cx, 62);
 
-  // Infos article
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(12, 72);
+  ctx.lineTo(148, 72);
+  ctx.stroke();
+
+  let currentY = 90;
+  
   if (items.length > 0) {
     const item = items[0];
     
-    // Nom article
     ctx.fillStyle = '#e2e8f0';
-    ctx.font = '12px Arial';
+    ctx.font = '11px Arial';
     let name = item.name || 'Article';
-    if (name.length > 26) name = name.substring(0, 24) + '…';
-    ctx.fillText(name, 110, 78);
+    if (name.length > 20) {
+      const line1 = name.substring(0, 18);
+      const line2 = name.substring(18, 36) + (name.length > 36 ? '…' : '');
+      ctx.fillText(line1, cx, currentY);
+      currentY += 14;
+      ctx.fillText(line2, cx, currentY);
+    } else {
+      ctx.fillText(name, cx, currentY);
+    }
+    currentY += 16;
     
-    // EAN si présent
     if (item.ean) {
       ctx.fillStyle = '#a5b4fc';
-      ctx.font = '11px Arial';
-      ctx.fillText(`EAN: ${item.ean}`, 110, 94);
+      ctx.font = '10px Arial';
+      ctx.fillText(item.ean, cx, currentY);
+      currentY += 14;
     }
     
-    // Lot si présent
     if (item.lot) {
       ctx.fillStyle = '#94a3b8';
-      ctx.font = '11px Arial';
+      ctx.font = '10px Arial';
       let lot = `Lot: ${item.lot}`;
-      if (lot.length > 28) lot = lot.substring(0, 26) + '…';
-      ctx.fillText(lot, 110, item.ean ? 110 : 94);
+      if (lot.length > 22) lot = lot.substring(0, 20) + '…';
+      ctx.fillText(lot, cx, currentY);
+      currentY += 14;
     }
     
-    // Indicateur si plusieurs articles
     if (items.length > 1) {
       ctx.fillStyle = '#64748b';
       ctx.font = '10px Arial';
-      ctx.fillText(`+${items.length - 1} autre${items.length > 2 ? 's' : ''}`, 110, 128);
+      ctx.fillText(`+${items.length - 1} autre${items.length > 2 ? 's' : ''}`, cx, 168);
     }
   }
   
@@ -323,7 +340,7 @@ function createQuantitySprite(
     transparent: true,
     depthTest: false 
   }));
-  sprite.scale.set(1.0, 0.65, 1);
+  sprite.scale.set(0.7, 0.8, 1);
   return sprite;
 }
 
@@ -387,18 +404,15 @@ function createRackLabel(
   ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Nom du rack
   ctx.fillStyle = textColor;
   ctx.font = 'bold 32px Arial';
   ctx.textAlign = 'center';
   ctx.fillText(`Rack ${rackCode}`, 140, 42);
 
-  // Stats ligne 2 (ou heatmap label)
   ctx.font = '14px Arial';
   ctx.fillStyle = subTextColor;
   
   if (heatmapLabel) {
-    // ✅ Mode Heatmap : afficher le label heatmap
     ctx.font = 'bold 18px Arial';
     ctx.fillText(heatmapLabel, 140, 68);
   } else if (hasOverflow) {
@@ -409,7 +423,6 @@ function createRackLabel(
     ctx.fillText(`${occupiedPositions}/${totalPositions} pos. | ${totalQty} u.`, 140, 65);
   }
 
-  // Barre de progression (sauf en mode heatmap)
   if (!heatmapLabel && !hasOverflow) {
     const barWidth = 200;
     const barHeight = 6;

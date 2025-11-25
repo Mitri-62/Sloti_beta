@@ -1,7 +1,7 @@
 import { FC } from 'react';
 import { 
   X, Grid, Ruler, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, 
-  Move, RotateCw, Undo2, MapPin, Layers, Save
+  Move, RotateCw, Undo2, MapPin, Layers, Save, Loader
 } from 'lucide-react';
 import { RackData, WarehouseConfig } from '../types';
 import { Slider } from './UIComponents';
@@ -10,33 +10,33 @@ interface EditPanelProps {
   isOpen: boolean;
   onClose: () => void;
   isDark: boolean;
-  // Config
   config: WarehouseConfig;
   setConfig: (fn: (c: WarehouseConfig) => WarehouseConfig) => void;
-  // Rack selection
   selectedLoc: string | null;
   selectedRack: RackData | undefined;
-  // Movement
   moveStep: number;
   setMoveStep: (step: number) => void;
   canMove: { up: boolean; down: boolean; left: boolean; right: boolean; rotate: boolean };
   moveRack: (dir: 'up' | 'down' | 'left' | 'right') => void;
   rotateRack: () => void;
-  // Actions
   undo: () => void;
   confirm: () => void;
   cancel: () => void;
   historyLength: number;
-  // Grid
   showEditGrid: boolean;
   setShowEditGrid: (v: boolean) => void;
+  // ✅ Nouveaux props pour la sauvegarde
+  isSaving?: boolean;
+  hasChanges?: boolean;
 }
 
 export const EditPanel: FC<EditPanelProps> = ({
   isOpen, onClose, isDark, config, setConfig,
   selectedLoc, selectedRack, moveStep, setMoveStep, canMove,
   moveRack, rotateRack, undo, confirm, cancel, historyLength,
-  showEditGrid, setShowEditGrid
+  showEditGrid, setShowEditGrid,
+  isSaving = false,
+  hasChanges = false
 }) => {
   if (!isOpen) return null;
 
@@ -76,6 +76,16 @@ export const EditPanel: FC<EditPanelProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+        
+        {/* ✅ Indicateur de modifications */}
+        {hasChanges && (
+          <div className={`mt-2 text-xs px-2 py-1 rounded-lg flex items-center gap-1.5 ${
+            isDark ? 'bg-amber-900/30 text-amber-400' : 'bg-amber-100 text-amber-700'
+          }`}>
+            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            Modifications non sauvegardées
+          </div>
+        )}
       </div>
 
       <div className="p-4 space-y-4">
@@ -305,16 +315,31 @@ export const EditPanel: FC<EditPanelProps> = ({
           </div>
         )}
 
-        {/* === BOUTON SAUVEGARDER === */}
+        {/* === ✅ BOUTON SAUVEGARDER AMÉLIORÉ === */}
         <button
-          onClick={() => {
-            confirm();
-            // TODO: Sauvegarder en base
-          }}
-          className="w-full py-3 rounded-xl bg-green-500 hover:bg-green-600 text-white font-semibold flex items-center justify-center gap-2 transition-colors"
+          onClick={confirm}
+          disabled={isSaving || !hasChanges}
+          className={`w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all ${
+            isSaving 
+              ? 'bg-gray-400 cursor-wait text-white' 
+              : hasChanges
+                ? 'bg-green-500 hover:bg-green-600 text-white shadow-lg hover:shadow-xl'
+                : isDark 
+                  ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+          }`}
         >
-          <Save className="w-5 h-5" />
-          Appliquer les modifications
+          {isSaving ? (
+            <>
+              <Loader className="w-5 h-5 animate-spin" />
+              Sauvegarde...
+            </>
+          ) : (
+            <>
+              <Save className="w-5 h-5" />
+              {hasChanges ? 'Sauvegarder' : 'Aucune modification'}
+            </>
+          )}
         </button>
 
         {/* Raccourcis clavier */}
@@ -322,7 +347,7 @@ export const EditPanel: FC<EditPanelProps> = ({
           <p><kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-gray-700 text-xs">↑↓←→</kbd> Déplacer</p>
           <p><kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-gray-700 text-xs">R</kbd> Rotation</p>
           <p><kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-gray-700 text-xs">Ctrl+Z</kbd> Annuler</p>
-          <p><kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-gray-700 text-xs">Entrée</kbd> Confirmer</p>
+          <p><kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-gray-700 text-xs">Entrée</kbd> Sauvegarder</p>
           <p><kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-gray-700 text-xs">Échap</kbd> Annuler tout</p>
         </div>
       </div>
