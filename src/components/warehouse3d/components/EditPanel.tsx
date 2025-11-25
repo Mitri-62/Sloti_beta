@@ -1,150 +1,329 @@
 import { FC } from 'react';
-import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight, Move, RotateCw, RotateCcw, Check, X } from 'lucide-react';
-import { RackData } from '../types';
+import { 
+  X, Grid, Ruler, ChevronUp, ChevronDown, ChevronLeft, ChevronRight, 
+  Move, RotateCw, Undo2, MapPin, Layers, Save
+} from 'lucide-react';
+import { RackData, WarehouseConfig } from '../types';
+import { Slider } from './UIComponents';
 
 interface EditPanelProps {
+  isOpen: boolean;
+  onClose: () => void;
+  isDark: boolean;
+  // Config
+  config: WarehouseConfig;
+  setConfig: (fn: (c: WarehouseConfig) => WarehouseConfig) => void;
+  // Rack selection
   selectedLoc: string | null;
   selectedRack: RackData | undefined;
+  // Movement
   moveStep: number;
   setMoveStep: (step: number) => void;
   canMove: { up: boolean; down: boolean; left: boolean; right: boolean; rotate: boolean };
   moveRack: (dir: 'up' | 'down' | 'left' | 'right') => void;
   rotateRack: () => void;
+  // Actions
   undo: () => void;
   confirm: () => void;
   cancel: () => void;
   historyLength: number;
-  isDark: boolean;
+  // Grid
+  showEditGrid: boolean;
+  setShowEditGrid: (v: boolean) => void;
 }
 
 export const EditPanel: FC<EditPanelProps> = ({
+  isOpen, onClose, isDark, config, setConfig,
   selectedLoc, selectedRack, moveStep, setMoveStep, canMove,
-  moveRack, rotateRack, undo, confirm, cancel, historyLength, isDark
+  moveRack, rotateRack, undo, confirm, cancel, historyLength,
+  showEditGrid, setShowEditGrid
 }) => {
-  const btnClass = (enabled: boolean) =>
-    enabled ? 'bg-blue-500 text-white active:scale-95' : 'bg-slate-200 text-slate-400';
+  if (!isOpen) return null;
+
+  const sectionClass = `p-4 rounded-xl border ${
+    isDark ? 'bg-gray-800/50 border-gray-700' : 'bg-white border-slate-200'
+  }`;
+
+  const labelClass = `text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`;
+  
+  const btnMove = (enabled: boolean) => `w-10 h-10 rounded-lg flex items-center justify-center transition-all ${
+    enabled 
+      ? 'bg-blue-500 text-white hover:bg-blue-600 active:scale-95 cursor-pointer' 
+      : `${isDark ? 'bg-gray-700 text-gray-600' : 'bg-slate-100 text-slate-300'} cursor-not-allowed`
+  }`;
 
   return (
-    <div className={`absolute bottom-4 left-1/2 -translate-x-1/2 z-20 ${
-      isDark ? 'bg-gray-800/95' : 'bg-white/95'
-    } backdrop-blur-sm rounded-2xl shadow-2xl border ${
-      isDark ? 'border-gray-700' : 'border-slate-200'
-    } p-4`}>
-      <div className="flex items-center gap-4 flex-wrap justify-center">
-        {/* Rack info */}
-        <div className="text-center min-w-[80px]">
-          <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Rack</div>
-          <div className="text-lg font-bold text-blue-500">{selectedLoc}</div>
-          {selectedRack && (
-            <div className={`text-xs font-mono ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
-              X:{selectedRack.x.toFixed(1)} Z:{selectedRack.z.toFixed(1)}
-            </div>
-          )}
+    <div className={`w-80 flex-shrink-0 overflow-y-auto border-l ${
+      isDark ? 'bg-gray-900 border-gray-700' : 'bg-slate-50 border-slate-200'
+    }`}>
+      {/* Header */}
+      <div className={`sticky top-0 z-10 p-4 border-b ${
+        isDark ? 'bg-gray-900 border-gray-700' : 'bg-slate-50 border-slate-200'
+      }`}>
+        <div className="flex items-center justify-between">
+          <h2 className={`text-lg font-bold flex items-center gap-2 ${
+            isDark ? 'text-white' : 'text-slate-800'
+          }`}>
+            <Grid className="w-5 h-5 text-amber-500" />
+            Éditeur
+          </h2>
+          <button
+            onClick={onClose}
+            className={`p-1.5 rounded-lg ${
+              isDark ? 'hover:bg-gray-700' : 'hover:bg-slate-200'
+            }`}
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="p-4 space-y-4">
+        {/* === SECTION CONFIG ENTREPÔT === */}
+        <div className={sectionClass}>
+          <h3 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${
+            isDark ? 'text-blue-400' : 'text-blue-600'
+          }`}>
+            <Layers className="w-4 h-4" />
+            Disposition
+          </h3>
+          <div className="space-y-3">
+            <Slider 
+              label="Rangées" 
+              value={config.rows} 
+              min={1} 
+              max={10}
+              onChange={v => setConfig(c => ({ ...c, rows: v }))} 
+            />
+            <Slider 
+              label="Racks par rangée" 
+              value={config.racksPerRow} 
+              min={2} 
+              max={8} 
+              step={2}
+              onChange={v => setConfig(c => ({ ...c, racksPerRow: v }))} 
+            />
+            <Slider 
+              label="Largeur allée" 
+              value={config.aisleWidth} 
+              min={3} 
+              max={10} 
+              step={0.5}
+              onChange={v => setConfig(c => ({ ...c, aisleWidth: v }))} 
+              unit="m" 
+            />
+          </div>
         </div>
 
-        <div className={`w-px h-14 ${isDark ? 'bg-gray-700' : 'bg-slate-200'}`} />
+        {/* === SECTION DIMENSIONS RACKS === */}
+        <div className={sectionClass}>
+          <h3 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${
+            isDark ? 'text-blue-400' : 'text-blue-600'
+          }`}>
+            <Ruler className="w-4 h-4" />
+            Dimensions racks
+          </h3>
+          <div className="space-y-3">
+            <Slider 
+              label="Hauteur" 
+              value={config.rackHeight} 
+              min={2} 
+              max={12} 
+              step={0.5}
+              onChange={v => setConfig(c => ({ ...c, rackHeight: v }))} 
+              unit="m" 
+            />
+            <Slider 
+              label="Largeur baie" 
+              value={config.bayWidth} 
+              min={4} 
+              max={7} 
+              step={0.1}
+              onChange={v => setConfig(c => ({ ...c, bayWidth: v }))} 
+              unit="m" 
+            />
+            <Slider 
+              label="Niveaux" 
+              value={config.levelCount} 
+              min={1} 
+              max={6}
+              onChange={v => setConfig(c => ({ ...c, levelCount: v }))} 
+            />
+          </div>
+        </div>
 
-        {/* Step selector */}
-        <div className="flex flex-col items-center gap-1">
-          <div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Pas</div>
-          <div className="flex gap-1">
-            {[0.5, 1, 2].map(s => (
+        {/* === SECTION GRILLE === */}
+        <div className={sectionClass}>
+          <div className="flex items-center justify-between">
+            <span className={`text-sm font-medium ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+              Grille d'alignement
+            </span>
+            <button
+              onClick={() => setShowEditGrid(!showEditGrid)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                showEditGrid 
+                  ? 'bg-cyan-500 text-white' 
+                  : isDark ? 'bg-gray-700 text-slate-400' : 'bg-slate-200 text-slate-600'
+              }`}
+            >
+              {showEditGrid ? 'Visible' : 'Masquée'}
+            </button>
+          </div>
+        </div>
+
+        {/* === SECTION RACK SÉLECTIONNÉ === */}
+        {selectedRack ? (
+          <div className={`${sectionClass} border-2 ${
+            isDark ? 'border-green-600' : 'border-green-500'
+          }`}>
+            <h3 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${
+              isDark ? 'text-green-400' : 'text-green-600'
+            }`}>
+              <MapPin className="w-4 h-4" />
+              Rack {selectedLoc}
+            </h3>
+
+            {/* Position */}
+            <div className={`mb-4 p-2 rounded-lg ${isDark ? 'bg-gray-700' : 'bg-slate-100'}`}>
+              <div className={labelClass}>Position actuelle</div>
+              <div className={`font-mono text-sm ${isDark ? 'text-cyan-400' : 'text-cyan-600'}`}>
+                X: {selectedRack.x.toFixed(1)}m &nbsp;|&nbsp; Z: {selectedRack.z.toFixed(1)}m
+              </div>
+            </div>
+
+            {/* Pas de déplacement */}
+            <div className="mb-4">
+              <div className={`${labelClass} mb-2`}>Pas de déplacement</div>
+              <div className="flex gap-1">
+                {[0.5, 1, 2].map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setMoveStep(s)}
+                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      moveStep === s
+                        ? 'bg-blue-500 text-white'
+                        : isDark ? 'bg-gray-700 text-slate-300 hover:bg-gray-600' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {s}m
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Contrôles de mouvement */}
+            <div className="flex justify-center mb-4">
+              <div className="flex flex-col items-center gap-1">
+                <button
+                  onClick={() => moveRack('up')}
+                  disabled={!canMove.up}
+                  className={btnMove(canMove.up)}
+                >
+                  <ChevronUp className="w-6 h-6" />
+                </button>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => moveRack('left')}
+                    disabled={!canMove.left}
+                    className={btnMove(canMove.left)}
+                  >
+                    <ChevronLeft className="w-6 h-6" />
+                  </button>
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                    isDark ? 'bg-gray-700' : 'bg-slate-100'
+                  }`}>
+                    <Move className="w-5 h-5 text-slate-500" />
+                  </div>
+                  <button
+                    onClick={() => moveRack('right')}
+                    disabled={!canMove.right}
+                    className={btnMove(canMove.right)}
+                  >
+                    <ChevronRight className="w-6 h-6" />
+                  </button>
+                </div>
+                <button
+                  onClick={() => moveRack('down')}
+                  disabled={!canMove.down}
+                  className={btnMove(canMove.down)}
+                >
+                  <ChevronDown className="w-6 h-6" />
+                </button>
+              </div>
+
+              {/* Rotation */}
+              <div className="ml-4 flex flex-col justify-center">
+                <button
+                  onClick={rotateRack}
+                  disabled={!canMove.rotate}
+                  className={`w-14 h-14 rounded-xl flex items-center justify-center transition-all ${
+                    canMove.rotate
+                      ? 'bg-purple-500 text-white hover:bg-purple-600 active:scale-95'
+                      : isDark ? 'bg-gray-700 text-gray-600' : 'bg-slate-100 text-slate-300'
+                  }`}
+                >
+                  <RotateCw className="w-7 h-7" />
+                </button>
+                <span className={`text-[10px] text-center mt-1 ${
+                  isDark ? 'text-slate-500' : 'text-slate-400'
+                }`}>
+                  Rotation
+                </span>
+              </div>
+            </div>
+
+            {/* Actions rack */}
+            <div className="flex gap-2">
               <button
-                key={s}
-                onClick={() => setMoveStep(s)}
-                className={`w-7 h-7 rounded text-xs font-medium ${
-                  moveStep === s
-                    ? 'bg-blue-500 text-white'
-                    : isDark ? 'bg-gray-700 text-slate-300' : 'bg-slate-100 text-slate-600'
+                onClick={undo}
+                disabled={!historyLength}
+                className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 text-sm font-medium ${
+                  historyLength
+                    ? 'bg-orange-500 text-white hover:bg-orange-600'
+                    : isDark ? 'bg-gray-700 text-gray-600' : 'bg-slate-100 text-slate-300'
                 }`}
               >
-                {s}
+                <Undo2 className="w-4 h-4" />
+                Annuler
               </button>
-            ))}
-          </div>
-        </div>
-
-        <div className={`w-px h-14 ${isDark ? 'bg-gray-700' : 'bg-slate-200'}`} />
-
-        {/* Direction buttons */}
-        <div className="flex flex-col items-center gap-1">
-          <button
-            onClick={() => moveRack('up')}
-            disabled={!canMove.up}
-            className={`w-10 h-8 rounded flex items-center justify-center ${btnClass(canMove.up)}`}
-          >
-            <ChevronUp className="w-5 h-5" />
-          </button>
-          <div className="flex gap-1">
-            <button
-              onClick={() => moveRack('left')}
-              disabled={!canMove.left}
-              className={`w-8 h-10 rounded flex items-center justify-center ${btnClass(canMove.left)}`}
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <div className={`w-10 h-10 rounded flex items-center justify-center ${
-              isDark ? 'bg-gray-700' : 'bg-slate-100'
-            }`}>
-              <Move className="w-4 h-4 text-slate-500" />
+              <button
+                onClick={cancel}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium ${
+                  isDark ? 'bg-gray-700 text-slate-300 hover:bg-gray-600' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                }`}
+              >
+                Reset
+              </button>
             </div>
-            <button
-              onClick={() => moveRack('right')}
-              disabled={!canMove.right}
-              className={`w-8 h-10 rounded flex items-center justify-center ${btnClass(canMove.right)}`}
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
           </div>
-          <button
-            onClick={() => moveRack('down')}
-            disabled={!canMove.down}
-            className={`w-10 h-8 rounded flex items-center justify-center ${btnClass(canMove.down)}`}
-          >
-            <ChevronDown className="w-5 h-5" />
-          </button>
-        </div>
+        ) : (
+          <div className={`${sectionClass} text-center`}>
+            <MapPin className={`w-8 h-8 mx-auto mb-2 ${isDark ? 'text-slate-600' : 'text-slate-300'}`} />
+            <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              Cliquez sur un rack pour le déplacer
+            </p>
+          </div>
+        )}
 
-        <div className={`w-px h-14 ${isDark ? 'bg-gray-700' : 'bg-slate-200'}`} />
-
-        {/* Rotate */}
+        {/* === BOUTON SAUVEGARDER === */}
         <button
-          onClick={rotateRack}
-          disabled={!canMove.rotate}
-          className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-            canMove.rotate ? 'bg-purple-500 text-white active:scale-95' : 'bg-slate-200 text-slate-400'
-          }`}
+          onClick={() => {
+            confirm();
+            // TODO: Sauvegarder en base
+          }}
+          className="w-full py-3 rounded-xl bg-green-500 hover:bg-green-600 text-white font-semibold flex items-center justify-center gap-2 transition-colors"
         >
-          <RotateCw className="w-6 h-6" />
+          <Save className="w-5 h-5" />
+          Appliquer les modifications
         </button>
 
-        <div className={`w-px h-14 ${isDark ? 'bg-gray-700' : 'bg-slate-200'}`} />
-
-        {/* Actions */}
-        <div className="flex gap-2">
-          <button
-            onClick={undo}
-            disabled={!historyLength}
-            className={`px-2 py-2 rounded-lg ${
-              historyLength ? 'bg-orange-500 text-white' : 'bg-slate-200 text-slate-400'
-            }`}
-          >
-            <RotateCcw className="w-4 h-4" />
-          </button>
-          <button
-            onClick={confirm}
-            className="px-3 py-2 bg-green-500 text-white rounded-lg flex items-center gap-1"
-          >
-            <Check className="w-4 h-4" /> OK
-          </button>
-          <button
-            onClick={cancel}
-            className={`px-3 py-2 rounded-lg ${
-              isDark ? 'bg-gray-700 text-slate-300' : 'bg-slate-200 text-slate-700'
-            }`}
-          >
-            <X className="w-4 h-4" />
-          </button>
+        {/* Raccourcis clavier */}
+        <div className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'} space-y-1`}>
+          <p><kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-gray-700 text-xs">↑↓←→</kbd> Déplacer</p>
+          <p><kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-gray-700 text-xs">R</kbd> Rotation</p>
+          <p><kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-gray-700 text-xs">Ctrl+Z</kbd> Annuler</p>
+          <p><kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-gray-700 text-xs">Entrée</kbd> Confirmer</p>
+          <p><kbd className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-gray-700 text-xs">Échap</kbd> Annuler tout</p>
         </div>
       </div>
     </div>

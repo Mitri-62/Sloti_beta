@@ -1,5 +1,5 @@
 import { FC } from 'react';
-import { Truck, User, Orbit, Edit, Settings, Sun, Moon, Maximize, Minimize, AlertTriangle } from 'lucide-react';
+import { Truck, User, Orbit, Edit, Maximize, Minimize, AlertTriangle } from 'lucide-react';
 import { CameraMode, WarehouseStats } from '../types';
 import { Btn } from './UIComponents';
 
@@ -7,19 +7,17 @@ interface HeaderProps {
   cameraMode: CameraMode;
   stats: WarehouseStats;
   isEditMode: boolean;
-  isConfigOpen: boolean;
   isDark: boolean;
   isFullscreen: boolean;
   onToggleCameraMode: () => void;
   onToggleEditMode: () => void;
-  onToggleConfig: () => void;
   onToggleDark: () => void;
   onToggleFullscreen: () => void;
 }
 
 export const Header: FC<HeaderProps> = ({
-  cameraMode, stats, isEditMode, isConfigOpen, isDark, isFullscreen,
-  onToggleCameraMode, onToggleEditMode, onToggleConfig, onToggleDark, onToggleFullscreen
+  cameraMode, stats, isEditMode, isDark, isFullscreen,
+  onToggleCameraMode, onToggleEditMode, onToggleFullscreen
 }) => (
   <header className={`flex items-center justify-between p-3 shadow-md ${isDark ? 'bg-gray-800' : 'bg-white'}`}>
     <h1 className="text-lg font-bold flex items-center gap-2 text-blue-600">
@@ -71,17 +69,7 @@ export const Header: FC<HeaderProps> = ({
         active={isEditMode}
         variant="warning"
       />
-      <Btn
-        icon={<Settings className="w-5 h-5" />}
-        onClick={onToggleConfig}
-        title="Config"
-        active={isConfigOpen}
-      />
-      <Btn
-        icon={isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-        onClick={onToggleDark}
-        title="Thème"
-      />
+      
       <Btn
         icon={isFullscreen ? <Minimize className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
         onClick={onToggleFullscreen}

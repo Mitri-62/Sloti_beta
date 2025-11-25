@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useState } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
 import { CameraMode, WarehouseConfig } from '../types';
 import { FP_CONFIG } from '../config';
@@ -43,21 +43,47 @@ export const useFirstPersonControls = ({
     sprint: false,
   });
 
-  const [fpPosition, setFpPosition] = useState({ x: 0, z: 15 });
+  // ✅ Position en REF, pas en state (évite les re-renders)
+  const fpPositionRef = useRef({ x: 0, z: 15 });
+  
+  // ✅ Cache pour les bounds (évite de recalculer)
+  const boundsRef = useRef<RackBounds[]>([]);
+  
+  // ✅ Vecteurs réutilisables (évite les allocations)
+  const moveVectors = useRef({
+    forward: new THREE.Vector3(),
+    right: new THREE.Vector3(),
+  });
 
-  // Collision check
+  // Update bounds cache quand ça change
+  useEffect(() => {
+    boundsRef.current = rackBounds;
+  }, [rackBounds]);
+
+  // ✅ Collision optimisée avec early exit
   const checkCollision = useCallback((newX: number, newZ: number): boolean => {
     if (!enableCollision) return false;
     const r = FP_CONFIG.collisionRadius;
-    for (const bounds of rackBounds) {
+    const rSq = r * r;
+    
+    for (let i = 0; i < boundsRef.current.length; i++) {
+      const bounds = boundsRef.current[i];
+      
+      // Early exit: skip si clairement hors zone
+      if (newX < bounds.minX - r || newX > bounds.maxX + r ||
+          newZ < bounds.minZ - r || newZ > bounds.maxZ + r) {
+        continue;
+      }
+      
       const closestX = Math.max(bounds.minX, Math.min(newX, bounds.maxX));
       const closestZ = Math.max(bounds.minZ, Math.min(newZ, bounds.maxZ));
       const dx = newX - closestX;
       const dz = newZ - closestZ;
-      if (dx * dx + dz * dz < r * r) return true;
+      
+      if (dx * dx + dz * dz < rSq) return true;
     }
     return false;
-  }, [enableCollision, rackBounds]);
+  }, [enableCollision]);
 
   // Reset position
   const resetPosition = useCallback(() => {
@@ -65,6 +91,7 @@ export const useFirstPersonControls = ({
     fpRef.current.position.set(0, FP_CONFIG.eyeHeight, maxD * 0.8);
     fpRef.current.yaw = 0;
     fpRef.current.pitch = 0;
+    fpPositionRef.current = { x: 0, z: maxD * 0.8 };
   }, [config]);
 
   // Toggle mode
@@ -84,34 +111,34 @@ export const useFirstPersonControls = ({
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
+      const keys = keysRef.current;
       switch (e.code) {
-        case 'KeyW': case 'KeyZ': keysRef.current.forward = true; break;
-        case 'KeyS': keysRef.current.backward = true; break;
-        case 'KeyA': case 'KeyQ': keysRef.current.left = true; break;
-        case 'KeyD': keysRef.current.right = true; break;
-        case 'Space': e.preventDefault(); keysRef.current.up = true; break;
-        case 'ShiftLeft': case 'ShiftRight': keysRef.current.down = true; break;
+        case 'KeyW': case 'KeyZ': keys.forward = true; break;
+        case 'KeyS': keys.backward = true; break;
+        case 'KeyA': case 'KeyQ': keys.left = true; break;
+        case 'KeyD': keys.right = true; break;
+        case 'Space': e.preventDefault(); keys.up = true; break;
+        case 'ShiftLeft': case 'ShiftRight': keys.down = true; break;
         case 'KeyF':
           if (document.pointerLockElement) document.exitPointerLock();
           setCameraMode('orbit');
           break;
         case 'Tab':
           e.preventDefault();
-          if (document.pointerLockElement) {
-            document.exitPointerLock();
-          }
+          if (document.pointerLockElement) document.exitPointerLock();
           break;
       }
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
+      const keys = keysRef.current;
       switch (e.code) {
-        case 'KeyW': case 'KeyZ': keysRef.current.forward = false; break;
-        case 'KeyS': keysRef.current.backward = false; break;
-        case 'KeyA': case 'KeyQ': keysRef.current.left = false; break;
-        case 'KeyD': keysRef.current.right = false; break;
-        case 'Space': keysRef.current.up = false; break;
-        case 'ShiftLeft': case 'ShiftRight': keysRef.current.down = false; break;
+        case 'KeyW': case 'KeyZ': keys.forward = false; break;
+        case 'KeyS': keys.backward = false; break;
+        case 'KeyA': case 'KeyQ': keys.left = false; break;
+        case 'KeyD': keys.right = false; break;
+        case 'Space': keys.up = false; break;
+        case 'ShiftLeft': case 'ShiftRight': keys.down = false; break;
       }
     };
 
@@ -121,71 +148,80 @@ export const useFirstPersonControls = ({
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
-      Object.keys(keysRef.current).forEach(k => (keysRef.current as any)[k] = false);
+      // Reset keys
+      const keys = keysRef.current;
+      keys.forward = keys.backward = keys.left = keys.right = keys.up = keys.down = keys.sprint = false;
     };
   }, [cameraMode, setCameraMode]);
 
-  // Update camera position in animation loop
+  // ✅ Update movement optimisé - PAS de setState dedans !
   const updateMovement = useCallback((delta: number, camera: THREE.PerspectiveCamera) => {
-    const speed = FP_CONFIG.moveSpeed * (keysRef.current.sprint ? FP_CONFIG.sprintMultiplier : 1);
+    const keys = keysRef.current;
+    const fp = fpRef.current;
+    const vecs = moveVectors.current;
+    
+    const speed = FP_CONFIG.moveSpeed * (keys.sprint ? FP_CONFIG.sprintMultiplier : 1);
 
-    const forward = new THREE.Vector3(
-      -Math.sin(fpRef.current.yaw),
-      0,
-      -Math.cos(fpRef.current.yaw)
-    );
-    const right = new THREE.Vector3(
-      Math.cos(fpRef.current.yaw),
-      0,
-      -Math.sin(fpRef.current.yaw)
-    );
+    // Réutiliser les vecteurs au lieu d'en créer
+    const sinYaw = Math.sin(fp.yaw);
+    const cosYaw = Math.cos(fp.yaw);
+    
+    vecs.forward.set(-sinYaw, 0, -cosYaw);
+    vecs.right.set(cosYaw, 0, -sinYaw);
 
     let moveX = 0, moveZ = 0;
-    if (keysRef.current.forward) { moveX += forward.x; moveZ += forward.z; }
-    if (keysRef.current.backward) { moveX -= forward.x; moveZ -= forward.z; }
-    if (keysRef.current.left) { moveX -= right.x; moveZ -= right.z; }
-    if (keysRef.current.right) { moveX += right.x; moveZ += right.z; }
+    
+    if (keys.forward) { moveX += vecs.forward.x; moveZ += vecs.forward.z; }
+    if (keys.backward) { moveX -= vecs.forward.x; moveZ -= vecs.forward.z; }
+    if (keys.left) { moveX -= vecs.right.x; moveZ -= vecs.right.z; }
+    if (keys.right) { moveX += vecs.right.x; moveZ += vecs.right.z; }
 
-    const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
-    if (len > 0) {
-      moveX = (moveX / len) * speed * delta;
-      moveZ = (moveZ / len) * speed * delta;
+    if (moveX !== 0 || moveZ !== 0) {
+      const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
+      const invLen = 1 / len;
+      moveX = moveX * invLen * speed * delta;
+      moveZ = moveZ * invLen * speed * delta;
 
-      const newX = fpRef.current.position.x + moveX;
-      const newZ = fpRef.current.position.z + moveZ;
+      const newX = fp.position.x + moveX;
+      const newZ = fp.position.z + moveZ;
 
-      if (!checkCollision(newX, fpRef.current.position.z)) {
-        fpRef.current.position.x = newX;
+      // Check collision X puis Z séparément
+      if (!checkCollision(newX, fp.position.z)) {
+        fp.position.x = newX;
       }
-      if (!checkCollision(fpRef.current.position.x, newZ)) {
-        fpRef.current.position.z = newZ;
+      if (!checkCollision(fp.position.x, newZ)) {
+        fp.position.z = newZ;
       }
     }
 
     // Vertical movement
-    if (keysRef.current.up) {
-      fpRef.current.position.y = Math.min(15, fpRef.current.position.y + speed * delta * 0.5);
+    if (keys.up) {
+      fp.position.y = Math.min(15, fp.position.y + speed * delta * 0.5);
     }
-    if (keysRef.current.down) {
-      fpRef.current.position.y = Math.max(0.5, fpRef.current.position.y - speed * delta * 0.5);
+    if (keys.down) {
+      fp.position.y = Math.max(0.5, fp.position.y - speed * delta * 0.5);
     }
 
     // Apply to camera
-    camera.position.copy(fpRef.current.position);
+    camera.position.copy(fp.position);
     camera.rotation.order = 'YXZ';
-    camera.rotation.y = fpRef.current.yaw;
-    camera.rotation.x = fpRef.current.pitch;
+    camera.rotation.y = fp.yaw;
+    camera.rotation.x = fp.pitch;
 
-    // Update position state for minimap
-    setFpPosition({ x: fpRef.current.position.x, z: fpRef.current.position.z });
+    // ✅ Update ref position (pour minimap) - PAS de setState !
+    fpPositionRef.current.x = fp.position.x;
+    fpPositionRef.current.z = fp.position.z;
   }, [checkCollision]);
 
-  // Mouse look handler
+  // Mouse look handler - optimisé
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!document.pointerLockElement) return;
-    fpRef.current.yaw -= e.movementX * FP_CONFIG.mouseSensitivity;
-    fpRef.current.pitch -= e.movementY * FP_CONFIG.mouseSensitivity;
-    fpRef.current.pitch = Math.max(FP_CONFIG.minPitch, Math.min(FP_CONFIG.maxPitch, fpRef.current.pitch));
+    const fp = fpRef.current;
+    fp.yaw -= e.movementX * FP_CONFIG.mouseSensitivity;
+    fp.pitch = Math.max(
+      FP_CONFIG.minPitch, 
+      Math.min(FP_CONFIG.maxPitch, fp.pitch - e.movementY * FP_CONFIG.mouseSensitivity)
+    );
   }, []);
 
   // Sprint with middle click
@@ -205,7 +241,8 @@ export const useFirstPersonControls = ({
   return {
     fpRef,
     keysRef,
-    fpPosition,
+    fpPosition: fpPositionRef.current, // ✅ Retourne la ref directement
+    fpPositionRef, // ✅ Expose aussi la ref pour accès direct
     checkCollision,
     resetPosition,
     toggleMode,

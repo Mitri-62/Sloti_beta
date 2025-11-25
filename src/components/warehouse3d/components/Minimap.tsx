@@ -1,4 +1,4 @@
-import { FC, MutableRefObject } from 'react';
+import { FC, MutableRefObject, useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { RackData, CameraMode } from '../types';
 
@@ -6,7 +6,7 @@ interface MinimapProps {
   rackData: RackData[];
   selectedRackId: string | null;
   cameraMode: CameraMode;
-  fpPosition: { x: number; z: number };
+  fpPositionRef: MutableRefObject<{ x: number; z: number }>;
   fpRef: MutableRefObject<{ yaw: number; position: THREE.Vector3 }>;
   isDark: boolean;
 }
@@ -15,13 +15,36 @@ export const Minimap: FC<MinimapProps> = ({
   rackData,
   selectedRackId,
   cameraMode,
-  fpPosition,
+  fpPositionRef,
   fpRef,
   isDark
 }) => {
   const scale = 6;
   const offsetX = 90;
   const offsetZ = 60;
+  
+  // ✅ Local state pour la position FP, mis à jour par interval (pas à chaque frame)
+  const [fpPos, setFpPos] = useState({ x: 0, z: 0, yaw: 0 });
+  const animRef = useRef<number>(0);
+
+  // ✅ Update position à 10fps (suffisant pour la minimap, pas 60fps)
+  useEffect(() => {
+    if (cameraMode !== 'firstPerson') return;
+
+    const updatePos = () => {
+      setFpPos({
+        x: fpPositionRef.current.x,
+        z: fpPositionRef.current.z,
+        yaw: fpRef.current.yaw
+      });
+    };
+
+    // Update immédiat puis interval
+    updatePos();
+    const interval = setInterval(updatePos, 100); // 10fps
+
+    return () => clearInterval(interval);
+  }, [cameraMode, fpPositionRef, fpRef]);
 
   return (
     <div className={`absolute top-4 right-4 z-10 rounded-lg shadow-lg border ${
@@ -53,8 +76,8 @@ export const Minimap: FC<MinimapProps> = ({
         {cameraMode === 'firstPerson' && (
           <>
             <circle
-              cx={offsetX + fpPosition.x * scale}
-              cy={offsetZ + fpPosition.z * scale}
+              cx={offsetX + fpPos.x * scale}
+              cy={offsetZ + fpPos.z * scale}
               r={5}
               fill="#22c55e"
               stroke="#fff"
@@ -62,10 +85,10 @@ export const Minimap: FC<MinimapProps> = ({
             />
             {/* Direction indicator */}
             <line
-              x1={offsetX + fpPosition.x * scale}
-              y1={offsetZ + fpPosition.z * scale}
-              x2={offsetX + fpPosition.x * scale - Math.sin(fpRef.current.yaw) * 10}
-              y2={offsetZ + fpPosition.z * scale - Math.cos(fpRef.current.yaw) * 10}
+              x1={offsetX + fpPos.x * scale}
+              y1={offsetZ + fpPos.z * scale}
+              x2={offsetX + fpPos.x * scale - Math.sin(fpPos.yaw) * 10}
+              y2={offsetZ + fpPos.z * scale - Math.cos(fpPos.yaw) * 10}
               stroke="#22c55e"
               strokeWidth={2}
             />

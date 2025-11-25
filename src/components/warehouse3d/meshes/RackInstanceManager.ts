@@ -13,7 +13,7 @@ const GEOMETRIES = {
 };
 
 // Matériaux partagés
-const createMaterials = (colors: WarehouseColors, isDark: boolean) => ({
+const createMaterials = (colors: WarehouseColors,) => ({
   frame: new THREE.MeshStandardMaterial({ 
     color: colors.rack, 
     metalness: 0.8, 
@@ -87,9 +87,9 @@ export class RackInstanceManager {
   private tempQuaternion = new THREE.Quaternion();
   private tempScale = new THREE.Vector3();
 
-  constructor(scene: THREE.Scene, colors: WarehouseColors, isDark: boolean, maxRacks: number = 100) {
+  constructor(scene: THREE.Scene, colors: WarehouseColors, maxRacks: number = 100) {
     this.scene = scene;
-    this.materials = createMaterials(colors, isDark);
+    this.materials = createMaterials(colors,);
     
     // Pré-allouer les instanced meshes
     // 4 montants par rack × maxRacks

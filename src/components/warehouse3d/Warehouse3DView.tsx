@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, FC, useCallback, useMemo } from 'react';
 import * as THREE from 'three';
-import { RotateCcw, Maximize2, Eye, Layers, Download, User, Move, MousePointer } from 'lucide-react';
+import { RotateCcw, Maximize2, Eye, Layers, User, Move, MousePointer, Flame, FileImage } from 'lucide-react';
 
 // Types & Config
 import { Warehouse3DViewProps, CameraMode, ViewMode } from './types';
@@ -11,9 +11,15 @@ import { useWarehouseData } from './hooks/useWarehouseData';
 import { useRackEditor } from './hooks/useRackEditor';
 import { useOrbitControls } from './hooks/useOrbitControls';
 import { useFirstPersonControls } from './hooks/useFirstPersonControls';
+import { useRackSearch } from './hooks/useRackSearch';
+import { useCameraAnimation } from './hooks/useCameraAnimation';
+import { useHeatmapMode } from './hooks/useHeatmapMode';
 
 // Meshes
 import { createRack } from './meshes/createRack';
+
+// Utils
+import { exportWarehousePNG } from './utils/exportPNG';
 
 // Components
 import { Btn } from './components/UIComponents';
@@ -21,10 +27,14 @@ import { Header } from './components/Header';
 import { SidePanel } from './components/SidePanel';
 import { EditPanel } from './components/EditPanel';
 import { Minimap } from './components/Minimap';
+import { SearchOverlay } from './components/SearchOverlay';
+import { HeatmapLegend } from './components/HeatmapLegend';
+import { FPPositionDisplay } from './components/FPPositionDisplay';
 
 const Warehouse3DView: FC<Warehouse3DViewProps> = ({ items, onEmplacementClick }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const labelSpritesRef = useRef<THREE.Sprite[]>([]);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const clockRef = useRef(new THREE.Clock());
@@ -35,7 +45,6 @@ const Warehouse3DView: FC<Warehouse3DViewProps> = ({ items, onEmplacementClick }
   const [config, setConfig] = useState(DEFAULT_CONFIG);
   const [cameraMode, setCameraMode] = useState<CameraMode>('orbit');
   const [viewMode, setViewMode] = useState<ViewMode>('perspective');
-  const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [autoRotate, setAutoRotate] = useState(false);
   const [hoveredRack, setHoveredRack] = useState<string | null>(null);
   const [showLabels, setShowLabels] = useState(true);
@@ -45,7 +54,7 @@ const Warehouse3DView: FC<Warehouse3DViewProps> = ({ items, onEmplacementClick }
   const [showEditGrid, setShowEditGrid] = useState(true);
   const [showMinimap, setShowMinimap] = useState(true);
   const [enableCollision, setEnableCollision] = useState(true);
-  const [clickFeedback, setClickFeedback] = useState<string | null>(null); // ✅ NOUVEAU
+  const [clickFeedback, setClickFeedback] = useState<string | null>(null);
 
   // Derived
   const colors = useMemo(() => getThemeColors(isDark), [isDark]);
@@ -62,6 +71,40 @@ const Warehouse3DView: FC<Warehouse3DViewProps> = ({ items, onEmplacementClick }
   const orbitControls = useOrbitControls({ config, viewMode, autoRotate, isEditMode });
   const fpControls = useFirstPersonControls({ cameraMode, setCameraMode, config, rackBounds, enableCollision });
 
+  // Search hook
+  const search = useRackSearch({ items, rackData });
+
+  // Camera animation hook
+  const cameraAnimation = useCameraAnimation({
+    camera: cameraRef.current,
+    orbitControls
+  });
+
+  // Heatmap mode
+  const heatmap = useHeatmapMode({ rackData, config });
+
+  // Effective hovered rack (search highlight OR normal hover)
+  const effectiveHoveredRack = search.highlightedRackId 
+    ? rackData.find(r => r.id === search.highlightedRackId)?.rackCode || null
+    : hoveredRack;
+
+  // Fly to search result
+  const handleFlyToResult = useCallback((result: { rack: { x: number; z: number; id: string; rackCode: string }; item: any }) => {
+    if (cameraMode === 'firstPerson') {
+      fpControls.fpRef.current.position.set(result.rack.x, fpControls.fpRef.current.position.y, result.rack.z + 5);
+    } else {
+      cameraAnimation.flyToRack({
+        position: { x: result.rack.x, z: result.rack.z },
+        zoom: 0.45,
+        duration: 1000,
+        onComplete: () => {
+          setSelectedLoc(result.rack.rackCode);
+        }
+      });
+    }
+    search.selectResult(result as any);
+  }, [cameraMode, cameraAnimation, fpControls, search, setSelectedLoc]);
+
   // Fullscreen
   const toggleFullscreen = useCallback(() => {
     if (!wrapperRef.current) return;
@@ -75,14 +118,17 @@ const Warehouse3DView: FC<Warehouse3DViewProps> = ({ items, onEmplacementClick }
     return () => document.removeEventListener('fullscreenchange', h);
   }, []);
 
-  // Screenshot
+  // Screenshot / Export PNG
   const screenshot = useCallback(() => {
     if (!rendererRef.current) return;
-    const link = document.createElement('a');
-    link.download = `entrepot-${new Date().toISOString().slice(0, 10)}.png`;
-    link.href = rendererRef.current.domElement.toDataURL('image/png');
-    link.click();
-  }, []);
+    exportWarehousePNG({
+      canvas: rendererRef.current.domElement,
+      stats,
+      config,
+      title: 'Vue Entrepôt 3D',
+      companyName: 'Sloti'
+    });
+  }, [stats, config]);
 
   // Reset camera
   const resetCamera = useCallback(() => {
@@ -105,7 +151,9 @@ const Warehouse3DView: FC<Warehouse3DViewProps> = ({ items, onEmplacementClick }
     scene.background = new THREE.Color(colors.bg);
     scene.fog = new THREE.Fog(colors.fog, 40, 100);
     const cam = new THREE.PerspectiveCamera(45, containerRef.current.clientWidth / containerRef.current.clientHeight, 0.1, 500);
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    cameraRef.current = cam; // Store camera ref
+    
+    const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
     renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
@@ -130,11 +178,31 @@ const Warehouse3DView: FC<Warehouse3DViewProps> = ({ items, onEmplacementClick }
 
     if (isEditMode && showEditGrid) {
       const eg = new THREE.GridHelper(fSize, Math.floor(fSize / editor.moveStep), 0x22d3ee, 0x06b6d4);
-      eg.position.y = 0.02; (eg.material as THREE.Material).opacity = 0.4; (eg.material as THREE.Material).transparent = true;
+      eg.position.y = 0.02;
+      const mat = eg.material;
+      if (Array.isArray(mat)) {
+        mat.forEach(m => { m.opacity = 0.4; m.transparent = true; });
+      } else {
+        mat.opacity = 0.4;
+        mat.transparent = true;
+      }
       scene.add(eg);
     }
 
-    rackData.forEach(r => createRack({ scene, rackData: r, config, colors, isEditMode, selectedRackId, hoveredRack, showLabels, labelSprites: labelSpritesRef.current }));
+    // Use effectiveHoveredRack for highlight (includes search highlight)
+    rackData.forEach(r => createRack({ 
+      scene, 
+      rackData: r, 
+      config, 
+      colors, 
+      isEditMode, 
+      selectedRackId: search.highlightedRackId || selectedRackId, 
+      hoveredRack: effectiveHoveredRack, 
+      showLabels, 
+      labelSprites: labelSpritesRef.current,
+      heatmapColor: heatmap.getColorForRack(r.id),
+      heatmapLabel: heatmap.getLabelForRack(r.id)
+    }));
 
     const findRack = (o: THREE.Object3D | null): THREE.Group | null => { while (o) { if (o.userData.rackId) return o as THREE.Group; o = o.parent; } return null; };
     const updMouse = (e: MouseEvent | TouchEvent) => {
@@ -157,7 +225,6 @@ const Warehouse3DView: FC<Warehouse3DViewProps> = ({ items, onEmplacementClick }
           setSelectedRackId(rg.userData.rackId); 
           setSelectedLoc(rackCode); 
         } else {
-          // ✅ Affiche juste le panel de détails, ne bascule plus vers le tableau
           setSelectedLoc(rackCode);
           setClickFeedback(rackCode);
           setTimeout(() => setClickFeedback(null), 1500);
@@ -167,7 +234,7 @@ const Warehouse3DView: FC<Warehouse3DViewProps> = ({ items, onEmplacementClick }
     const onDblClick = (e: MouseEvent) => { if (cameraMode === 'firstPerson') return; updMouse(e); orbitControls.handleDoubleClick(!!raycast()); };
     const onMove = (e: MouseEvent | TouchEvent) => { if (cameraMode === 'firstPerson') return; updMouse(e); if (!orbitControls.mouseRef.current.isDragging && !orbitControls.touchRef.current.isPinching) { const rg = raycast(); setHoveredRack(rg?.userData.location || null); renderer.domElement.style.cursor = rg ? 'pointer' : 'grab'; } };
     const onDown = (e: MouseEvent | TouchEvent) => { if (cameraMode === 'firstPerson') { fpControls.handleMouseDown(e as MouseEvent); return; } orbitControls.handleMouseDown(e); renderer.domElement.style.cursor = 'grabbing'; };
-    const onUp = (e?: MouseEvent | TouchEvent) => { if (cameraMode === 'firstPerson') { fpControls.handleMouseUp(e as MouseEvent); return; } orbitControls.handleMouseUp(); renderer.domElement.style.cursor = hoveredRack ? 'pointer' : 'grab'; };
+    const onUp = (e?: MouseEvent | TouchEvent) => { if (cameraMode === 'firstPerson') { fpControls.handleMouseUp(e as MouseEvent); return; } orbitControls.handleMouseUp(); renderer.domElement.style.cursor = effectiveHoveredRack ? 'pointer' : 'grab'; };
     const onGlobalMove = (e: MouseEvent | TouchEvent) => { if (cameraMode === 'firstPerson') fpControls.handleMouseMove(e as MouseEvent); else orbitControls.handleMouseMove(e); };
     const onWheel = (e: WheelEvent) => orbitControls.handleWheel(e);
     const onCtxMenu = (e: MouseEvent) => { if (cameraMode === 'firstPerson') e.preventDefault(); };
@@ -225,11 +292,11 @@ const Warehouse3DView: FC<Warehouse3DViewProps> = ({ items, onEmplacementClick }
       if (containerRef.current?.contains(renderer.domElement)) containerRef.current.removeChild(renderer.domElement);
       renderer.dispose();
     };
-  }, [rackData, autoRotate, hoveredRack, showLabels, config, colors, isDark, viewMode, isEditMode, selectedRackId, showEditGrid, cameraMode, editor.moveStep, orbitControls, fpControls]);
+  }, [rackData, autoRotate, effectiveHoveredRack, showLabels, config, colors, isDark, viewMode, isEditMode, selectedRackId, showEditGrid, cameraMode, editor.moveStep, orbitControls, fpControls, search.highlightedRackId, heatmap.isEnabled, heatmap.metric]);
 
   return (
     <div ref={wrapperRef} className={`relative h-full flex flex-col ${isDark ? 'bg-gray-900 text-slate-100' : 'bg-white text-slate-900'} ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}>
-      <Header cameraMode={cameraMode} stats={stats} isEditMode={isEditMode} isConfigOpen={isConfigOpen} isDark={isDark} isFullscreen={isFullscreen} onToggleCameraMode={toggleCameraMode} onToggleEditMode={() => setIsEditMode(p => !p)} onToggleConfig={() => setIsConfigOpen(p => !p)} onToggleDark={() => setIsDark(p => !p)} onToggleFullscreen={toggleFullscreen} />
+      <Header cameraMode={cameraMode} stats={stats} isEditMode={isEditMode} isDark={isDark} isFullscreen={isFullscreen} onToggleCameraMode={toggleCameraMode} onToggleEditMode={() => setIsEditMode(p => !p)} onToggleDark={() => setIsDark(p => !p)} onToggleFullscreen={toggleFullscreen} />
       {cameraMode === 'firstPerson' && (
         <div className={`px-4 py-2 flex items-center gap-4 text-sm ${isDark ? 'bg-green-900/50 text-green-200' : 'bg-green-100 text-green-800'}`}>
           <User className="w-4 h-4" /><span className="font-medium">Mode First Person</span><span className="opacity-75">— Cliquez pour capturer</span>
@@ -244,9 +311,8 @@ const Warehouse3DView: FC<Warehouse3DViewProps> = ({ items, onEmplacementClick }
       )}
       {isEditMode && (
         <div className={`px-4 py-2 flex items-center gap-2 text-sm ${isDark ? 'bg-amber-900/50 text-amber-200' : 'bg-amber-100 text-amber-800'}`}>
-          <Move className="w-4 h-4" /><span className="font-medium">Mode Édition</span><span className="opacity-75">— Sélectionnez un rack</span>
+          <Move className="w-4 h-4" /><span className="font-medium">Mode Édition</span><span className="opacity-75">— Cliquez sur un rack ou modifiez la config à droite</span>
           <div className="ml-auto flex gap-2">
-            <button onClick={() => setShowEditGrid(p => !p)} className={`px-2 py-1 rounded text-xs font-medium ${showEditGrid ? 'bg-cyan-500 text-white' : isDark ? 'bg-gray-700 text-slate-400' : 'bg-slate-200 text-slate-600'}`}>Grille</button>
             <button onClick={() => setShowMinimap(p => !p)} className={`px-2 py-1 rounded text-xs font-medium ${showMinimap ? 'bg-cyan-500 text-white' : isDark ? 'bg-gray-700 text-slate-400' : 'bg-slate-200 text-slate-600'}`}>Minimap</button>
           </div>
         </div>
@@ -257,11 +323,42 @@ const Warehouse3DView: FC<Warehouse3DViewProps> = ({ items, onEmplacementClick }
             <Btn icon={<RotateCcw className="w-5 h-5" />} onClick={resetCamera} title="Reset" />
             {cameraMode === 'orbit' && (<><Btn icon={<Maximize2 className="w-5 h-5" />} onClick={() => setAutoRotate(p => !p)} title="Auto-rotation" active={autoRotate} /><Btn icon={<Eye className="w-5 h-5" />} onClick={() => setViewMode(v => v === 'perspective' ? 'top' : v === 'top' ? 'front' : 'perspective')} title={`Vue: ${viewMode}`} /></>)}
             <Btn icon={<Layers className="w-5 h-5" />} onClick={() => setShowLabels(p => !p)} title="Labels" active={showLabels} />
-            <Btn icon={<Download className="w-5 h-5" />} onClick={screenshot} title="Screenshot" />
+            <Btn icon={<Flame className="w-5 h-5" />} onClick={heatmap.toggle} title="Heatmap" active={heatmap.isEnabled} variant="warning" />
+            <Btn icon={<FileImage className="w-5 h-5" />} onClick={screenshot} title="Export PNG" />
           </div>
+
+          {/* 🔍 Search Overlay */}
+          {!isEditMode && cameraMode === 'orbit' && (
+            <SearchOverlay
+              query={search.query}
+              setQuery={search.setQuery}
+              results={search.results}
+              selectedResult={search.selectedResult}
+              onSelectResult={(r) => {
+                search.selectResult(r);
+                setSelectedLoc(r.rack.rackCode);
+              }}
+              onHoverResult={search.highlightRack}
+              onClear={() => {
+                search.clearSearch();
+                cameraAnimation.flyToOverview();
+              }}
+              onFlyTo={handleFlyToResult}
+              isDark={isDark}
+            />
+          )}
+
+          {/* 🔥 Heatmap Legend */}
+          <HeatmapLegend
+            isEnabled={heatmap.isEnabled}
+            metric={heatmap.metric}
+            setMetric={heatmap.setMetric}
+            stats={heatmap.stats}
+            isDark={isDark}
+          />
+
           {cameraMode === 'firstPerson' && (<div className="absolute inset-0 pointer-events-none flex items-center justify-center"><div className="w-6 h-6 relative"><div className="absolute top-1/2 left-0 right-0 h-0.5 bg-white/50 -translate-y-1/2" /><div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-white/50 -translate-x-1/2" /></div></div>)}
           
-          {/* ✅ Feedback de clic sur rack */}
           {clickFeedback && (
             <div className="absolute top-20 left-1/2 -translate-x-1/2 z-20 animate-pulse">
               <div className={`flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg ${isDark ? 'bg-blue-600' : 'bg-blue-500'} text-white`}>
@@ -271,30 +368,59 @@ const Warehouse3DView: FC<Warehouse3DViewProps> = ({ items, onEmplacementClick }
               </div>
             </div>
           )}
-          {(isEditMode || cameraMode === 'firstPerson') && showMinimap && rackData.length > 0 && <Minimap rackData={rackData} selectedRackId={selectedRackId} cameraMode={cameraMode} fpPosition={fpControls.fpPosition} fpRef={fpControls.fpRef} isDark={isDark} />}
-          {cameraMode === 'firstPerson' && (<div className={`absolute bottom-4 left-4 z-10 px-3 py-2 rounded-lg ${isDark ? 'bg-gray-800/90' : 'bg-white/90'} shadow-lg text-sm font-mono`}><div className="text-xs text-slate-500 mb-1">Position</div><div>X: {fpControls.fpPosition.x.toFixed(1)}m</div><div>Z: {fpControls.fpPosition.z.toFixed(1)}m</div><div>H: {fpControls.fpRef.current.position.y.toFixed(1)}m</div></div>)}
-          {isEditMode && selectedRackId && <EditPanel selectedLoc={selectedLoc} selectedRack={selectedRack} moveStep={editor.moveStep} setMoveStep={editor.setMoveStep} canMove={editor.canMove} moveRack={editor.moveRack} rotateRack={editor.rotateRack} undo={editor.undo} confirm={editor.confirm} cancel={editor.cancel} historyLength={editor.history.length} isDark={isDark} />}
+          {(isEditMode || cameraMode === 'firstPerson') && showMinimap && rackData.length > 0 && <Minimap rackData={rackData} selectedRackId={selectedRackId} cameraMode={cameraMode} fpPositionRef={fpControls.fpPositionRef} fpRef={fpControls.fpRef} isDark={isDark} />}
+          {cameraMode === 'firstPerson' && (
+            <FPPositionDisplay 
+              fpRef={fpControls.fpRef} 
+              fpPositionRef={fpControls.fpPositionRef} 
+              isDark={isDark} 
+            />
+          )}
         </div>
-        <SidePanel 
-          isConfigOpen={isConfigOpen} 
-          selectedLoc={selectedLoc} 
-          isEditMode={isEditMode} 
-          isDark={isDark} 
-          isFullscreen={isFullscreen} 
-          config={config} 
-          setConfig={setConfig} 
-          enableCollision={enableCollision} 
-          setEnableCollision={setEnableCollision} 
-          rackData={rackData} 
-          items={items}
-          onClose={() => { setIsConfigOpen(false); setSelectedLoc(null); }} 
-          onViewInTable={onEmplacementClick ? (emplacement) => {
-            // Trouver le niveau max avec du stock
-            const rack = rackData.find(r => r.rackCode === emplacement);
-            const level = rack?.stockByLevel?.size ? Math.max(...Array.from(rack.stockByLevel.keys())) : 1;
-            onEmplacementClick(emplacement, level, 1);
-          } : undefined}
-        />
+
+        {/* EditPanel (mode édition) OU SidePanel (détails rack) */}
+        {isEditMode ? (
+          <EditPanel
+            isOpen={isEditMode}
+            onClose={() => setIsEditMode(false)}
+            isDark={isDark}
+            config={config}
+            setConfig={setConfig}
+            selectedLoc={selectedLoc}
+            selectedRack={selectedRack}
+            moveStep={editor.moveStep}
+            setMoveStep={editor.setMoveStep}
+            canMove={editor.canMove}
+            moveRack={editor.moveRack}
+            rotateRack={editor.rotateRack}
+            undo={editor.undo}
+            confirm={editor.confirm}
+            cancel={editor.cancel}
+            historyLength={editor.history.length}
+            showEditGrid={showEditGrid}
+            setShowEditGrid={setShowEditGrid}
+          />
+        ) : (
+          <SidePanel 
+            isConfigOpen={false} 
+            selectedLoc={selectedLoc} 
+            isEditMode={false} 
+            isDark={isDark} 
+            isFullscreen={isFullscreen} 
+            config={config} 
+            setConfig={setConfig} 
+            enableCollision={enableCollision} 
+            setEnableCollision={setEnableCollision} 
+            rackData={rackData} 
+            items={items}
+            onClose={() => setSelectedLoc(null)} 
+            onViewInTable={onEmplacementClick ? (emplacement) => {
+              const rack = rackData.find(r => r.rackCode === emplacement);
+              const level = rack?.stockByLevel?.size ? Math.max(...Array.from(rack.stockByLevel.keys())) : 1;
+              onEmplacementClick(emplacement, level, 1);
+            } : undefined}
+          />
+        )}
       </div>
     </div>
   );
