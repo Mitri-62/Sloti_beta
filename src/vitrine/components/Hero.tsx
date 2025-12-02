@@ -41,7 +41,7 @@ const Hero: FC = () => {
             </span>
             <Rocket size={20} className="text-white" />
             <span className="text-sm font-bold text-white drop-shadow-lg uppercase tracking-wide">
-              BÊTA PRIVÉE - 15 places disponibles - Lancement Février 2026
+              BÊTA PRIVÉE - 15 places disponibles - Lancement Mars 2026
             </span>
           </div>
 
