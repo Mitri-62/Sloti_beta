@@ -104,7 +104,7 @@ const features = [
     benefit: "Recherche en 3 secondes",
     color: "purple",
     category: "stocks",
-    screenshot: "/screenshots/vue-synoptique.png"
+    screenshot: "/screenshots/stock-3d.png"
   },
   {
     icon: ClipboardCheck,
@@ -367,31 +367,7 @@ export default function Features() {
           );
         })}
 
-        {/* Bannière finale */}
-        <div className="mt-16 bg-gradient-to-r from-[#2792B0] to-[#207A94] rounded-2xl shadow-xl p-8 sm:p-10 text-white text-center">
-          <h3 className="text-2xl sm:text-3xl font-bold mb-4">
-            Toutes les fonctionnalités. Aucun module caché.
-          </h3>
-          <p className="text-base sm:text-lg mb-6 text-white/90 max-w-2xl mx-auto">
-            Du plan Starter au plan Enterprise, chaque fonctionnalité annoncée est 
-            accessible immédiatement. Testez gratuitement pendant 14 jours.
-          </p>
-          <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
-            <a
-              href="#pricing"
-              className="inline-flex items-center justify-center px-6 sm:px-8 py-3 sm:py-4 bg-white text-[#2792B0] rounded-lg font-semibold text-base sm:text-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
-            >
-              Voir les tarifs
-              <ArrowRight className="ml-2 w-5 h-5" />
-            </a>
-            <a
-              href="#DevisForm"
-              className="inline-flex items-center justify-center px-6 sm:px-8 py-3 sm:py-4 border-2 border-white text-white hover:bg-white hover:text-[#2792B0] rounded-lg font-semibold text-base sm:text-lg shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
-            >
-              Demander une démo
-            </a>
-          </div>
-        </div>
+        
       </div>
     </section>
   );

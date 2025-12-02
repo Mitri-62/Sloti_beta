@@ -114,8 +114,8 @@ export default function Contact() {
                 </div>
                 <div>
                   <h3 className="font-semibold mb-1">Email</h3>
-                  <a href="mailto:contact@sloti.fr" className="text-blue-100 hover:text-white transition-colors">
-                    contact@sloti.fr
+                  <a href="mailto:contact@getsloti.fr" className="text-blue-100 hover:text-white transition-colors">
+                    contact@getsloti.fr
                   </a>
                 </div>
               </div>

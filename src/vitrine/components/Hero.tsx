@@ -1,5 +1,5 @@
 import { useState, useEffect, FC } from "react";
-import { Calendar, Package, Truck, BarChart3, Rocket, Users, ArrowDown, ChevronDown, LucideIcon} from "lucide-react";
+import { Calendar, Package, Truck, BarChart3, Rocket, Users, ArrowDown, ChevronDown, LucideIcon, MessageCircle} from "lucide-react";
 
 // URL de l'image de fond - Rendu configurable pour la réutilisation
 const BACKGROUND_IMAGE_URL = "https://images.unsplash.com/photo-1553413077-190dd305871c?w=1920&q=80";
@@ -105,8 +105,9 @@ const Hero: FC = () => {
             <FeatureBadge icon={Calendar} label="Planning auto" color="blue" />
             <FeatureBadge icon={Package} label="Chargement 3D" color="purple" />
             <FeatureBadge icon={Truck} label="Tournées optimisées" color="orange" />
-            <FeatureBadge icon={BarChart3} label="Stocks temps réel" color="green" />
+            <FeatureBadge icon={BarChart3} label="Stocks temps réel 3D" color="green" />
             <FeatureBadge icon={Users} label="Flotte & Chauffeurs" color="teal" />
+            <FeatureBadge icon={MessageCircle} label="Communication interne" color="purple" />
           </div>
 
           {/* Boutons CTA - Utilisation d'un href pour le scroll plus standard */}

@@ -165,7 +165,7 @@ export default function BetaBenefits() {
               </div>
               <div className="flex-1 bg-white rounded-xl p-5 border-2 border-green-500 shadow-lg">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-bold text-lg text-gray-900">Novembre 2025 - Février 2026</h4>
+                  <h4 className="font-bold text-lg text-gray-900">Décembre 2025 - Février 2026</h4>
                   <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
                     EN COURS
                   </span>

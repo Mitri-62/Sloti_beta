@@ -15,6 +15,7 @@ import {
 import { format, subDays, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 
+
 type StockItem = {
   id: string;
   ean: string | null;
@@ -33,6 +34,7 @@ type StockItem = {
   movement_name?: string;
   created_at?: string;
   updated_at?: string;
+  tus?: 'EUR' | 'CHEP' | string | null;  // ← Ajoute ça
 };
 
 type ForecastData = {
@@ -68,18 +70,39 @@ export default function StockSynoptique() {
       setLoading(false);
       return;
     }
-
+  
     try {
-      const { data, error } = await supabase
+      // Charger stocks
+      const { data: stocksData, error: stocksError } = await supabase
         .from("stocks")
         .select("*")
         .eq("company_id", companyId)
         .order("name");
-
-      if (error) throw error;
-      if (data) setItems(data);
-
-      // Charger l'historique des mouvements
+  
+      if (stocksError) throw stocksError;
+  
+      // Charger masterdata pour récupérer tus
+      const { data: masterData, error: masterError } = await supabase
+        .from("masterdata")
+        .select("sku, tus")
+        .eq("company_id", companyId);
+  
+      if (masterError) throw masterError;
+  
+      // Créer un map SKU → TUS
+      const tusMap = new Map<string, string>();
+      masterData?.forEach(m => {
+        if (m.sku && m.tus) tusMap.set(m.sku, m.tus);
+      });
+  
+      // Fusionner tus dans stocks (name = sku)
+      const enrichedStocks = (stocksData || []).map(stock => ({
+        ...stock,
+        tus: stock.name ? tusMap.get(stock.name) || null : null
+      }));
+  
+      setItems(enrichedStocks);
+  
       await loadStockHistory();
     } catch (err: any) {
       console.error("Erreur chargement stocks:", err);

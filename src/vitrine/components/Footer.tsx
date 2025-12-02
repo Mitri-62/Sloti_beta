@@ -70,12 +70,12 @@ export default function Footer() {
             <h3 className="font-semibold text-lg mb-4">Contact</h3>
             <div className="space-y-3">
               <a 
-                href="mailto:contact@sloti.fr" 
+                href="mailto:contact@getsloti.fr" 
                 className="flex items-center gap-2 text-sm hover:text-[#FFBC45] transition-colors duration-200 justify-center sm:justify-start focus:outline-none focus:ring-2 focus:ring-white rounded px-1"
-                aria-label="Envoyer un email à contact@sloti.fr"
+                aria-label="Envoyer un email à contact@getsloti.fr"
               >
                 <Mail size={16} aria-hidden="true" />
-                <span>contact@sloti.fr</span>
+                <span>contact@getsloti.fr</span>
               </a>
               <a 
                 href="tel:+33123456789" 
@@ -83,11 +83,11 @@ export default function Footer() {
                 aria-label="Appeler le +33 1 23 45 67 89"
               >
                 <Phone size={16} aria-hidden="true" />
-                <span>+33 1 23 45 67 89</span>
+                <span>+33 6 30 67 17 13</span>
               </a>
               <div className="flex items-center gap-2 text-sm justify-center sm:justify-start">
                 <MapPin size={16} aria-hidden="true" />
-                <span>Paris, France</span>
+                <span>Arras, France</span>
               </div>
             </div>
           </div>
@@ -97,7 +97,7 @@ export default function Footer() {
             <h3 className="font-semibold text-lg mb-4">Suivez-nous</h3>
             <div className="flex gap-4 justify-center sm:justify-start" role="list" aria-label="Liens des réseaux sociaux">
               <a 
-                href="https://www.sloti.fr" 
+                href="https://www.getsloti.fr" 
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-[#FFBC45] transition-colors duration-200 p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white"

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      display: flex; 
+      flex-direction: column;
+      justify-content: center; 
+      align-items: center; 
+      min-height: 100vh; 
+      background: #1a1a1a;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 20px;
+    }
+    .banner {
+      width: 1584px;
+      height: 396px;
+      position: relative;
+      overflow: hidden;
+      /* ⬇️ REMPLACE CETTE URL PAR TA CAPTURE 3D ⬇️ */
+      background: url('COLLE_TON_IMAGE_ICI.png') center/cover;
+    }
+    .overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, 
+        rgba(15,23,42,0.95) 0%, 
+        rgba(15,23,42,0.85) 35%, 
+        rgba(15,23,42,0.4) 70%,
+        rgba(15,23,42,0.2) 100%
+      );
+    }
+    .content {
+      position: relative;
+      z-index: 10;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      padding: 0 80px;
+      gap: 50px;
+    }
+    .logo-container {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+    .logo-icon {
+      width: 80px;
+      height: 80px;
+    }
+    .logo-text {
+      font-size: 64px;
+      font-weight: 700;
+      color: white;
+    }
+    .separator {
+      width: 2px;
+      height: 100px;
+      background: rgba(255,255,255,0.3);
+    }
+    .tagline {
+      flex: 1;
+    }
+    .tagline-main {
+      font-size: 42px;
+      font-weight: 600;
+      color: white;
+      margin-bottom: 8px;
+    }
+    .tagline-sub {
+      font-size: 32px;
+      color: #02d4d4;
+    }
+    .badge {
+      background: linear-gradient(135deg, #f91974 0%, #ffbc45 100%);
+      color: white;
+      padding: 18px 36px;
+      border-radius: 50px;
+      font-size: 24px;
+      font-weight: 600;
+      white-space: nowrap;
+      box-shadow: 0 4px 20px rgba(249, 25, 116, 0.4);
+    }
+    .url {
+      position: absolute;
+      bottom: 20px;
+      right: 40px;
+      color: rgba(255,255,255,0.6);
+      font-size: 20px;
+      font-weight: 500;
+    }
+    .instructions {
+      margin-top: 30px;
+      color: #888;
+      text-align: center;
+      font-size: 14px;
+      line-height: 2;
+      max-width: 600px;
+    }
+    .step { color: #02d4d4; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="banner">
+    <div class="overlay"></div>
+    <div class="content">
+      <div class="logo-container">
+        <!-- Logo Sloti -->
+        <svg class="logo-icon" xmlns="http://www.w3.org/2000/svg" viewBox="150 125 90 120">
+          <defs>
+            <clipPath id="c1"><path d="M185.09 186.57h29.29c3.11 0 5.97 1.71 7.44 4.45 1.47 2.74 1.31 6.07-.41 8.65l-7 10.5c-5.46 8.19-14.65 13.11-24.49 13.11h-29.28c-3.11 0-5.97-1.71-7.44-4.45-1.47-2.74-1.31-6.07.41-8.65l7-10.5c5.46-8.19 14.65-13.11 24.48-13.11z"/></clipPath>
+            <clipPath id="c2"><path d="M185.09 169.21h29.29c3.11 0 5.97 1.71 7.44 4.45 1.47 2.74 1.31 6.07-.41 8.65l-7 10.5c-5.46 8.19-14.65 13.11-24.49 13.11h-29.28c-3.11 0-5.97-1.71-7.44-4.45-1.47-2.74-1.31-6.07.41-8.65l7-10.5c5.46-8.19 14.65-13.11 24.48-13.11z"/></clipPath>
+            <clipPath id="c3"><path d="M185.09 151.72h29.29c3.11 0 5.97 1.71 7.44 4.45 1.47 2.74 1.31 6.07-.41 8.65l-7 10.5c-5.46 8.19-14.65 13.11-24.49 13.11h-29.28c-3.11 0-5.97-1.71-7.44-4.45-1.47-2.74-1.31-6.07.41-8.65l7-10.5c5.46-8.19 14.65-13.11 24.48-13.11z"/></clipPath>
+          </defs>
+          <!-- Cyan (bas) -->
+          <g clip-path="url(#c1)"><rect x="145" y="186" width="86" height="38" fill="#02d4d4"/></g>
+          <path d="M185.09 186.57h29.29c3.11 0 5.97 1.71 7.44 4.45 1.47 2.74 1.31 6.07-.41 8.65l-7 10.5c-5.46 8.19-14.65 13.11-24.49 13.11h-29.28c-3.11 0-5.97-1.71-7.44-4.45-1.47-2.74-1.31-6.07.41-8.65l7-10.5c5.46-8.19 14.65-13.11 24.48-13.11z" fill="none" stroke="#fff" stroke-width="9"/>
+          <!-- Jaune (milieu) -->
+          <g clip-path="url(#c2)"><rect x="145" y="169" width="86" height="38" fill="#ffbc45"/></g>
+          <path d="M185.09 169.21h29.29c3.11 0 5.97 1.71 7.44 4.45 1.47 2.74 1.31 6.07-.41 8.65l-7 10.5c-5.46 8.19-14.65 13.11-24.49 13.11h-29.28c-3.11 0-5.97-1.71-7.44-4.45-1.47-2.74-1.31-6.07.41-8.65l7-10.5c5.46-8.19 14.65-13.11 24.48-13.11z" fill="none" stroke="#fff" stroke-width="9"/>
+          <!-- Rose (haut) -->
+          <g clip-path="url(#c3)"><rect x="145" y="151" width="86" height="38" fill="#f91974"/></g>
+          <path d="M185.09 151.72h29.29c3.11 0 5.97 1.71 7.44 4.45 1.47 2.74 1.31 6.07-.41 8.65l-7 10.5c-5.46 8.19-14.65 13.11-24.49 13.11h-29.28c-3.11 0-5.97-1.71-7.44-4.45-1.47-2.74-1.31-6.07.41-8.65l7-10.5c5.46-8.19 14.65-13.11 24.48-13.11z" fill="none" stroke="#fff" stroke-width="9"/>
+        </svg>
+        <span class="logo-text">Sloti.</span>
+      </div>
+      <div class="separator"></div>
+      <div class="tagline">
+        <div class="tagline-main">Optimisez votre supply chain</div>
+        <div class="tagline-sub">de l'entrepôt à la livraison</div>
+      </div>
+      <div class="badge">🚀 Beta privée</div>
+    </div>
+    <div class="url">getsloti.fr</div>
+  </div>
+  
+  <div class="instructions">
+    <p><span class="step">Étape 1 :</span> Copie ce code HTML dans un fichier .html</p>
+    <p><span class="step">Étape 2 :</span> Remplace "COLLE_TON_IMAGE_ICI.png" par le chemin de ta capture 3D</p>
+    <p><span class="step">Étape 3 :</span> Ouvre dans Chrome, F12, sélectionne .banner, clic droit → "Capture node screenshot"</p>
+    <p><span class="step">Étape 4 :</span> Upload sur LinkedIn !</p>
+  </div>
+</body>
+</html>

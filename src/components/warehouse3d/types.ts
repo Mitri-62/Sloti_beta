@@ -1,3 +1,5 @@
+
+
 // Types Exportés
 export interface StockItem {
     id: string;
