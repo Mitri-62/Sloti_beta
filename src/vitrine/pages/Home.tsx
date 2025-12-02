@@ -46,14 +46,15 @@ export default function Home() {
         </section>
 
         {/* Section Actualités dynamiques */}
-        <News />
+       {/* <News /> */}
 
-        {/* Section FAQ */}
+        {/* Section FAQ 
         <section id="faq" aria-labelledby="faq-title">
           <Suspense fallback={<LoadingSpinner />}>
             <FAQ />
           </Suspense>
         </section>
+      */}
 
         {/* Section Devis */}
         <section id="DevisForm" aria-labelledby="devis-title">

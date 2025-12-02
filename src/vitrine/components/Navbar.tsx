@@ -34,7 +34,7 @@ export default function Navbar() {
   const navLinks = [
     { href: "#features", label: "Fonctionnalités" },
     { href: "#pricing", label: "Tarifs" },
-    { href: "#news", label: "Actualités" },
+    /*{ href: "#news", label: "Actualités" },*/
     { href: "#DevisForm", label: "Devis" },
   ];
 

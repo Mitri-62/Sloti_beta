@@ -41,8 +41,8 @@ export default function BetaBenefits() {
                   Prix gelé à vie
                 </h3>
                 <p className="text-gray-700 text-lg mb-4">
-                  <span className="text-3xl font-bold text-orange-600">149€/mois</span>
-                  {" "}au lieu de{" "}
+                  <span className="text-3xl font-bold text-orange-600">GRATUIT pendant 3 mois</span>
+                  {" "}puis 149€/mois au lieu{" "}
                   <span className="line-through text-gray-500">349€/mois</span>
                 </p>
                 <p className="text-gray-600 leading-relaxed">
@@ -185,7 +185,7 @@ export default function BetaBenefits() {
               </div>
               <div className="flex-1 bg-white rounded-xl p-5 border-2 border-blue-200">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-bold text-lg text-gray-900">Février 2026</h4>
+                  <h4 className="font-bold text-lg text-gray-900">Mars 2026</h4>
                   <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">
                     LANCEMENT
                   </span>
@@ -236,7 +236,7 @@ export default function BetaBenefits() {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <a
-                href="#devis"
+                href="#DevisForm"
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white text-orange-600 rounded-xl font-bold text-lg hover:bg-gray-100 transition-all hover:scale-105 shadow-xl"
               >
                 <Zap size={24} />

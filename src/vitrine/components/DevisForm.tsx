@@ -122,10 +122,10 @@ export default function DevisForm() {
               <CheckCircle size={32} />
             </div>
             <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-4">
-              Merci pour votre demande !
+              🎉 Bienvenue dans la bêta !
             </h2>
             <p className="text-gray-600 mb-8">
-              Votre demande de devis a bien été envoyée. Notre équipe vous contactera dans les plus brefs délais.
+              Votre demande a bien été enregistrée. Vous recevrez vos accès par email sous 24h.
             </p>
             <button
               onClick={() => setSubmitted(false)}
@@ -151,10 +151,10 @@ export default function DevisForm() {
             id="devis-title"
             className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-4"
           >
-            Demander un devis
+            Rejoindre la bêta
           </h2>
           <p className="text-base sm:text-lg text-gray-600">
-            Remplissez ce formulaire pour recevoir une offre personnalisée adaptée à vos besoins.
+          Testez Sloti <strong>gratuitement pendant 3 mois</strong>, puis conservez le tarif early adopter à vie.
           </p>
         </div>
 

@@ -50,12 +50,12 @@ export default function Footer() {
               >
                 Tarifs
               </a>
-              <a 
+              {/*<a 
                 href="#faq" 
                 className="block text-sm hover:text-[#FFBC45] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white rounded px-1"
               >
                 FAQ
-              </a>
+              </a>*/}
               <a 
                 href="#DevisForm" 
                 className="block text-sm hover:text-[#FFBC45] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white rounded px-1"
@@ -105,7 +105,7 @@ export default function Footer() {
               >
                 <Globe size={24} />
               </a>
-              <a 
+              {/*<a 
                 href="https://twitter.com/sloti" 
                 target="_blank"
                 rel="noopener noreferrer"
@@ -113,7 +113,7 @@ export default function Footer() {
                 aria-label="Nous suivre sur Twitter"
               >
                 <Twitter size={24} />
-              </a>
+              </a>*/}
               <a 
                 href="https://linkedin.com/company/sloti" 
                 target="_blank"

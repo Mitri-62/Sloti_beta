@@ -228,7 +228,7 @@ export default function Features() {
           <div className="inline-flex items-center gap-2 bg-blue-100 px-4 py-2 rounded-full mb-4">
             <Zap size={18} className="text-blue-600" />
             <span className="text-sm font-semibold text-blue-600">
-              15 fonctionnalités puissantes
+              14 fonctionnalités puissantes
             </span>
           </div>
           
