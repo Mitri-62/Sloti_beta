@@ -84,7 +84,7 @@ export default function BetaBenefits() {
             </div>
           </div>
 
-          {/* Avantage 3 : Support VIP */}
+          {/* Avantage 3 : Support dédié */}
           <div className="group bg-gradient-to-br from-green-50 to-green-100 rounded-2xl p-8 border-2 border-green-200 hover:border-green-400 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1">
             <div className="flex items-start gap-4">
               <div className="w-14 h-14 bg-green-500 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
@@ -93,29 +93,28 @@ export default function BetaBenefits() {
               
               <div className="flex-1">
                 <h3 className="text-2xl font-bold text-gray-900 mb-3">
-                  Support VIP
+                  Support dédié
                 </h3>
                 <p className="text-gray-700 mb-3">
-                  Ligne directe avec le fondateur pendant 6 mois
+                  Accès direct au fondateur pendant la beta
                 </p>
                 <ul className="space-y-2">
                   <li className="flex items-center gap-2 text-gray-600">
                     <Check size={18} className="text-green-600 flex-shrink-0" strokeWidth={3} />
-                    <span>Réponse sous 2h (jour ouvré)</span>
+                    <span>Réponse sous 24h</span>
                   </li>
                   <li className="flex items-center gap-2 text-gray-600">
                     <Check size={18} className="text-green-600 flex-shrink-0" strokeWidth={3} />
-                    <span>Visio de formation personnalisée</span>
+                    <span>Appel de démarrage inclus</span>
                   </li>
                   <li className="flex items-center gap-2 text-gray-600">
                     <Check size={18} className="text-green-600 flex-shrink-0" strokeWidth={3} />
-                    <span>Configuration sur-mesure</span>
+                    <span>Aide à la configuration</span>
                   </li>
                 </ul>
               </div>
             </div>
           </div>
-
           {/* Avantage 4 : Statut pionnier */}
           <div className="group bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-8 border-2 border-purple-200 hover:border-purple-400 transition-all duration-300 hover:shadow-2xl hover:-translate-y-1">
             <div className="flex items-start gap-4">
