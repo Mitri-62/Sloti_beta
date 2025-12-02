@@ -1,5 +1,6 @@
 // src/vitrine/components/Footer.tsx
-import { Globe, Twitter, Linkedin, Mail, Phone, MapPin } from "lucide-react";
+import { Globe, Linkedin, Mail, Phone, MapPin } from "lucide-react";
+import { Link } from "react-router-dom";
 import logo from "../../assets/Sloti.svg";
 
 export default function Footer() {
@@ -50,12 +51,6 @@ export default function Footer() {
               >
                 Tarifs
               </a>
-              {/*<a 
-                href="#faq" 
-                className="block text-sm hover:text-[#FFBC45] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white rounded px-1"
-              >
-                FAQ
-              </a>*/}
               <a 
                 href="#DevisForm" 
                 className="block text-sm hover:text-[#FFBC45] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white rounded px-1"
@@ -78,9 +73,9 @@ export default function Footer() {
                 <span>contact@getsloti.fr</span>
               </a>
               <a 
-                href="tel:+33123456789" 
+                href="tel:+33630671713" 
                 className="flex items-center gap-2 text-sm hover:text-[#FFBC45] transition-colors duration-200 justify-center sm:justify-start focus:outline-none focus:ring-2 focus:ring-white rounded px-1"
-                aria-label="Appeler le +33 1 23 45 67 89"
+                aria-label="Appeler le +33 6 30 67 17 13"
               >
                 <Phone size={16} aria-hidden="true" />
                 <span>+33 6 30 67 17 13</span>
@@ -105,17 +100,8 @@ export default function Footer() {
               >
                 <Globe size={24} />
               </a>
-              {/*<a 
-                href="https://twitter.com/sloti" 
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-[#FFBC45] transition-colors duration-200 p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white"
-                aria-label="Nous suivre sur Twitter"
-              >
-                <Twitter size={24} />
-              </a>*/}
               <a 
-                href="https://linkedin.com/company/sloti" 
+                href="https://linkedin.com/in/dimitri-music" 
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-[#FFBC45] transition-colors duration-200 p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white"
@@ -136,24 +122,24 @@ export default function Footer() {
             © {currentYear} Sloti. Tous droits réservés.
           </p>
           <div className="flex flex-wrap justify-center gap-4">
-            <a 
-              href="#" 
+            <Link 
+              to="/mentions-legales" 
               className="hover:text-[#FFBC45] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white rounded px-1"
             >
               Mentions légales
-            </a>
-            <a 
-              href="#" 
+            </Link>
+            <Link 
+              to="/confidentialite" 
               className="hover:text-[#FFBC45] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white rounded px-1"
             >
               Politique de confidentialité
-            </a>
-            <a 
-              href="#" 
+            </Link>
+            <Link 
+              to="/cgu" 
               className="hover:text-[#FFBC45] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white rounded px-1"
             >
               CGU
-            </a>
+            </Link>
           </div>
         </div>
 

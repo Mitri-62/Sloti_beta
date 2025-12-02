@@ -220,7 +220,7 @@ export default function Login() {
               href="/#DevisForm"
               className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-semibold hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-1"
             >
-              Demander une démo
+              Rejoindre la bêta gratuite
             </a>
           </p>
         </div>
