@@ -1,5 +1,5 @@
-// src/components/Sidebar.tsx - VERSION RÉORGANISÉE AVEC FLOTTE
-import { useState, useEffect} from "react";
+// src/components/Sidebar.tsx
+import { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -29,7 +29,7 @@ import {
   Send,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
-import { supabase } from "../supabaseClient";
+import { useNotifications } from "../hooks/useNotifications";
 import useSuperAdmin from "../hooks/useSuperAdmin";
 import logo from "../assets/Sloti.svg";
 
@@ -69,7 +69,7 @@ function TooltipNavLink({
         {!isCollapsed && <span className="font-medium">{label}</span>}
         
         {badge && badge > 0 && (
-          <span className={`${isCollapsed ? 'absolute top-1 right-1' : 'ml-auto'} min-w-[18px] h-[18px] bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-semibold`}>
+          <span className={`${isCollapsed ? 'absolute top-0 right-0' : 'ml-auto'} min-w-[18px] h-[18px] bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-semibold`}>
             {badge > 9 ? '9+' : badge}
           </span>
         )}
@@ -77,6 +77,11 @@ function TooltipNavLink({
         {isCollapsed && (
           <span className="absolute left-full ml-2 bg-gray-900 dark:bg-gray-700 text-white text-xs rounded-lg px-3 py-2 opacity-0 group-hover:opacity-100 group-hover:translate-x-0 -translate-x-2 transition-all duration-200 whitespace-nowrap z-50 shadow-lg pointer-events-none">
             {label}
+            {badge && badge > 0 && (
+              <span className="ml-2 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                {badge > 9 ? '9+' : badge}
+              </span>
+            )}
             <span className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-gray-900 dark:border-r-gray-700"></span>
           </span>
         )}
@@ -89,11 +94,16 @@ export default function Sidebar() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [unreadMessages, setUnreadMessages] = useState(0);
 
   const location = useLocation();
   const { user, logout } = useAuth();
   const { isSuperAdmin, loading: superAdminLoading } = useSuperAdmin();
+  
+  // ✅ Hook centralisé pour les notifications
+  const { unreadNotifications } = useNotifications();
+  
+  // ✅ Compter seulement les messages non lus
+  const unreadMessages = unreadNotifications.filter(n => n.type === 'message').length;
   
   const isAdmin = user?.role === 'admin';
 
@@ -119,47 +129,6 @@ export default function Sidebar() {
       localStorage.setItem(`sidebar_collapsed_${user.id}`, JSON.stringify(isCollapsed));
     }
   }, [isCollapsed, user?.id]);
-
-  useEffect(() => {
-    if (!user) return;
-
-    const fetchUnreadMessages = async () => {
-      try {
-        const { data } = await supabase
-        .from("chat_messages")
-        .select("id")
-        .eq("company_id", user.company_id)
-        .neq("user_id", user.id);
-
-        setUnreadMessages(data?.length || 0);
-      } catch (error) {
-        console.error('Erreur chargement messages:', error);
-      }
-    };
-
-    fetchUnreadMessages();
-
-    const messagesChannel = supabase
-      .channel("chat_messages_sidebar")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "chat_messages" },
-        (payload) => {
-          const newMessage = payload.new;
-          if (
-            newMessage.user_id !== user.id &&
-            newMessage.company_id === user.company_id
-          ) {
-            setUnreadMessages(prev => prev + 1);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(messagesChannel);
-    };
-  }, [user]);
 
   useEffect(() => {
     setIsMobileOpen(false);
@@ -321,12 +290,12 @@ export default function Sidebar() {
           isCollapsed={isCollapsed}
         />
 
-          <TooltipNavLink
-            to="/app/booking"
-            icon={Send}
-            label="Booking Transport"
-            isCollapsed={isCollapsed}
-          />
+        <TooltipNavLink
+          to="/app/booking"
+          icon={Send}
+          label="Booking Transport"
+          isCollapsed={isCollapsed}
+        />
 
         {/* ========== STOCKS ========== */}
         {!isCollapsed && (
@@ -433,7 +402,7 @@ export default function Sidebar() {
         {!isCollapsed && (
           <div className="px-3 mb-2 mt-4">
             <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-              Centre d'aide
+              Aide
             </span>
           </div>
         )}
@@ -446,7 +415,7 @@ export default function Sidebar() {
         />
       </nav>
 
-      {/* Footer - Profil utilisateur */}
+      {/* Footer */}
       <div className="p-4 border-t border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3">
           <div className="relative w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold shadow-md flex-shrink-0">
@@ -477,7 +446,6 @@ export default function Sidebar() {
               onClick={toggleTheme}
               className="p-2 text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               title={theme === 'light' ? 'Mode sombre' : 'Mode clair'}
-              aria-label="Changer de thème"
             >
               {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
             </button>
@@ -486,7 +454,6 @@ export default function Sidebar() {
               onClick={handleLogout}
               className="p-2 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               title="Déconnexion"
-              aria-label="Se déconnexter"
             >
               <LogOut size={18} />
             </button>
@@ -507,7 +474,6 @@ export default function Sidebar() {
       <button
         onClick={() => setIsMobileOpen(true)}
         className="lg:hidden fixed top-4 left-4 z-40 p-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg"
-        aria-label="Ouvrir le menu"
       >
         <Menu size={24} className="text-gray-700 dark:text-gray-300" />
       </button>

@@ -1,4 +1,4 @@
-// src/components/Header.tsx - VERSION COMPLÈTE AMÉLIORÉE
+// src/components/Header.tsx
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { 
   Home, Bell, Search, User, Settings, LogOut, 
@@ -6,6 +6,7 @@ import {
   ChevronRight, Zap
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { useNotifications } from "../hooks/useNotifications";
 import { supabase } from "../supabaseClient";
 import { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
@@ -16,6 +17,13 @@ export default function Header() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { 
+    unreadNotifications, 
+    unreadCount, 
+    markAsRead, 
+    markAllAsRead 
+  } = useNotifications();
+  
   const isHomePage = location.pathname === "/app";
 
   const [showSearch, setShowSearch] = useState(false);
@@ -26,12 +34,9 @@ export default function Header() {
   
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
-  const [allNotifications, setAllNotifications] = useState<any[]>([]);
-  const [readNotifications, setReadNotifications] = useState<Set<string>>(new Set());
   const [notifFilter, setNotifFilter] = useState<'all' | 'messages' | 'activity'>('all');
   
   const [focusMode, setFocusMode] = useState(false);
-
 
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -39,11 +44,6 @@ export default function Header() {
 
   // Charger les préférences depuis localStorage
   useEffect(() => {
-    const stored = localStorage.getItem(`notifications_read_${user?.id}`);
-    if (stored) {
-      setReadNotifications(new Set(JSON.parse(stored)));
-    }
-
     const savedHistory = localStorage.getItem(`search_history_${user?.id}`);
     if (savedHistory) {
       setSearchHistory(JSON.parse(savedHistory));
@@ -65,12 +65,10 @@ export default function Header() {
   // Raccourcis clavier
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      // Ctrl+K ou Cmd+K pour ouvrir la recherche
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         setShowSearch(true);
       }
-      // Echap pour fermer tous les dropdowns
       if (e.key === 'Escape') {
         setShowSearch(false);
         setShowNotifications(false);
@@ -100,102 +98,7 @@ export default function Header() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Charger les notifications
-  useEffect(() => {
-    if (!user) return;
-
-    const fetchAllNotifications = async () => {
-      try {
-        
-        // Messages
-        const { data: messages } = await supabase
-        .from("chat_messages")
-        .select("id, user_id, username, content, created_at")
-        .eq("company_id", user.company_id)
-        .neq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(10);
-
-        // Activités
-        const { data: activities } = await supabase
-          .from("activities")
-          .select("*")
-          .eq("company_id", user.company_id)
-          .order("created_at", { ascending: false })
-          .limit(10);
-
-        const allNotifs = [
-          ...(messages?.map(m => ({ ...m, type: 'message' })) || []),
-          ...(activities?.map(a => ({ ...a, type: 'activity' })) || [])
-        ].sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-
-        setAllNotifications(allNotifs);
-      } catch (error) {
-        console.error('Erreur chargement notifications:', error);
-      }
-    };
-
-    fetchAllNotifications();
-    const intervalId = setInterval(fetchAllNotifications, 10000);
-
-    // Realtime pour messages
-    const messagesChannel = supabase
-      .channel("chat_messages_header")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "chat_messages" },
-        (payload) => {
-          const newMessage = payload.new;
-          if (
-            newMessage.user_id !== user.id &&
-            newMessage.company_id === user.company_id
-          ) {
-            setAllNotifications(prev => [{ ...newMessage, type: 'message' }, ...prev]);
-            if (!focusMode) {
-              playNotificationSound();
-              toast.info(`Nouveau message de ${newMessage.username}`);
-            }
-          }
-        }
-      )
-      .subscribe();
-
-    // Realtime pour activités
-    const activitiesChannel = supabase
-      .channel("activities_header")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "activities" },
-        (payload) => {
-          const newActivity = payload.new;
-          if (newActivity.company_id === user.company_id) {
-            setAllNotifications(prev => [{ ...newActivity, type: 'activity' }, ...prev]);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      clearInterval(intervalId);
-      supabase.removeChannel(messagesChannel);
-      supabase.removeChannel(activitiesChannel);
-    };
-  }, [user, focusMode]);
-
-  // Son de notification
-  const playNotificationSound = () => {
-    try {
-      const audio = new Audio('/notification.mp3');
-      audio.volume = 0.3;
-      audio.play().catch(() => {});
-    } catch (error) {
-      // Ignorer les erreurs
-    }
-  };
-
-  // Recherche globale avec historique
+  // Recherche globale
   const handleSearch = async (query: string) => {
     setSearchQuery(query);
     
@@ -209,7 +112,6 @@ export default function Header() {
     try {
       const results: any[] = [];
 
-      // Recherche dans les stocks
       const { data: stocks } = await supabase
         .from("stocks")
         .select("ean, name, quantity")
@@ -221,7 +123,6 @@ export default function Header() {
         results.push(...stocks.map(s => ({ ...s, type: 'stock', icon: Package })));
       }
 
-      // Recherche dans les tournées
       const { data: tours } = await supabase
         .from("tours")
         .select("id, name, date, status")
@@ -233,7 +134,6 @@ export default function Header() {
         results.push(...tours.map(t => ({ ...t, type: 'tour', icon: Truck })));
       }
 
-      // Recherche dans les utilisateurs
       const { data: users } = await supabase
         .from("users")
         .select("id, full_name, email")
@@ -274,8 +174,51 @@ export default function Header() {
         navigate(`/app/tour-planning/${result.id}`);
         break;
       case 'user':
-        navigate(`/app/chat/${result.id}`);
+        navigate(`/app/chat/dm/${result.id}`);
         break;
+    }
+  };
+
+  // 🎯 Navigation au clic sur notification
+  const handleNotificationClick = (notif: any) => {
+    markAsRead(notif.id);
+    setShowNotifications(false);
+
+    if (notif.type === 'message') {
+      if (notif.channel_id) {
+        navigate(`/app/chat/channel/${notif.channel_id}`);
+      } else if (notif.user_id) {
+        navigate(`/app/chat/dm/${notif.user_id}`);
+      } else {
+        navigate('/app/chat');
+      }
+      return;
+    }
+
+    // Activités
+    if (notif.entity_type) {
+      const routes: Record<string, string> = {
+        'tour': `/app/tour-planning/${notif.entity_id || ''}`,
+        'tours': '/app/tour-planning',
+        'stock': '/app/stock/synoptique',
+        'planning': '/app/planning',
+        'vehicle': '/app/fleet/vehicles',
+        'driver': '/app/fleet/drivers',
+      };
+
+      const route = routes[notif.entity_type.toLowerCase()];
+      if (route) {
+        navigate(route);
+        return;
+      }
+    }
+
+    // Fallback
+    if (notif.message) {
+      const msg = notif.message.toLowerCase();
+      if (msg.includes('tour')) navigate('/app/tour-planning');
+      else if (msg.includes('stock')) navigate('/app/stock/synoptique');
+      else if (msg.includes('planning')) navigate('/app/planning');
     }
   };
 
@@ -310,30 +253,8 @@ export default function Header() {
     );
   };
 
-  const markAsRead = async (notifId: string) => {
-    const newRead = new Set(readNotifications);
-    newRead.add(notifId);
-    setReadNotifications(newRead);
-    
-    localStorage.setItem(
-      `notifications_read_${user?.id}`,
-      JSON.stringify(Array.from(newRead))
-    );
-    
-    setAllNotifications(prev => prev.filter(n => n.id !== notifId));
-  };
-
-  const markAllAsRead = () => {
-    const allIds = allNotifications.map(n => n.id);
-    const newRead = new Set([...Array.from(readNotifications), ...allIds]);
-    setReadNotifications(newRead);
-    
-    localStorage.setItem(
-      `notifications_read_${user?.id}`,
-      JSON.stringify(Array.from(newRead))
-    );
-    
-    setAllNotifications([]);
+  const handleMarkAllAsRead = () => {
+    markAllAsRead();
     toast.success('Toutes les notifications ont été marquées comme lues');
   };
 
@@ -369,6 +290,10 @@ export default function Header() {
         entrees: 'Entrées',
         sorties: 'Sorties',
         synoptique: 'Vue Synoptique',
+        notifications: 'Notifications',
+        fleet: 'Flotte',
+        vehicles: 'Véhicules',
+        drivers: 'Chauffeurs',
       };
       
       segments.slice(1).forEach((segment, idx) => {
@@ -383,9 +308,7 @@ export default function Header() {
     return breadcrumbs;
   };
 
-  const unreadCount = allNotifications.filter(n => !readNotifications.has(n.id)).length;
-  const unreadNotifications = allNotifications.filter(n => !readNotifications.has(n.id));
-  
+  // Filtrer les notifications
   const filteredNotifications = unreadNotifications.filter(n => {
     if (notifFilter === 'all') return true;
     if (notifFilter === 'messages') return n.type === 'message';
@@ -398,7 +321,7 @@ export default function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           
-          {/* Breadcrumb dynamique */}
+          {/* Breadcrumb */}
           <div className="flex items-center gap-4">
             {!isHomePage ? (
               <nav className="flex items-center gap-2 text-sm ml-12 lg:ml-0">
@@ -442,7 +365,7 @@ export default function Header() {
               </button>
 
               {showSearch && (
-                <div className="absolute top-12 right-0 bg-white dark:bg-gray-800 shadow-xl rounded-lg w-80 sm:w-96 p-4 z- border border-gray-200 dark:border-gray-700">
+                <div className="absolute top-12 right-0 bg-white dark:bg-gray-800 shadow-xl rounded-lg w-80 sm:w-96 p-4 z-50 border border-gray-200 dark:border-gray-700">
                   <div className="relative mb-3">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                     <input
@@ -511,7 +434,7 @@ export default function Header() {
                       </div>
                     ) : (
                       <p className="text-sm text-gray-500 text-center py-4">
-                        Tapez au moins 2 caractères pour rechercher
+                        Tapez au moins 2 caractères
                       </p>
                     )}
                   </div>
@@ -544,7 +467,7 @@ export default function Header() {
                         </h4>
                         {unreadCount > 0 && (
                           <button
-                            onClick={markAllAsRead}
+                            onClick={handleMarkAllAsRead}
                             className="text-xs text-blue-600 hover:text-blue-700 font-medium"
                           >
                             Tout marquer comme lu
@@ -576,18 +499,20 @@ export default function Header() {
 
                     <div className="overflow-y-auto flex-1">
                       {filteredNotifications.length === 0 ? (
-                        <p className="text-sm text-gray-500 text-center py-8">
-                          Aucune notification
-                        </p>
+                        <div className="text-center py-8">
+                          <Bell size={32} className="mx-auto text-gray-300 dark:text-gray-600 mb-2" />
+                          <p className="text-sm text-gray-500">Aucune notification</p>
+                        </div>
                       ) : (
                         <ul>
-                          {filteredNotifications.map((notif) => (
+                          {filteredNotifications.slice(0, 10).map((notif) => (
                             <li
                               key={notif.id}
-                              className="border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                              onClick={() => handleNotificationClick(notif)}
+                              className="border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors cursor-pointer"
                             >
                               <div className="p-3">
-                                <div className="flex items-start gap-3 mb-2">
+                                <div className="flex items-start gap-3">
                                   <div className="mt-1">
                                     {getNotificationIcon(notif)}
                                   </div>
@@ -601,15 +526,18 @@ export default function Header() {
                                         })}
                                       </span>
                                     </div>
-                                    <p className="text-sm text-gray-900 dark:text-white">
+                                    <p className="text-sm text-gray-900 dark:text-white line-clamp-2">
                                       {notif.type === 'message' 
-                                        ? `${notif.username}: ${notif.content}`
+                                        ? <><span className="font-medium text-blue-600">{notif.username}</span>: {notif.content}</>
                                         : notif.message
                                       }
                                     </p>
                                   </div>
                                   <button
-                                    onClick={() => markAsRead(notif.id)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      markAsRead(notif.id);
+                                    }}
                                     className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded flex-shrink-0"
                                     title="Marquer comme lu"
                                   >
@@ -656,7 +584,6 @@ export default function Header() {
 
               {showProfile && (
                 <div className="absolute top-12 right-0 bg-white dark:bg-gray-800 shadow-xl rounded-lg w-56 z-50 border border-gray-200 dark:border-gray-700 overflow-hidden">
-                  {/* En-tête profil */}
                   <div className="p-4 bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-white font-bold text-lg">
@@ -673,7 +600,6 @@ export default function Header() {
                     </div>
                   </div>
 
-                  {/* Menu */}
                   <ul className="py-2">
                     <li>
                       <button
