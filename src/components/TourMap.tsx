@@ -1,4 +1,4 @@
-// src/components/TourMap.tsx - VERSION CORRIGÉE
+// src/components/TourMap.tsx - VERSION AVEC DÉPÔT
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -23,6 +23,14 @@ interface DriverLocation {
   last_update: string;
 }
 
+// ✅ NOUVEAU: Interface pour le dépôt
+interface DepotLocation {
+  latitude: number;
+  longitude: number;
+  address?: string;
+  source?: 'depot' | 'vehicle' | 'driver' | 'driver_gps' | 'estimated' | 'default';
+}
+
 interface TourMapProps {
   stops: Stop[];
   showRoute?: boolean;
@@ -30,6 +38,10 @@ interface TourMapProps {
   height?: string;
   driverLocation?: DriverLocation | null;
   tourId?: string;
+  // ✅ NOUVEAU: Props pour le dépôt
+  depotLocation?: DepotLocation | null;
+  showDepot?: boolean;
+  returnToDepot?: boolean;
 }
 
 const MAP_PROVIDERS = {
@@ -103,21 +115,38 @@ const statusLabels = {
   failed: 'Échec'
 };
 
+// ✅ Labels pour la source du dépôt
+const depotSourceLabels = {
+  depot: '🏭 Dépôt configuré',
+  vehicle: '🅿️ Position véhicule',
+  driver: '👤 Position chauffeur',
+  driver_gps: '🚚 GPS temps réel',
+  estimated: '📍 Position estimée',
+  default: '⚠️ Position par défaut'
+};
+
 export default function TourMap({ 
   stops, 
   showRoute = true, 
   onStopClick, 
   height = '600px',
   driverLocation,
-  tourId
+  tourId,
+  depotLocation,
+  showDepot = true,
+  returnToDepot = false
 }: TourMapProps) {
   const mapRef = useRef<L.Map | null>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef<L.Marker[]>([]);
   const driverMarkerRef = useRef<L.Marker | null>(null);
-  const routingControlRef = useRef<any>(null);
+  const routingControlsRef = useRef<any[]>([]); // ✅ Tableau de tous les routing controls
+  const segmentPolylinesRef = useRef<L.Polyline[]>([]); // ✅ NOUVEAU: Segments colorés
   const driverPathRef = useRef<L.Polyline | null>(null);
   const tileLayerRef = useRef<L.TileLayer | null>(null);
+  
+  // ✅ NOUVEAU: Refs pour le dépôt
+  const depotMarkerRef = useRef<L.Marker | null>(null);
   
   const [driverPath, setDriverPath] = useState<[number, number][]>([]);
   const [pathDistance, setPathDistance] = useState(0);
@@ -181,6 +210,10 @@ export default function TourMap({
       initialCenter = [driverLocation.latitude, driverLocation.longitude];
       initialZoom = 14;
       console.log('🚚 Carte centrée sur le camion:', initialCenter);
+    } else if (depotLocation?.latitude && depotLocation?.longitude) {
+      initialCenter = [depotLocation.latitude, depotLocation.longitude];
+      initialZoom = 13;
+      console.log('🏭 Carte centrée sur le dépôt:', initialCenter);
     } else {
       const validStops = stops.filter(s => s.latitude && s.longitude);
       
@@ -217,6 +250,12 @@ export default function TourMap({
         const bounds = L.latLngBounds([]);
         let hasPoints = false;
 
+        // Inclure le dépôt dans les bounds
+        if (depotLocation?.latitude && depotLocation?.longitude && showDepot) {
+          bounds.extend([depotLocation.latitude, depotLocation.longitude]);
+          hasPoints = true;
+        }
+
         if (driverLocation?.latitude && driverLocation?.longitude) {
           bounds.extend([driverLocation.latitude, driverLocation.longitude]);
           hasPoints = true;
@@ -233,7 +272,7 @@ export default function TourMap({
         }
       }
     }, 100);
-  }, [stops, currentProvider, driverLocation]);
+  }, [stops, currentProvider, driverLocation, depotLocation, showDepot]);
 
   const changeProvider = (providerId: keyof typeof MAP_PROVIDERS) => {
     if (!mapRef.current) return;
@@ -252,6 +291,88 @@ export default function TourMap({
     setCurrentProvider(providerId);
     localStorage.setItem('map-provider', providerId);
     setShowProviderMenu(false);
+  };
+
+  // ✅ NOUVEAU: Créer l'icône du dépôt
+  const createDepotIcon = (source?: string) => {
+    const isConfigured = source === 'depot';
+    const color = isConfigured ? '#059669' : '#F59E0B'; // Vert si configuré, orange sinon
+    
+    const svgIcon = `
+      <svg width="56" height="66" viewBox="0 0 56 66" xmlns="http://www.w3.org/2000/svg">
+        <!-- Ombre -->
+        <ellipse cx="28" cy="62" rx="10" ry="3" fill="rgba(0,0,0,0.25)" />
+        
+        <!-- Base du marqueur -->
+        <path d="M28 4C15 4 6 13 6 24c0 16 22 38 22 38s22-22 22-38C50 13 41 4 28 4z" 
+              fill="white" />
+        <path d="M28 7C17 7 9 15 9 24c0 14 19 33 19 33s19-19 19-33C47 15 39 7 28 7z" 
+              fill="${color}" stroke="white" stroke-width="2"/>
+        
+        <!-- Cercle intérieur -->
+        <circle cx="28" cy="24" r="14" fill="white" opacity="0.95"/>
+        <circle cx="28" cy="24" r="12" fill="${color}"/>
+        
+        <!-- Icône entrepôt -->
+        <g transform="translate(28, 24)" fill="white">
+          <!-- Toit -->
+          <polygon points="0,-8 -8,0 8,0" fill="white"/>
+          <!-- Bâtiment -->
+          <rect x="-6" y="0" width="12" height="8" fill="white"/>
+          <!-- Porte -->
+          <rect x="-2" y="3" width="4" height="5" fill="${color}"/>
+        </g>
+      </svg>
+    `;
+
+    return L.divIcon({
+      html: svgIcon,
+      className: 'depot-marker',
+      iconSize: [56, 66],
+      iconAnchor: [28, 66],
+      popupAnchor: [0, -66]
+    });
+  };
+
+  // ✅ NOUVEAU: Créer le popup du dépôt
+  const createDepotPopupContent = (depot: DepotLocation) => {
+    const sourceLabel = depot.source ? depotSourceLabels[depot.source] : '📍 Point de départ';
+    const isConfigured = depot.source === 'depot';
+    
+    return `
+      <div style="min-width: 220px; font-family: system-ui;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+          <div style="
+            width: 40px; height: 40px; border-radius: 50%; 
+            background: ${isConfigured ? '#059669' : '#F59E0B'}; 
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;">
+            🏭
+          </div>
+          <div>
+            <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #1F2937;">
+              ${isConfigured ? 'Dépôt' : 'Point de départ'}
+            </h3>
+            <p style="margin: 2px 0 0 0; font-size: 12px; color: ${isConfigured ? '#059669' : '#F59E0B'}; font-weight: 500;">
+              ${sourceLabel}
+            </p>
+          </div>
+        </div>
+        ${depot.address ? `
+          <p style="margin: 0 0 8px 0; font-size: 13px; color: #6B7280; line-height: 1.4;">
+            📍 ${depot.address}
+          </p>
+        ` : ''}
+        <div style="
+          display: flex; gap: 8px; padding: 8px; 
+          background: ${isConfigured ? '#ECFDF5' : '#FEF3C7'}; 
+          border-radius: 6px; font-size: 11px; color: #6B7280;">
+          <span>Lat: ${depot.latitude.toFixed(5)}</span>
+          <span>•</span>
+          <span>Lng: ${depot.longitude.toFixed(5)}</span>
+        </div>
+      </div>
+    `;
   };
 
   const createCustomIcon = (stop: Stop) => {
@@ -313,6 +434,34 @@ export default function TourMap({
       </div>
     `;
   };
+
+  // ✅ NOUVEAU: Afficher le marqueur du dépôt
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    // Supprimer l'ancien marqueur
+    if (depotMarkerRef.current) {
+      depotMarkerRef.current.remove();
+      depotMarkerRef.current = null;
+    }
+
+    // Afficher le nouveau si conditions remplies
+    if (showDepot && depotLocation?.latitude && depotLocation?.longitude) {
+      const marker = L.marker(
+        [depotLocation.latitude, depotLocation.longitude],
+        { 
+          icon: createDepotIcon(depotLocation.source),
+          zIndexOffset: 500 // Au-dessus des stops mais sous le chauffeur
+        }
+      );
+
+      marker.bindPopup(createDepotPopupContent(depotLocation));
+      marker.addTo(mapRef.current);
+      depotMarkerRef.current = marker;
+
+      console.log('🏭 Marqueur dépôt ajouté:', depotLocation);
+    }
+  }, [depotLocation, showDepot]);
 
   useEffect(() => {
     if (!mapRef.current || stops.length === 0) return;
@@ -495,105 +644,148 @@ export default function TourMap({
     });
   }, [driverLocation, pathDistance]);
 
-  // ✅ CORRECTION RADICALE: Détruire complètement le control avant d'en créer un nouveau
+  // ✅ Couleurs alternées pour les segments
+  const SEGMENT_COLORS = [
+    '#EF4444', // Rouge
+    '#3B82F6', // Bleu
+    '#10B981', // Vert
+    '#F59E0B', // Orange
+    '#8B5CF6', // Violet
+    '#EC4899', // Rose
+    '#06B6D4', // Cyan
+    '#84CC16', // Lime
+  ];
+
+  // ✅ Couleur spéciale pour le retour au dépôt
+  const RETURN_COLOR = '#F97316'; // Orange vif
+
+  // ✅ SEGMENTS COLORÉS: Créer un routing control par segment avec couleur alternée
   useEffect(() => {
     if (!mapRef.current || !showRoute || stops.length < 1) {
-      // Détruire le control existant
-      if (routingControlRef.current) {
+      // Nettoyer tous les routing controls existants
+      routingControlsRef.current.forEach(control => {
         try {
-          // Supprimer tous les event listeners
-          if (routingControlRef.current.off) {
-            routingControlRef.current.off();
+          if (control._map && mapRef.current) {
+            mapRef.current.removeControl(control);
           }
-          // Supprimer de la map si attaché
-          if (mapRef.current && routingControlRef.current._map) {
-            mapRef.current.removeControl(routingControlRef.current);
-          }
-          // Supprimer manuellement les layers de route
-          if (routingControlRef.current._line) {
-            try {
-              mapRef.current?.removeLayer(routingControlRef.current._line);
-            } catch (e) {}
-          }
-        } catch (e) {
-          console.warn('⚠️ Erreur nettoyage routingControl:', e);
-        }
-        routingControlRef.current = null;
-      }
+        } catch (e) {}
+      });
+      routingControlsRef.current = [];
+      
+      // Nettoyer les polylines de segments
+      segmentPolylinesRef.current.forEach(polyline => {
+        try {
+          polyline.remove();
+        } catch (e) {}
+      });
+      segmentPolylinesRef.current = [];
       return;
     }
 
     const validStops = stops.filter(s => s.latitude && s.longitude);
     if (validStops.length < 1) return;
 
-    // Détruire complètement l'ancien control
-    if (routingControlRef.current) {
+    // Nettoyer les anciens routing controls
+    routingControlsRef.current.forEach(control => {
       try {
-        if (routingControlRef.current.off) {
-          routingControlRef.current.off();
+        if (control._map && mapRef.current) {
+          mapRef.current.removeControl(control);
         }
-        if (routingControlRef.current._line && mapRef.current) {
-          try {
-            mapRef.current.removeLayer(routingControlRef.current._line);
-          } catch (e) {}
-        }
-        if (routingControlRef.current._map && mapRef.current) {
-          mapRef.current.removeControl(routingControlRef.current);
-        }
-      } catch (e) {
-        console.warn('⚠️ Erreur destruction routingControl:', e);
-      }
-      routingControlRef.current = null;
+      } catch (e) {}
+    });
+    routingControlsRef.current = [];
+
+    // Nettoyer les anciennes polylines
+    segmentPolylinesRef.current.forEach(polyline => {
+      try {
+        polyline.remove();
+      } catch (e) {}
+    });
+    segmentPolylinesRef.current = [];
+
+    // Construire la liste des points
+    const allPoints: { lat: number; lng: number; isDepot?: boolean; isReturn?: boolean }[] = [];
+
+    // Point de départ (dépôt ou chauffeur)
+    if (depotLocation?.latitude && depotLocation?.longitude && showDepot) {
+      allPoints.push({ lat: depotLocation.latitude, lng: depotLocation.longitude, isDepot: true });
+    } else if (driverLocation?.latitude && driverLocation?.longitude) {
+      allPoints.push({ lat: driverLocation.latitude, lng: driverLocation.longitude });
     }
 
-    const waypoints = [];
-
-    if (driverLocation?.latitude && driverLocation?.longitude) {
-      waypoints.push(L.latLng(driverLocation.latitude, driverLocation.longitude));
-      console.log('🚚 Route depuis le camion:', [driverLocation.latitude, driverLocation.longitude]);
-    }
-
+    // Tous les stops
     validStops.forEach(stop => {
-      waypoints.push(L.latLng(stop.latitude, stop.longitude));
+      allPoints.push({ lat: stop.latitude, lng: stop.longitude });
     });
 
-    console.log('📍 Waypoints totaux:', waypoints.length, '(camion + stops)');
-
-    if (waypoints.length < 2) return;
-
-    try {
-      routingControlRef.current = (L as any).Routing.control({
-        waypoints: waypoints,
-        routeWhileDragging: false,
-        addWaypoints: false,
-        draggableWaypoints: false,
-        fitSelectedRoutes: false,
-        showAlternatives: false,
-        lineOptions: {
-          styles: [
-            { 
-              color: '#EF4444',
-              opacity: 0.8,
-              weight: 5,
-              dashArray: '15, 10'
-            }
-          ],
-          extendToWaypoints: true,
-          missingRouteTolerance: 0
-        },
-        createMarker: () => null,
-        show: false,
-      }).addTo(mapRef.current);
-
-      const container = routingControlRef.current.getContainer();
-      if (container) {
-        container.style.display = 'none';
-      }
-    } catch (e) {
-      console.error('❌ Erreur lors de la création du routingControl:', e);
-      routingControlRef.current = null;
+    // Retour au dépôt si activé
+    if (returnToDepot && depotLocation?.latitude && depotLocation?.longitude && showDepot) {
+      allPoints.push({ lat: depotLocation.latitude, lng: depotLocation.longitude, isDepot: true, isReturn: true });
     }
-  }, [stops, showRoute, driverLocation]);
+
+    if (allPoints.length < 2) return;
+
+    console.log(`🎨 Création de ${allPoints.length - 1} segments colorés`);
+
+    // Créer un routing control pour chaque segment
+    for (let i = 0; i < allPoints.length - 1; i++) {
+      const from = allPoints[i];
+      const to = allPoints[i + 1];
+      
+      // Déterminer la couleur
+      let color: string;
+      if (to.isReturn) {
+        // Retour au dépôt = orange vif avec pointillés
+        color = RETURN_COLOR;
+      } else {
+        // Alterner les couleurs
+        color = SEGMENT_COLORS[i % SEGMENT_COLORS.length];
+      }
+
+      const isReturnSegment = to.isReturn;
+
+      try {
+        const control = (L as any).Routing.control({
+          waypoints: [
+            L.latLng(from.lat, from.lng),
+            L.latLng(to.lat, to.lng)
+          ],
+          routeWhileDragging: false,
+          addWaypoints: false,
+          draggableWaypoints: false,
+          fitSelectedRoutes: false,
+          showAlternatives: false,
+          lineOptions: {
+            styles: [
+              { 
+                color: color,
+                opacity: 0.85,
+                weight: 5,
+                dashArray: isReturnSegment ? '12, 8' : undefined
+              }
+            ],
+            extendToWaypoints: true,
+            missingRouteTolerance: 0
+          },
+          createMarker: () => null,
+          show: false,
+        }).addTo(mapRef.current);
+
+        // Cacher le container
+        const container = control.getContainer();
+        if (container) {
+          container.style.display = 'none';
+        }
+
+        // Stocker la référence
+        routingControlsRef.current.push(control);
+
+        console.log(`  Segment ${i + 1}: ${color}${isReturnSegment ? ' (retour)' : ''}`);
+      } catch (e) {
+        console.error(`❌ Erreur segment ${i + 1}:`, e);
+      }
+    }
+  }, [stops, showRoute, driverLocation, depotLocation, showDepot, returnToDepot]);
 
   const clearDriverPath = () => {
     setDriverPath([]);
@@ -608,43 +800,40 @@ export default function TourMap({
     console.log('🗑️ Parcours effacé');
   };
 
-  // ✅ CLEANUP AMÉLIORÉ - Détruire le routingControl en priorité
+  // ✅ CLEANUP AMÉLIORÉ
   useEffect(() => {
     return () => {
       console.log('🧹 Cleanup TourMap');
 
-      // ✅ PRIORITÉ 1: Détruire le routingControl AVANT tout le reste
-      if (routingControlRef.current) {
+      // Détruire tous les routing controls
+      routingControlsRef.current.forEach(control => {
         try {
-          // Désactiver tous les event listeners
-          if (routingControlRef.current.off) {
-            routingControlRef.current.off();
+          if (control.off) {
+            control.off();
           }
-          // Supprimer la ligne de route manuellement
-          if (routingControlRef.current._line && mapRef.current) {
+          if (control._line && mapRef.current) {
             try {
-              mapRef.current.removeLayer(routingControlRef.current._line);
+              mapRef.current.removeLayer(control._line);
             } catch (e) {}
           }
-          // Supprimer les waypoints markers
-          if (routingControlRef.current._markers) {
-            routingControlRef.current._markers.forEach((marker: any) => {
-              try {
-                if (mapRef.current) mapRef.current.removeLayer(marker);
-              } catch (e) {}
-            });
-          }
-          // Enfin supprimer le control de la map
-          if (routingControlRef.current._map && mapRef.current) {
-            mapRef.current.removeControl(routingControlRef.current);
+          if (control._map && mapRef.current) {
+            mapRef.current.removeControl(control);
           }
         } catch (e) {
           console.warn('⚠️ Erreur cleanup routingControl:', e);
         }
-        routingControlRef.current = null;
-      }
+      });
+      routingControlsRef.current = [];
 
-      // ✅ Nettoyer les markers
+      // ✅ Nettoyer les polylines de segments
+      segmentPolylinesRef.current.forEach(polyline => {
+        try {
+          polyline.remove();
+        } catch (e) {}
+      });
+      segmentPolylinesRef.current = [];
+
+      // Nettoyer les markers
       markersRef.current.forEach(marker => {
         try {
           if (marker && mapRef.current) {
@@ -656,7 +845,15 @@ export default function TourMap({
       });
       markersRef.current = [];
 
-      // ✅ Nettoyer le marker du chauffeur
+      // ✅ Nettoyer le marqueur du dépôt
+      if (depotMarkerRef.current) {
+        try {
+          depotMarkerRef.current.remove();
+        } catch (e) {}
+        depotMarkerRef.current = null;
+      }
+
+      // Nettoyer le marker du chauffeur
       if (driverMarkerRef.current) {
         try {
           if (mapRef.current) {
@@ -668,7 +865,7 @@ export default function TourMap({
         driverMarkerRef.current = null;
       }
 
-      // ✅ Nettoyer le parcours
+      // Nettoyer le parcours
       if (driverPathRef.current) {
         try {
           if (mapRef.current) {
@@ -680,7 +877,7 @@ export default function TourMap({
         driverPathRef.current = null;
       }
 
-      // ✅ Nettoyer la couche de tuiles
+      // Nettoyer la couche de tuiles
       if (tileLayerRef.current) {
         try {
           if (mapRef.current) {
@@ -692,16 +889,14 @@ export default function TourMap({
         tileLayerRef.current = null;
       }
 
-      // ✅ Détruire la carte en DERNIER
+      // Détruire la carte en DERNIER
       if (mapRef.current) {
         try {
-          // Supprimer tous les layers restants
           mapRef.current.eachLayer((layer: any) => {
             try {
               mapRef.current?.removeLayer(layer);
             } catch (e) {}
           });
-          // Détruire la map
           mapRef.current.remove();
         } catch (e) {
           console.warn('⚠️ Erreur cleanup map:', e);
@@ -839,6 +1034,12 @@ export default function TourMap({
           background: transparent !important;
           border: none !important;
           filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+        }
+        
+        .depot-marker {
+          background: transparent !important;
+          border: none !important;
+          filter: drop-shadow(0 4px 8px rgba(0,0,0,0.35));
         }
         
         .driver-marker {

@@ -1,11 +1,12 @@
-// src/pages/Settings.tsx - VERSION OPTIMISÉE
+// src/pages/Settings.tsx - VERSION AVEC DÉPÔT
 import { useState, useEffect, useCallback } from "react";
-import { Settings as SettingsIcon, Bell, Moon, Sun, Database, Download } from "lucide-react";
+import { Settings as SettingsIcon, Bell, Moon, Sun, Database, Download, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { useTheme } from "../contexts/ThemeContext";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../supabaseClient";
 import { withErrorHandling } from "../services/errorService";
+import DepotSettings from "../components/DepotSettings";
 
 // ✅ Types stricts
 interface UserSettings {
@@ -152,6 +153,11 @@ export default function Settings() {
           </p>
         </div>
 
+        {/* ✅ NOUVEAU: Adresse du dépôt */}
+        <div className="mb-6">
+          <DepotSettings />
+        </div>
+
         {/* Notifications */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 mb-6">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
@@ -222,31 +228,6 @@ export default function Settings() {
             </div>
           </div>
         </div>
-
-        {/* Langue - TODO: Implémenter i18n après le lancement
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 mb-6">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Globe size={20} />
-            Langue et Région
-          </h2>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Langue de l'interface
-            </label>
-            <select
-              value={settings.language}
-              onChange={(e) => updateSetting('language', e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
-            >
-              <option value="fr">Français</option>
-              <option value="en">English</option>
-              <option value="es">Español</option>
-              <option value="de">Deutsch</option>
-            </select>
-          </div>
-        </div>
-        */}
 
         {/* Données */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 mb-6">

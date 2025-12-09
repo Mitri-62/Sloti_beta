@@ -215,27 +215,65 @@ export default function FounderDashboard() {
     return matchesSearch;
   });
 
-  // Supprimer une company
-  const handleDeleteCompany = async (companyId: string, companyName: string) => {
-    if (!confirm(`⚠️ ATTENTION : Êtes-vous sûr de vouloir supprimer "${companyName}" ?\n\nCela supprimera TOUTES les données associées (utilisateurs, tournées, stocks, etc.). Cette action est IRRÉVERSIBLE.`)) {
-      return;
-    }
+  // Supprimer une company (avec toutes les données liées)
+const handleDeleteCompany = async (companyId: string, companyName: string) => {
+  if (!confirm(`⚠️ ATTENTION : Êtes-vous sûr de vouloir supprimer "${companyName}" ?\n\nCela supprimera TOUTES les données associées. Cette action est IRRÉVERSIBLE.`)) {
+    return;
+  }
 
-    try {
-      const { error } = await supabase
-        .from('companies')
+  try {
+    toast.loading('Suppression en cours...', { id: 'delete-company' });
+
+    // Debug : Supprimer chaque table et logger le résultat
+    const tables = [
+      'transport_bookings',
+      'carriers', 
+      'tour_stops',
+      'tours',
+      'planning_events',
+      'stock_movements',
+      'products',
+      'inventory_items',
+      'docks',
+      'warehouse_zones',
+      'drivers',
+      'vehicles',
+      'messages',
+      'chat_channels',
+      'loading_plans',
+      'clients',
+      'contacts',
+      'users',
+    ];
+
+    for (const table of tables) {
+      const { error, count } = await supabase
+        .from(table)
         .delete()
-        .eq('id', companyId);
-
-      if (error) throw error;
-
-      toast.success('Company supprimée avec succès');
-      loadAllCompanies();
-    } catch (error) {
-      console.error('Erreur suppression company:', error);
-      toast.error('Impossible de supprimer cette company');
+        .eq('company_id', companyId);
+      
+      if (error) {
+        console.warn(`⚠️ Erreur suppression ${table}:`, error.message);
+      } else {
+        console.log(`✅ ${table} supprimé`);
+      }
     }
-  };
+
+    // Enfin, supprimer la company
+    const { error } = await supabase
+      .from('companies')
+      .delete()
+      .eq('id', companyId);
+
+    if (error) throw error;
+
+    toast.success(`Company "${companyName}" supprimée avec succès`, { id: 'delete-company' });
+    loadAllCompanies();
+  } catch (error: any) {
+    console.error('Erreur suppression company:', error);
+    toast.error(`Erreur: ${error.message}`, { id: 'delete-company' });
+  }
+};
 
   // Se connecter en tant qu'admin de la company
   const handleImpersonate = async (companyId: string, companyName: string) => {

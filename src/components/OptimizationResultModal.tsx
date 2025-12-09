@@ -1,5 +1,5 @@
-// src/components/OptimizationResultModal
-import { CheckCircle, TrendingDown, Clock, Target, X } from 'lucide-react';
+// src/components/OptimizationResultModal.tsx
+import { CheckCircle, TrendingDown, Clock, Target, X, Home, RotateCcw } from 'lucide-react';
 
 interface OptimizationResult {
   totalDistance: number;
@@ -9,6 +9,11 @@ interface OptimizationResult {
   stopsCount: number;
   savedKm?: number;
   savedPercent?: number;
+  // ✅ NOUVEAU: Infos retour dépôt
+  returnToDepot?: boolean;
+  returnDistance?: number;
+  returnTime?: string;
+  startLocationSource?: string;
 }
 
 interface OptimizationResultModalProps {
@@ -33,10 +38,22 @@ export default function OptimizationResultModal({
   const previousDistanceRounded = result.previousDistance ? result.previousDistance.toFixed(1) : null;
   const savedKmRounded = result.savedKm ? result.savedKm.toFixed(1) : null;
   const feasibilityScoreRounded = Math.round(result.feasibilityScore);
+  const returnDistanceRounded = result.returnDistance ? result.returnDistance.toFixed(1) : null;
+
+  // ✅ Label pour la source de départ
+  const getStartLocationLabel = () => {
+    switch (result.startLocationSource) {
+      case 'driver_gps': return '🚚 GPS temps réel';
+      case 'vehicle': return '🅿️ Position véhicule';
+      case 'driver': return '👤 Position chauffeur';
+      case 'estimated': return '📍 Position estimée';
+      default: return '📍 Point de départ';
+    }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-lg w-full overflow-hidden max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="bg-gradient-to-r from-green-500 to-emerald-500 p-6 text-white">
           <div className="flex items-center justify-between">
@@ -79,12 +96,12 @@ export default function OptimizationResultModal({
             </div>
           )}
 
-          {/* Stats */}
+          {/* Stats principales */}
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
               <div className="flex items-center gap-2 mb-2">
                 <Target className="text-blue-600 dark:text-blue-400" size={20} />
-                <span className="text-sm text-blue-600 dark:text-blue-400 font-medium">Distance</span>
+                <span className="text-sm text-blue-600 dark:text-blue-400 font-medium">Distance totale</span>
               </div>
               <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
                 {totalDistanceRounded} km
@@ -99,16 +116,57 @@ export default function OptimizationResultModal({
             <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
               <div className="flex items-center gap-2 mb-2">
                 <Clock className="text-purple-600 dark:text-purple-400" size={20} />
-                <span className="text-sm text-purple-600 dark:text-purple-400 font-medium">Durée</span>
+                <span className="text-sm text-purple-600 dark:text-purple-400 font-medium">Durée totale</span>
               </div>
               <div className="text-2xl font-bold text-purple-900 dark:text-purple-100">
-                {hours > 0 && `${hours}h`}{minutes > 0 && `${minutes}`}
+                {hours > 0 && `${hours}h`}{minutes > 0 && `${String(minutes).padStart(2, '0')}`}
               </div>
               <div className="text-xs text-purple-600 dark:text-purple-500 mt-1">
                 {result.stopsCount} arrêts
               </div>
             </div>
           </div>
+
+          {/* ✅ NOUVEAU: Info retour dépôt */}
+          {result.returnToDepot && (
+            <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4 border border-orange-200 dark:border-orange-800">
+              <div className="flex items-center gap-3">
+                <div className="bg-orange-500 text-white p-2 rounded-full">
+                  <RotateCcw size={20} />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-orange-800 dark:text-orange-200">
+                      Retour à l'entrepôt inclus
+                    </span>
+                    <Home size={16} className="text-orange-600 dark:text-orange-400" />
+                  </div>
+                  <div className="flex items-center gap-4 mt-2 text-xs">
+                    {returnDistanceRounded && (
+                      <span className="text-orange-700 dark:text-orange-300">
+                        📏 {returnDistanceRounded} km
+                      </span>
+                    )}
+                    {result.returnTime && (
+                      <span className="text-orange-700 dark:text-orange-300">
+                        🕐 Arrivée dépôt : <strong>{result.returnTime}</strong>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Info point de départ */}
+          {result.startLocationSource && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg">
+              <span className="text-xs text-gray-600 dark:text-gray-400">Point de départ :</span>
+              <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                {getStartLocationLabel()}
+              </span>
+            </div>
+          )}
 
           {/* Score */}
           <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
@@ -144,7 +202,7 @@ export default function OptimizationResultModal({
                       <li>Créneaux horaires respectés</li>
                       <li>Capacité du véhicule optimale</li>
                       <li>Priorités prises en compte</li>
-                      <li>Temps de conduite conforme</li>
+                      {result.returnToDepot && <li>Retour dépôt planifié</li>}
                     </ul>
                   </div>
                 </div>
@@ -178,13 +236,14 @@ export default function OptimizationResultModal({
             </div>
           </div>
 
-          {/* Info */}
+          {/* Info algorithme */}
           <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
             <p className="text-sm text-blue-900 dark:text-blue-100">
               <strong>ℹ️ Algorithme :</strong> Plus proche voisin + 2-opt
             </p>
             <p className="text-xs text-blue-700 dark:text-blue-300 mt-2">
               Optimisé selon les créneaux horaires, priorités et capacité.
+              {result.returnToDepot && ' Inclut le trajet retour au dépôt.'}
             </p>
           </div>
         </div>

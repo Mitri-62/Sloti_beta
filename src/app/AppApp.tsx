@@ -30,6 +30,8 @@ import Inventaire from "../pages/Inventaire";
 import HelpCenter from "../pages/HelpCenter";
 import DriverApp from "../pages/DriverApp";
 import DockManagement from '../pages/DockManagement/DockManagement';
+// ✅ NOUVEAU : Booking Transport
+import BookingTransport from "../pages/BookingTransport";
 
 // ✅ NOUVEAU : Pages Flotte
 import VehiclesManagement from "../pages/Fleet/VehiclesManagement";
@@ -81,6 +83,9 @@ function AppContent() {
         <Route path="tour-planning/:tourId" element={<PrivateRoute><TourDetailView /></PrivateRoute>} />
         <Route path="dock-management" element={<PrivateRoute><DockManagement /></PrivateRoute>} />
         
+        {/* ✅ NOUVEAU : Booking Transport */}
+        <Route path="booking" element={<PrivateRoute><BookingTransport /></PrivateRoute>} />
+
         {/* ✅ NOUVEAU : Gestion de la Flotte */}
         <Route path="fleet/vehicles" element={<PrivateRoute><VehiclesManagement /></PrivateRoute>} />
         <Route path="fleet/drivers" element={<PrivateRoute><DriversManagement /></PrivateRoute>} />

@@ -26,6 +26,7 @@ import {
   TruckIcon,
   UserCog,
   Boxes,
+  Send,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../supabaseClient";
@@ -319,6 +320,13 @@ export default function Sidebar() {
           label="Chauffeurs"
           isCollapsed={isCollapsed}
         />
+
+          <TooltipNavLink
+            to="/app/booking"
+            icon={Send}
+            label="Booking Transport"
+            isCollapsed={isCollapsed}
+          />
 
         {/* ========== STOCKS ========== */}
         {!isCollapsed && (

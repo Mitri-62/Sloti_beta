@@ -1,7 +1,7 @@
-// src/pages/DriverApp.tsx - VERSION COMPLÈTE AVEC ANALYTICS
+// src/pages/DriverApp.tsx - VERSION CORRIGÉE AVEC TEMPS RÉEL COMPLET
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Navigation, MapPin, Package, CheckCircle, AlertCircle, Phone, Clock, Lock } from 'lucide-react';
+import { Navigation, MapPin, Package, CheckCircle, AlertCircle, Phone, Clock, Lock, RefreshCw } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 import { toast } from 'sonner';
 
@@ -15,6 +15,8 @@ interface Stop {
   time_window_end: string;
   weight_kg: number;
   status: 'pending' | 'arrived' | 'completed' | 'failed';
+  notes?: string;
+  estimated_arrival?: string;
 }
 
 interface Tour {
@@ -23,6 +25,9 @@ interface Tour {
   driver_id: string;
   access_token?: string;
   token_expires_at?: string;
+  status?: string;
+  date?: string;
+  start_time?: string;
 }
 
 export default function DriverApp() {
@@ -36,6 +41,7 @@ export default function DriverApp() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [distanceTraveled, setDistanceTraveled] = useState(0);
+  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   
   const watchIdRef = useRef<number | null>(null);
   const lastSentRef = useRef<{ lat: number; lng: number; time: number } | null>(null);
@@ -59,38 +65,26 @@ export default function DriverApp() {
     }
   };
 
-  // Charger les données de la tournée avec vérification du token
-  useEffect(() => {
-    if (!tourId) {
-      setError('ID de tournée manquant');
-      setLoading(false);
-      return;
+  // ✅ FONCTION DE CHARGEMENT SÉPARÉE POUR LES STOPS
+  const loadStops = async () => {
+    if (!tourId) return;
+    
+    const { data: stopsData, error: stopsError } = await supabase
+      .from('delivery_stops')
+      .select('*')
+      .eq('tour_id', tourId)
+      .order('sequence_order', { ascending: true });
+
+    if (stopsError) {
+      console.error('❌ Erreur stops:', stopsError);
+    } else if (stopsData) {
+      console.log(`✅ ${stopsData.length} arrêts chargés (temps réel)`);
+      setStops(stopsData);
+      setLastUpdate(new Date());
     }
+  };
 
-    if (!token) {
-      setError('Token d\'accès manquant. Demandez un nouveau lien à votre dispatcher.');
-      setLoading(false);
-      return;
-    }
-
-    loadTourWithToken();
-
-    // S'abonner aux changements
-    const channel = supabase
-      .channel(`tour-${tourId}`)
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'delivery_stops',
-        filter: `tour_id=eq.${tourId}`
-      }, loadTourWithToken)
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [tourId, token]);
-
+  // ✅ FONCTION DE CHARGEMENT COMPLÈTE
   const loadTourWithToken = async () => {
     try {
       console.log('🔐 Vérification token...');
@@ -100,7 +94,7 @@ export default function DriverApp() {
       // Vérifier le token
       const { data: tourData, error: tourError } = await supabase
         .from('tours')
-        .select('id, name, driver_id, access_token, token_expires_at')
+        .select('id, name, driver_id, access_token, token_expires_at, status, date, start_time')
         .eq('id', tourId)
         .maybeSingle();
 
@@ -135,6 +129,7 @@ export default function DriverApp() {
 
       console.log('✅ Token validé avec succès !');
       setTour(tourData);
+      setLastUpdate(new Date());
 
       // 📊 Logger l'accès (une seule fois)
       if (!accessLoggedRef.current) {
@@ -145,18 +140,7 @@ export default function DriverApp() {
       }
 
       // Charger les stops
-      const { data: stopsData, error: stopsError } = await supabase
-        .from('delivery_stops')
-        .select('*')
-        .eq('tour_id', tourId)
-        .order('sequence_order', { ascending: true });
-
-      if (stopsError) {
-        console.error('❌ Erreur stops:', stopsError);
-      } else if (stopsData) {
-        console.log(`✅ ${stopsData.length} arrêts chargés`);
-        setStops(stopsData);
-      }
+      await loadStops();
 
       setError(null);
       setLoading(false);
@@ -166,6 +150,74 @@ export default function DriverApp() {
       setLoading(false);
     }
   };
+
+  // ✅ EFFET PRINCIPAL AVEC SUBSCRIPTIONS TEMPS RÉEL COMPLÈTES
+  useEffect(() => {
+    if (!tourId) {
+      setError('ID de tournée manquant');
+      setLoading(false);
+      return;
+    }
+
+    if (!token) {
+      setError('Token d\'accès manquant. Demandez un nouveau lien à votre dispatcher.');
+      setLoading(false);
+      return;
+    }
+
+    // Charger les données initiales
+    loadTourWithToken();
+
+    // ✅ SUBSCRIPTION 1: Changements sur les STOPS (ajout, modification, suppression)
+    const stopsChannel = supabase
+      .channel(`driver-stops-${tourId}`)
+      .on('postgres_changes', {
+        event: '*', // INSERT, UPDATE, DELETE
+        schema: 'public',
+        table: 'delivery_stops',
+        filter: `tour_id=eq.${tourId}`
+      }, (payload) => {
+        console.log('🔄 Changement stops détecté:', payload.eventType);
+        loadStops(); // Recharger uniquement les stops
+      })
+      .subscribe((status) => {
+        console.log('📡 Subscription stops:', status);
+      });
+
+    // ✅ SUBSCRIPTION 2: Changements sur la TOURNÉE elle-même
+    const tourChannel = supabase
+      .channel(`driver-tour-${tourId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'tours',
+        filter: `id=eq.${tourId}`
+      }, (payload) => {
+        console.log('🔄 Changement tournée détecté:', payload.new);
+        
+        // Mettre à jour les infos de la tournée sans tout recharger
+        setTour(prev => prev ? {
+          ...prev,
+          name: payload.new.name,
+          status: payload.new.status,
+          date: payload.new.date,
+          start_time: payload.new.start_time
+        } : null);
+        
+        setLastUpdate(new Date());
+        toast.success('🔄 Tournée mise à jour !', { duration: 2000 });
+      })
+      .subscribe((status) => {
+        console.log('📡 Subscription tour:', status);
+      });
+
+    // Cleanup
+    return () => {
+      console.log('🧹 Cleanup subscriptions DriverApp');
+      supabase.removeChannel(stopsChannel);
+      supabase.removeChannel(tourChannel);
+    };
+  }, [tourId, token]);
 
   // Fonction pour calculer la distance
   const calculateDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
@@ -311,8 +363,13 @@ export default function DriverApp() {
     };
   }, []);
 
-  // Marquer un arrêt comme "Arrivé"
+  // ✅ Marquer un arrêt comme "Arrivé" - avec feedback immédiat
   const markArrived = async (stopId: string) => {
+    // Feedback immédiat (optimistic update)
+    setStops(prev => prev.map(s => 
+      s.id === stopId ? { ...s, status: 'arrived' as const } : s
+    ));
+
     const { error } = await supabase
       .from('delivery_stops')
       .update({ status: 'arrived' })
@@ -320,15 +377,21 @@ export default function DriverApp() {
 
     if (error) {
       toast.error('Erreur lors de la mise à jour');
+      // Rollback en cas d'erreur
+      loadStops();
     } else {
       toast.success('Marqué comme arrivé');
-      // 📊 Logger l'arrivée
       logAccess('stop_arrived', { stop_id: stopId });
     }
   };
 
-  // Marquer un arrêt comme "Complété"
+  // ✅ Marquer un arrêt comme "Complété" - avec feedback immédiat
   const markCompleted = async (stopId: string) => {
+    // Feedback immédiat (optimistic update)
+    setStops(prev => prev.map(s => 
+      s.id === stopId ? { ...s, status: 'completed' as const } : s
+    ));
+
     const { error } = await supabase
       .from('delivery_stops')
       .update({ 
@@ -339,11 +402,19 @@ export default function DriverApp() {
 
     if (error) {
       toast.error('Erreur lors de la mise à jour');
+      // Rollback en cas d'erreur
+      loadStops();
     } else {
       toast.success('Livraison validée !');
-      // 📊 Logger la complétion
       logAccess('stop_completed', { stop_id: stopId });
     }
+  };
+
+  // ✅ Rafraîchissement manuel
+  const handleManualRefresh = async () => {
+    toast.loading('Actualisation...', { id: 'refresh' });
+    await loadStops();
+    toast.success('Données actualisées !', { id: 'refresh' });
   };
 
   // Loading state
@@ -396,8 +467,25 @@ export default function DriverApp() {
       {/* Header mobile */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white sticky top-0 z-10 shadow-lg">
         <div className="p-4">
-          <h1 className="text-xl font-bold mb-1">{tour.name}</h1>
+          <div className="flex items-center justify-between mb-1">
+            <h1 className="text-xl font-bold">{tour.name}</h1>
+            {/* ✅ Bouton de rafraîchissement manuel */}
+            <button
+              onClick={handleManualRefresh}
+              className="p-2 rounded-lg bg-white/20 hover:bg-white/30 transition-colors"
+              title="Actualiser"
+            >
+              <RefreshCw size={18} />
+            </button>
+          </div>
           <p className="text-sm text-blue-100">Tournée du jour</p>
+          
+          {/* ✅ Indicateur de dernière mise à jour */}
+          {lastUpdate && (
+            <p className="text-xs text-blue-200 mt-1">
+              Mis à jour : {lastUpdate.toLocaleTimeString('fr-FR')}
+            </p>
+          )}
           
           {/* Statut GPS */}
           <div className="mt-3 flex items-center justify-between">
@@ -465,7 +553,9 @@ export default function DriverApp() {
               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center font-bold">
                 {currentStop.sequence_order}
               </div>
-              <span className="text-sm font-medium">Prochain arrêt</span>
+              <span className="text-sm font-medium">
+                {currentStop.status === 'arrived' ? '📍 Sur place' : 'Prochain arrêt'}
+              </span>
             </div>
             
             <h3 className="text-xl font-bold mb-2">{currentStop.customer_name}</h3>
@@ -490,6 +580,14 @@ export default function DriverApp() {
                 <p className="text-sm font-semibold">{currentStop.weight_kg} kg</p>
               </div>
             </div>
+
+            {/* Notes du stop */}
+            {currentStop.notes && (
+              <div className="bg-white/10 rounded-lg p-3 mb-4">
+                <p className="text-xs text-blue-200 mb-1">📝 Note :</p>
+                <p className="text-sm">{currentStop.notes}</p>
+              </div>
+            )}
 
             <div className="flex gap-2 mb-3">
               <a
@@ -544,7 +642,15 @@ export default function DriverApp() {
 
       {/* Liste des arrêts */}
       <div className="px-4 pb-20">
-        <h2 className="text-lg font-bold text-gray-900 mb-3">Tous les arrêts</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-lg font-bold text-gray-900">Tous les arrêts</h2>
+          {/* ✅ Indicateur temps réel */}
+          <div className="flex items-center gap-1 text-xs text-green-600">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span>Temps réel</span>
+          </div>
+        </div>
+        
         <div className="space-y-3">
           {stops.map((stop) => (
             <div
@@ -587,6 +693,13 @@ export default function DriverApp() {
                       {stop.weight_kg} kg
                     </span>
                   </div>
+
+                  {/* ✅ Afficher l'heure estimée si disponible */}
+                  {stop.estimated_arrival && stop.status === 'pending' && (
+                    <p className="text-xs text-blue-600 mt-1">
+                      🕐 Arrivée estimée : {new Date(stop.estimated_arrival).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

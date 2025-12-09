@@ -10,11 +10,50 @@ import {
   Trash2,
   AlertCircle,
   Crown,
-  Truck,
-  Package,
-  Calendar,
+  UserCog,
+  Wrench,
+  User,
+  GraduationCap,
+  Briefcase,
   Loader,
 } from 'lucide-react';
+
+// Types de rôles disponibles
+type UserRole = 'admin' | 'team_leader' | 'technician' | 'operator' | 'employee' | 'intern';
+
+// Configuration des rôles
+const ROLES_CONFIG: Record<UserRole, { label: string; icon: React.ReactNode; badgeClass: string }> = {
+  admin: {
+    label: 'Administrateur',
+    icon: <Crown className="text-yellow-500" size={18} />,
+    badgeClass: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+  },
+  team_leader: {
+    label: 'Chef d\'équipe',
+    icon: <UserCog className="text-blue-500" size={18} />,
+    badgeClass: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+  },
+  technician: {
+    label: 'Technicien',
+    icon: <Wrench className="text-orange-500" size={18} />,
+    badgeClass: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+  },
+  operator: {
+    label: 'Opérateur',
+    icon: <Briefcase className="text-purple-500" size={18} />,
+    badgeClass: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+  },
+  employee: {
+    label: 'Employé',
+    icon: <User className="text-green-500" size={18} />,
+    badgeClass: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  },
+  intern: {
+    label: 'Stagiaire',
+    icon: <GraduationCap className="text-pink-500" size={18} />,
+    badgeClass: 'bg-pink-100 text-pink-800 dark:bg-pink-900/30 dark:text-pink-300',
+  },
+};
 
 interface TeamMember {
   id: string;
@@ -32,7 +71,7 @@ export default function TeamManagement() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({
     email: '',
-    role: 'dispatcher' as 'admin' | 'dispatcher' | 'driver' | 'warehouse'
+    role: 'employee' as UserRole
   });
   const [inviting, setInviting] = useState(false);
 
@@ -63,58 +102,66 @@ export default function TeamManagement() {
   }, [user?.company_id]);
 
   // Inviter un utilisateur
-  const handleInvite = async (e: React.FormEvent) => {
-    e.preventDefault();
+// Inviter un utilisateur
+const handleInvite = async (e: React.FormEvent) => {
+  e.preventDefault();
 
-    // Vérifier que l'email n'existe pas déjà
-    const emailExists = members.some(m => m.email.toLowerCase() === inviteForm.email.toLowerCase());
-    if (emailExists) {
-      toast.error('Cet email existe déjà dans votre équipe');
+  // Vérifier que l'email n'existe pas déjà dans cette équipe
+  const emailExists = members.some(m => m.email.toLowerCase() === inviteForm.email.toLowerCase());
+  if (emailExists) {
+    toast.error('Cet email existe déjà dans votre équipe');
+    return;
+  }
+
+  setInviting(true);
+
+  try {
+    // Générer un mot de passe temporaire
+    const tempPassword = `Temp${Math.random().toString(36).slice(-8)}!`;
+
+    // Créer l'utilisateur dans Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email: inviteForm.email,
+      password: tempPassword,
+    });
+
+    // Si l'utilisateur existe déjà dans Auth
+    if (authError?.message?.includes('already registered')) {
+      toast.error('Cet email a déjà un compte Sloti. Demandez-lui de vous contacter pour rejoindre votre équipe.');
+      setInviting(false);
       return;
     }
 
-    setInviting(true);
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('Impossible de créer l\'utilisateur');
 
-    try {
-      // Générer un mot de passe temporaire
-      const tempPassword = `Temp${Math.random().toString(36).slice(-8)}!`;
-
-      // Créer l'utilisateur dans Supabase Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+    // Ajouter l'utilisateur dans la table users
+    const { error: userError } = await supabase
+      .from('users')
+      .insert({
+        id: authData.user.id,
         email: inviteForm.email,
-        password: tempPassword,
+        full_name: inviteForm.email.split('@')[0],
+        company_id: user?.company_id,
+        role: inviteForm.role,
       });
 
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('Impossible de créer l\'utilisateur');
-
-      // Ajouter l'utilisateur dans la table users
-      const { error: userError } = await supabase
-        .from('users')
-        .insert({
-          id: authData.user.id,
-          email: inviteForm.email,
-          full_name: inviteForm.email.split('@')[0],
-          company_id: user?.company_id,
-          role: inviteForm.role,
-        });
-
-      if (userError) {
-        console.error('Erreur insertion user:', userError);
-        throw userError;
-      }
-
-      toast.success(`Invitation envoyée à ${inviteForm.email} ! 📧`);
-      setShowInviteModal(false);
-      setInviteForm({ email: '', role: 'dispatcher' });
-      loadTeamMembers();
-    } catch (error: any) {
-      console.error('Erreur invitation:', error);
-      toast.error('Erreur lors de l\'invitation');
-    } finally {
-      setInviting(false);
+    if (userError) {
+      console.error('Erreur insertion user:', userError);
+      throw userError;
     }
-  };
+
+    toast.success(`Invitation envoyée à ${inviteForm.email} ! 📧`);
+    setShowInviteModal(false);
+    setInviteForm({ email: '', role: 'employee' });
+    loadTeamMembers();
+  } catch (error: any) {
+    console.error('Erreur invitation:', error);
+    toast.error(error.message || 'Erreur lors de l\'invitation');
+  } finally {
+    setInviting(false);
+  }
+};
 
   // Supprimer un utilisateur
   const handleRemoveUser = async (userId: string, userEmail: string) => {
@@ -138,27 +185,13 @@ export default function TeamManagement() {
     }
   };
 
-  // Icône selon le rôle
-  const getRoleIcon = (role: string) => {
-    switch (role) {
-      case 'admin': return <Crown className="text-yellow-500" size={18} />;
-      case 'dispatcher': return <Calendar className="text-blue-500" size={18} />;
-      case 'driver': return <Truck className="text-green-500" size={18} />;
-      case 'warehouse': return <Package className="text-purple-500" size={18} />;
-      default: return <Users className="text-gray-500" size={18} />;
-    }
-  };
-
-  // Badge selon le rôle
-  const getRoleBadge = (role: string) => {
-    const styles: Record<string, string> = {
-      admin: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-      dispatcher: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-      driver: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-      warehouse: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+  // Obtenir la config d'un rôle (avec fallback)
+  const getRoleConfig = (role: string) => {
+    return ROLES_CONFIG[role as UserRole] || {
+      label: role,
+      icon: <Users className="text-gray-500" size={18} />,
+      badgeClass: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
     };
-
-    return styles[role] || 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300';
   };
 
   if (loading) {
@@ -234,51 +267,51 @@ export default function TeamManagement() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {members.map((member) => (
-                <tr key={member.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-                        {member.full_name?.charAt(0).toUpperCase() || member.email.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="font-medium text-gray-900 dark:text-white">
-                          {member.full_name || 'Sans nom'}
+              {members.map((member) => {
+                const roleConfig = getRoleConfig(member.role);
+                return (
+                  <tr key={member.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/30 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+                          {member.full_name?.charAt(0).toUpperCase() || member.email.charAt(0).toUpperCase()}
                         </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                          <Mail size={12} />
-                          {member.email}
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-white">
+                            {member.full_name || 'Sans nom'}
+                          </div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                            <Mail size={12} />
+                            {member.email}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      {getRoleIcon(member.role)}
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRoleBadge(member.role)}`}>
-                        {member.role === 'admin' && 'Administrateur'}
-                        {member.role === 'dispatcher' && 'Dispatcheur'}
-                        {member.role === 'driver' && 'Chauffeur'}
-                        {member.role === 'warehouse' && 'Magasinier'}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
-                    {new Date(member.created_at).toLocaleDateString('fr-FR')}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    {member.id !== user?.id && (
-                      <button
-                        onClick={() => handleRemoveUser(member.id, member.email)}
-                        className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
-                        title="Retirer de l'équipe"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        {roleConfig.icon}
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${roleConfig.badgeClass}`}>
+                          {roleConfig.label}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                      {new Date(member.created_at).toLocaleDateString('fr-FR')}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {member.id !== user?.id && (
+                        <button
+                          onClick={() => handleRemoveUser(member.id, member.email)}
+                          className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                          title="Retirer de l'équipe"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -323,13 +356,15 @@ export default function TeamManagement() {
                 </label>
                 <select
                   value={inviteForm.role}
-                  onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value as any })}
+                  onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value as UserRole })}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
                 >
-                  <option value="dispatcher">Dispatcheur</option>
-                  <option value="driver">Chauffeur</option>
-                  <option value="warehouse">Magasinier</option>
-                  <option value="admin">Administrateur</option>
+                  <option value="employee">👤 Employé</option>
+                  <option value="operator">💼 Opérateur</option>
+                  <option value="technician">🔧 Technicien</option>
+                  <option value="team_leader">👨‍💼 Chef d'équipe</option>
+                  <option value="intern">🎓 Stagiaire</option>
+                  <option value="admin">👑 Administrateur</option>
                 </select>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   Les admins peuvent gérer l'équipe et les paramètres
@@ -341,7 +376,7 @@ export default function TeamManagement() {
                   type="button"
                   onClick={() => {
                     setShowInviteModal(false);
-                    setInviteForm({ email: '', role: 'dispatcher' });
+                    setInviteForm({ email: '', role: 'employee' });
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                 >
