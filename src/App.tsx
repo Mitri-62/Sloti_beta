@@ -4,7 +4,8 @@ import AppApp from "./app/AppApp";
 import { AuthProvider } from "./contexts/AuthContext";
 import { Toaster } from "sonner";
 import { RealtimeProvider } from "./contexts/RealtimeProvider";
-import Login from "./vitrine/pages/Login"; // 🔹 ton vrai composant Login
+import Login from "./vitrine/pages/Login";
+import JoinTeamPage from "./pages/JoinTeamPage"; // ✅ Vérifie le chemin !
 
 
 export default function App() {
@@ -24,20 +25,15 @@ export default function App() {
           />
 
           {/* Page de connexion */}
-          <Route
-            path="/login"
-            element={
-              <AuthProvider>
-                <Login /> {/* ✅ login uniquement */}
-              </AuthProvider>
-            }
-          />
+          <Route path="/login" element={<AuthProvider><Login /></AuthProvider>} />
 
-          {/* Vitrine publique (jamais protégée) */}
+          {/* ✅ Page d'invitation - AVANT la vitrine ! */}
+          <Route path="/join-team/:token" element={<AuthProvider><JoinTeamPage /></AuthProvider>} />
+
+          {/* Vitrine publique - TOUJOURS EN DERNIER */}
           <Route path="/*" element={<VitrineApp />} />
         </Routes>
 
-        {/* Notifications globales */}
         <Toaster position="top-right" richColors />
       </BrowserRouter>
   );

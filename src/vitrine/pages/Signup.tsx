@@ -13,7 +13,8 @@ export default function Signup() {
   // Récupérer les paramètres de l'invitation
   const companyId = searchParams.get('company_id');
   const companyName = searchParams.get('company_name');
-  
+  const role = searchParams.get('role') || 'employee'; // Par défaut employee
+
   console.log('📋 URL params:', { companyId, companyName });
   console.log('🌐 Full URL:', window.location.href);
   console.log('🔗 Search string:', searchParams.toString());
@@ -101,7 +102,7 @@ export default function Signup() {
         id: user.id,
         email: user.email!,
         company_id: companyId,
-        role: "admin",
+        role: role, // ← Utilise le rôle de l'URL au lieu de "admin"
         full_name: fullName,
       });
 

@@ -293,23 +293,11 @@ const handleDeleteCompany = async (companyId: string, companyName: string) => {
 
   // Créer une nouvelle company et envoyer email d'invitation
   const handleCreateCompany = async () => {
-    if (!newCompany.name.trim()) {
-      toast.error('Le nom de la company est requis');
+    if (!newCompany.name.trim() || !newCompany.adminEmail.trim()) {
+      toast.error('Nom et email requis');
       return;
     }
-
-    if (!newCompany.adminEmail.trim()) {
-      toast.error("L'email de l'admin est requis");
-      return;
-    }
-
-    // Validation email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(newCompany.adminEmail)) {
-      toast.error('Email invalide');
-      return;
-    }
-
+  
     setCreatingCompany(true);
     try {
       // 1. Créer la company
@@ -321,33 +309,36 @@ const handleDeleteCompany = async (companyId: string, companyName: string) => {
         }])
         .select()
         .single();
-
+  
       if (companyError) throw companyError;
-
-      // 2. Envoyer un email d'invitation (magic link)
-      const { error: inviteError } = await supabase.auth.signInWithOtp({
-        email: newCompany.adminEmail,
-        options: {
-          emailRedirectTo: `${window.location.origin}/signup?company_id=${company.id}&company_name=${encodeURIComponent(company.name)}`,
-          data: {
-            company_id: company.id,
-            company_name: company.name,
-            role: 'admin'
-          }
-        }
-      });
-
-      if (inviteError) {
-        console.warn('Erreur envoi email:', inviteError);
-        // On ne bloque pas la création si l'email échoue
-      }
-
-      toast.success(`✅ Company "${newCompany.name}" créée ! Email d'invitation envoyé.`);
+  
+      // 2. Créer l'invitation (au lieu du magic link)
+      const { data: invitation, error: inviteError } = await supabase
+        .from('team_invitations')
+        .insert({
+          company_id: company.id,
+          email: newCompany.adminEmail.toLowerCase().trim(),
+          role: 'admin',
+          invited_by: user?.id,
+        })
+        .select()
+        .single();
+  
+      if (inviteError) throw inviteError;
+  
+      // 3. Générer le lien et copier
+      const inviteUrl = `${window.location.origin}/join-team/${invitation.token}`;
+      await navigator.clipboard.writeText(inviteUrl);
+  
+      toast.success(
+        `✅ Company "${newCompany.name}" créée !\n📋 Lien d'invitation copié - envoyez-le à ${newCompany.adminEmail}`,
+        { duration: 10000 }
+      );
+  
       setShowCreateModal(false);
       setNewCompany({ name: '', adminEmail: '' });
-      
-      // Recharger les données
       loadAllCompanies();
+  
     } catch (err: any) {
       console.error('Erreur création company:', err);
       toast.error(err.message || 'Erreur lors de la création');

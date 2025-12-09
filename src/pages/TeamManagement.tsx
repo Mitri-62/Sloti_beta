@@ -16,6 +16,9 @@ import {
   GraduationCap,
   Briefcase,
   Loader,
+  Copy,
+  Link,
+  Clock,
 } from 'lucide-react';
 
 // Types de rôles disponibles
@@ -63,10 +66,20 @@ interface TeamMember {
   created_at: string;
 }
 
+interface PendingInvitation {
+  id: string;
+  email: string;
+  role: string;
+  token: string;
+  created_at: string;
+  expires_at: string;
+}
+
 export default function TeamManagement() {
   const { user } = useAuth();
   
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteForm, setInviteForm] = useState({
@@ -74,6 +87,7 @@ export default function TeamManagement() {
     role: 'employee' as UserRole
   });
   const [inviting, setInviting] = useState(false);
+  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
 
   // Charger les membres de l'équipe
   const loadTeamMembers = async () => {
@@ -81,14 +95,30 @@ export default function TeamManagement() {
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Charger les membres
+      const { data: membersData, error: membersError } = await supabase
         .from('users')
         .select('id, full_name, email, role, created_at')
         .eq('company_id', user.company_id)
         .order('created_at', { ascending: true });
 
-      if (error) throw error;
-      setMembers(data || []);
+      if (membersError) throw membersError;
+      setMembers(membersData || []);
+
+      // Charger les invitations en attente
+      const { data: invitationsData, error: invitationsError } = await supabase
+        .from('team_invitations')
+        .select('id, email, role, token, created_at, expires_at')
+        .eq('company_id', user.company_id)
+        .is('used_at', null)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false });
+
+      if (!invitationsError) {
+        setPendingInvitations(invitationsData || []);
+      }
+      
     } catch (error) {
       console.error('Erreur chargement équipe:', error);
       toast.error('Impossible de charger l\'équipe');
@@ -101,67 +131,95 @@ export default function TeamManagement() {
     loadTeamMembers();
   }, [user?.company_id]);
 
-  // Inviter un utilisateur
-// Inviter un utilisateur
-const handleInvite = async (e: React.FormEvent) => {
-  e.preventDefault();
+  // Inviter un utilisateur (système custom)
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-  // Vérifier que l'email n'existe pas déjà dans cette équipe
-  const emailExists = members.some(m => m.email.toLowerCase() === inviteForm.email.toLowerCase());
-  if (emailExists) {
-    toast.error('Cet email existe déjà dans votre équipe');
-    return;
-  }
-
-  setInviting(true);
-
-  try {
-    // Générer un mot de passe temporaire
-    const tempPassword = `Temp${Math.random().toString(36).slice(-8)}!`;
-
-    // Créer l'utilisateur dans Supabase Auth
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email: inviteForm.email,
-      password: tempPassword,
-    });
-
-    // Si l'utilisateur existe déjà dans Auth
-    if (authError?.message?.includes('already registered')) {
-      toast.error('Cet email a déjà un compte Sloti. Demandez-lui de vous contacter pour rejoindre votre équipe.');
-      setInviting(false);
+    // Vérifier que l'email n'existe pas déjà dans l'équipe
+    const emailExists = members.some(m => m.email.toLowerCase() === inviteForm.email.toLowerCase());
+    if (emailExists) {
+      toast.error('Cet email existe déjà dans votre équipe');
       return;
     }
 
-    if (authError) throw authError;
-    if (!authData.user) throw new Error('Impossible de créer l\'utilisateur');
-
-    // Ajouter l'utilisateur dans la table users
-    const { error: userError } = await supabase
-      .from('users')
-      .insert({
-        id: authData.user.id,
-        email: inviteForm.email,
-        full_name: inviteForm.email.split('@')[0],
-        company_id: user?.company_id,
-        role: inviteForm.role,
-      });
-
-    if (userError) {
-      console.error('Erreur insertion user:', userError);
-      throw userError;
+    // Vérifier qu'il n'y a pas déjà une invitation en attente
+    const invitationExists = pendingInvitations.some(i => i.email.toLowerCase() === inviteForm.email.toLowerCase());
+    if (invitationExists) {
+      toast.error('Une invitation est déjà en attente pour cet email');
+      return;
     }
 
-    toast.success(`Invitation envoyée à ${inviteForm.email} ! 📧`);
-    setShowInviteModal(false);
-    setInviteForm({ email: '', role: 'employee' });
-    loadTeamMembers();
-  } catch (error: any) {
-    console.error('Erreur invitation:', error);
-    toast.error(error.message || 'Erreur lors de l\'invitation');
-  } finally {
-    setInviting(false);
-  }
-};
+    setInviting(true);
+    setGeneratedLink(null);
+
+    try {
+      // Créer l'invitation dans la DB
+      const { data: invitation, error: inviteError } = await supabase
+        .from('team_invitations')
+        .insert({
+          company_id: user?.company_id,
+          email: inviteForm.email.toLowerCase().trim(),
+          role: inviteForm.role,
+          invited_by: user?.id,
+        })
+        .select()
+        .single();
+
+      if (inviteError) {
+        if (inviteError.code === '23505') {
+          toast.error('Une invitation existe déjà pour cet email');
+        } else {
+          throw inviteError;
+        }
+        return;
+      }
+
+      // Générer le lien d'invitation
+      const inviteUrl = `${window.location.origin}/join-team/${invitation.token}`;
+      setGeneratedLink(inviteUrl);
+      
+      // Copier dans le presse-papier
+      await navigator.clipboard.writeText(inviteUrl);
+      
+      toast.success(`Lien d'invitation copié ! 📋 Envoyez-le à ${inviteForm.email}`);
+      
+      // Recharger les invitations
+      loadTeamMembers();
+
+    } catch (error: any) {
+      console.error('Erreur invitation:', error);
+      toast.error(error.message || 'Erreur lors de l\'invitation');
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  // Copier le lien d'invitation
+  const copyInviteLink = async (token: string) => {
+    const inviteUrl = `${window.location.origin}/join-team/${token}`;
+    await navigator.clipboard.writeText(inviteUrl);
+    toast.success('Lien copié dans le presse-papier !');
+  };
+
+  // Supprimer une invitation
+  const handleCancelInvitation = async (invitationId: string) => {
+    if (!confirm('Annuler cette invitation ?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('team_invitations')
+        .delete()
+        .eq('id', invitationId);
+
+      if (error) throw error;
+
+      toast.success('Invitation annulée');
+      loadTeamMembers();
+    } catch (error) {
+      console.error('Erreur annulation:', error);
+      toast.error('Impossible d\'annuler l\'invitation');
+    }
+  };
 
   // Supprimer un utilisateur
   const handleRemoveUser = async (userId: string, userEmail: string) => {
@@ -238,13 +296,69 @@ const handleInvite = async (e: React.FormEvent) => {
         </div>
 
         <button
-          onClick={() => setShowInviteModal(true)}
+          onClick={() => {
+            setShowInviteModal(true);
+            setGeneratedLink(null);
+            setInviteForm({ email: '', role: 'employee' });
+          }}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-all shadow-md hover:shadow-lg"
         >
           <UserPlus size={18} />
           Inviter un membre
         </button>
       </div>
+
+      {/* Invitations en attente */}
+      {pendingInvitations.length > 0 && (
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4 mb-6">
+          <h3 className="font-bold text-yellow-900 dark:text-yellow-100 mb-3 flex items-center gap-2">
+            <Clock size={18} />
+            Invitations en attente ({pendingInvitations.length})
+          </h3>
+          <div className="space-y-2">
+            {pendingInvitations.map((invitation) => {
+              const roleConfig = getRoleConfig(invitation.role);
+              return (
+                <div 
+                  key={invitation.id}
+                  className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg p-3 border border-yellow-200 dark:border-yellow-700"
+                >
+                  <div className="flex items-center gap-3">
+                    <Mail size={16} className="text-yellow-600" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {invitation.email}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Expire le {new Date(invitation.expires_at).toLocaleDateString('fr-FR')}
+                      </p>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${roleConfig.badgeClass}`}>
+                      {roleConfig.label}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => copyInviteLink(invitation.token)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-colors"
+                      title="Copier le lien"
+                    >
+                      <Copy size={16} />
+                    </button>
+                    <button
+                      onClick={() => handleCancelInvitation(invitation.id)}
+                      className="p-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                      title="Annuler l'invitation"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Liste des membres */}
       <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
@@ -335,72 +449,135 @@ const handleInvite = async (e: React.FormEvent) => {
               Inviter un membre
             </h3>
 
-            <form onSubmit={handleInvite} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={inviteForm.email}
-                  onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
-                  placeholder="nom@entreprise.com"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                />
-              </div>
+            {generatedLink ? (
+              // Afficher le lien généré
+              <div className="space-y-4">
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                  <p className="text-sm text-green-800 dark:text-green-200 mb-2 font-medium">
+                    ✅ Invitation créée ! Partagez ce lien :
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={generatedLink}
+                      readOnly
+                      className="flex-1 px-3 py-2 text-sm bg-white dark:bg-gray-900 border border-green-300 dark:border-green-700 rounded-lg"
+                    />
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedLink);
+                        toast.success('Lien copié !');
+                      }}
+                      className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    >
+                      <Copy size={18} />
+                    </button>
+                  </div>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Rôle
-                </label>
-                <select
-                  value={inviteForm.role}
-                  onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value as UserRole })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                >
-                  <option value="employee">👤 Employé</option>
-                  <option value="operator">💼 Opérateur</option>
-                  <option value="technician">🔧 Technicien</option>
-                  <option value="team_leader">👨‍💼 Chef d'équipe</option>
-                  <option value="intern">🎓 Stagiaire</option>
-                  <option value="admin">👑 Administrateur</option>
-                </select>
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Les admins peuvent gérer l'équipe et les paramètres
-                </p>
-              </div>
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                  <p className="text-sm text-blue-800 dark:text-blue-200">
+                    <strong>Pour {inviteForm.email}</strong><br />
+                    Rôle : {getRoleConfig(inviteForm.role).label}<br />
+                    Expire dans 7 jours
+                  </p>
+                </div>
 
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowInviteModal(false);
-                    setInviteForm({ email: '', role: 'employee' });
-                  }}
-                  className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="submit"
-                  disabled={inviting}
-                  className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {inviting ? (
-                    <>
-                      <Loader className="animate-spin" size={18} />
-                      Envoi...
-                    </>
-                  ) : (
-                    <>
-                      <Mail size={18} />
-                      Envoyer l'invitation
-                    </>
-                  )}
-                </button>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => {
+                      setShowInviteModal(false);
+                      setGeneratedLink(null);
+                      setInviteForm({ email: '', role: 'employee' });
+                    }}
+                    className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium"
+                  >
+                    Fermer
+                  </button>
+                  <button
+                    onClick={() => {
+                      setGeneratedLink(null);
+                      setInviteForm({ email: '', role: 'employee' });
+                    }}
+                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
+                  >
+                    Nouvelle invitation
+                  </button>
+                </div>
               </div>
-            </form>
+            ) : (
+              // Formulaire d'invitation
+              <form onSubmit={handleInvite} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={inviteForm.email}
+                    onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                    placeholder="nom@entreprise.com"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Rôle
+                  </label>
+                  <select
+                    value={inviteForm.role}
+                    onChange={(e) => setInviteForm({ ...inviteForm, role: e.target.value as UserRole })}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="employee">👤 Employé</option>
+                    <option value="operator">💼 Opérateur</option>
+                    <option value="technician">🔧 Technicien</option>
+                    <option value="team_leader">👨‍💼 Chef d'équipe</option>
+                    <option value="intern">🎓 Stagiaire</option>
+                    <option value="admin">👑 Administrateur</option>
+                  </select>
+                </div>
+
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+                  <p className="text-sm text-blue-800 dark:text-blue-200 flex items-start gap-2">
+                    <Link size={16} className="flex-shrink-0 mt-0.5" />
+                    Un lien d'invitation sera généré. Vous pourrez le partager par email, SMS ou messagerie.
+                  </p>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowInviteModal(false);
+                      setInviteForm({ email: '', role: 'employee' });
+                    }}
+                    className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={inviting}
+                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {inviting ? (
+                      <>
+                        <Loader className="animate-spin" size={18} />
+                        Création...
+                      </>
+                    ) : (
+                      <>
+                        <Link size={18} />
+                        Générer le lien
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
