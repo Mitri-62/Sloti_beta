@@ -231,7 +231,7 @@ export default function FounderDashboard() {
             email: newCompany.adminEmail.toLowerCase().trim(),
             company_id: company.id,
             role: 'admin',
-            redirect_url: `${window.location.origin}/login`,
+            redirect_url: `${window.location.origin}/signup`,
           }),
         }
       );

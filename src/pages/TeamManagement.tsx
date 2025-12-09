@@ -128,7 +128,7 @@ export default function TeamManagement() {
             company_id: user?.company_id,
             role: inviteForm.role,
             full_name: inviteForm.fullName.trim() || inviteForm.email.split('@')[0],
-            redirect_url: `${window.location.origin}/login`,
+            redirect_url: `${window.location.origin}/signup`,
           }),
         }
       );
