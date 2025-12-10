@@ -5,7 +5,8 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { Toaster } from "sonner";
 import { RealtimeProvider } from "./contexts/RealtimeProvider";
 import Login from "./vitrine/pages/Login";
-import JoinTeamPage from "./pages/JoinTeamPage"; // ✅ Vérifie le chemin !
+import Signup from "./vitrine/pages/Signup"; // ✅ AJOUTER
+import JoinTeamPage from "./pages/JoinTeamPage";
 
 
 export default function App() {
@@ -27,7 +28,10 @@ export default function App() {
           {/* Page de connexion */}
           <Route path="/login" element={<AuthProvider><Login /></AuthProvider>} />
 
-          {/* ✅ Page d'invitation - AVANT la vitrine ! */}
+          {/* ✅ Page d'inscription (invitation) */}
+          <Route path="/signup" element={<Signup />} />
+
+          {/* Page d'invitation par token */}
           <Route path="/join-team/:token" element={<AuthProvider><JoinTeamPage /></AuthProvider>} />
 
           {/* Vitrine publique - TOUJOURS EN DERNIER */}

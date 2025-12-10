@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 import { Eye, EyeOff, AlertCircle, CheckCircle, Loader } from "lucide-react";
 import logo from "../../assets/Sloti.svg";
 
 export default function Signup() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
@@ -23,27 +24,82 @@ export default function Signup() {
   const [userEmail, setUserEmail] = useState<string>("");
 
   useEffect(() => {
-    const checkSession = async () => {
-      console.log('🔍 Checking session...');
+    const verifyInvitation = async () => {
+      console.log('🔍 Checking invitation...');
+      console.log('📍 URL params:', Object.fromEntries(searchParams));
+      console.log('📍 Hash:', window.location.hash);
       
-      // Attendre que Supabase traite le hash fragment
-      const { data: { session }, error } = await supabase.auth.getSession();
+      // Récupérer le token_hash depuis les query params
+      const tokenHash = searchParams.get('token_hash');
+      const type = searchParams.get('type');
       
-      console.log('📋 Session:', session);
-      console.log('❌ Error:', error);
+      // Ou depuis le hash fragment (ancien format)
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const accessToken = hashParams.get('access_token');
+      const hashType = hashParams.get('type');
       
-      if (!session?.user) {
-        console.log('❌ No session → Redirect to home');
-        // Pas de session = pas d'invitation valide
-        window.location.href = '/';
+      console.log('🔑 Token hash:', tokenHash);
+      console.log('🔑 Access token from hash:', accessToken);
+      console.log('📝 Type:', type || hashType);
+
+      // Cas 1: token_hash dans les query params (nouveau format)
+      if (tokenHash && type === 'invite') {
+        console.log('⏳ Verifying token_hash...');
+        
+        const { data, error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type: 'invite',
+        });
+        
+        if (verifyError) {
+          console.error('❌ Verify error:', verifyError);
+          setError("Le lien d'invitation est invalide ou a expiré. Demandez une nouvelle invitation.");
+          setVerifying(false);
+          return;
+        }
+        
+        if (data.session && data.user) {
+          console.log('✅ Session created via token_hash');
+          await processUser(data.user);
+          return;
+        }
+      }
+      
+      // Cas 2: Vérifier s'il y a déjà une session active
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        console.log('✅ Existing session found');
+        await processUser(session.user);
         return;
       }
+      
+      // Cas 3: access_token dans le hash (format Supabase par défaut)
+      if (accessToken && accessToken.length > 10) {
+        console.log('⏳ Waiting for Supabase to process hash...');
+        
+        // Attendre un peu que Supabase traite le hash
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const { data: { session: newSession } } = await supabase.auth.getSession();
+        
+        if (newSession?.user) {
+          console.log('✅ Session created from hash');
+          await processUser(newSession.user);
+          return;
+        }
+      }
+      
+      // Aucune invitation valide trouvée
+      console.log('❌ No valid invitation found');
+      setError("Aucune invitation valide trouvée. Vérifiez votre lien ou demandez une nouvelle invitation.");
+      setVerifying(false);
+    };
 
-      const user = session.user;
-      console.log('👤 User:', user);
+    const processUser = async (user: any) => {
+      console.log('👤 Processing user:', user.email);
       console.log('📦 User metadata:', user.user_metadata);
 
-      // Récupérer les infos depuis user_metadata (définies dans l'Edge Function)
       const metadata = user.user_metadata || {};
       
       setCompanyId(metadata.company_id || null);
@@ -67,8 +123,8 @@ export default function Signup() {
       setVerifying(false);
     };
 
-    checkSession();
-  }, []);
+    verifyInvitation();
+  }, [searchParams]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,6 +215,27 @@ export default function Signup() {
           <p className="mt-4 text-gray-600 dark:text-gray-400">
             Vérification de votre invitation...
           </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Si erreur et pas d'email = invitation invalide
+  if (error && !userEmail) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 dark:from-gray-900 dark:to-gray-800 px-4">
+        <div className="max-w-md w-full bg-white dark:bg-gray-800 p-8 sm:p-10 rounded-2xl shadow-xl text-center">
+          <img src={logo} alt="Sloti Logo" className="mx-auto h-16 w-auto mb-6" />
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
+            <AlertCircle className="w-8 h-8 mx-auto mb-2" />
+            <p className="text-sm">{error}</p>
+          </div>
+          <a 
+            href="/"
+            className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+          >
+            Retour à l'accueil
+          </a>
         </div>
       </div>
     );
