@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import useSuperAdmin from '../hooks/useSuperAdmin';
+import useImpersonate from '../hooks/useImpersonate';
 import { CompanyWithStats } from '../types/company.types';
 import { toast } from 'sonner';
 import {
@@ -17,6 +18,7 @@ import {
   Calendar,
   Trash2,
   ExternalLink,
+  LogIn,
   Activity,
   Target,
   Zap,
@@ -52,6 +54,7 @@ interface CompanyAlert {
 export default function FounderDashboard() {
   const { user } = useAuth();
   const { isSuperAdmin, loading: authLoading } = useSuperAdmin();
+  const { startImpersonate } = useImpersonate();
   
   const [companies, setCompanies] = useState<CompanyWithStats[]>([]);
   const [stats, setStats] = useState<ExtendedCompanyStats | null>(null);
@@ -231,7 +234,7 @@ export default function FounderDashboard() {
             email: newCompany.adminEmail.toLowerCase().trim(),
             company_id: company.id,
             role: 'admin',
-            redirect_url: `${window.location.origin}/signup`,
+            redirect_url: `${window.location.origin}/login`,
           }),
         }
       );
@@ -541,6 +544,13 @@ export default function FounderDashboard() {
                     </td>
                     <td className="px-4 sm:px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-1 sm:gap-2">
+                        <button
+                          onClick={() => startImpersonate(company.id, company.name)}
+                          className="p-2 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded"
+                          title="Se connecter comme"
+                        >
+                          <LogIn size={18} />
+                        </button>
                         <button
                           onClick={() => window.open(`/app?company_id=${company.id}`, '_blank')}
                           className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded"
