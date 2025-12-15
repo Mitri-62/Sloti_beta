@@ -1,7 +1,9 @@
 // src/vitrine/pages/admin/NewsAdmin.tsx
 import { useState, useEffect } from "react";
-import { Plus, Edit2, Trash2, Eye, EyeOff, Save, X, ArrowLeft } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Plus, Edit2, Trash2, Eye, EyeOff, Save, X, ArrowLeft, Loader } from "lucide-react";
 import { supabase } from "../../../supabaseClient";
+import useVitrineAdmin from "../../hooks/useVitrineAdmin";
 
 interface NewsItem {
   id?: string;
@@ -37,49 +39,21 @@ const colorOptions = [
 ];
 
 export default function NewsAdmin() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [authorized, setAuthorized] = useState(false);
+  const { user } = useVitrineAdmin();
   const [news, setNews] = useState<NewsItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<NewsItem>(initialFormState);
   const [isCreating, setIsCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  // Vérification de l'authentification et autorisation
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const { data } = await supabase.auth.getSession();
-        const currentUser = data.session?.user;
-        
-        setUser(currentUser);
-        
-        // Vérifier si l'email est le vôtre
-        if (currentUser?.email === 'dimitri.deremarque@gmail.com') {
-          setAuthorized(true);
-        } else {
-          setAuthorized(false);
-        }
-      } catch (err) {
-        console.error("Erreur d'authentification:", err);
-        setAuthorized(false);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    checkAuth();
+    fetchNews();
   }, []);
-
-  // Charger les actualités si autorisé
-  useEffect(() => {
-    if (authorized) {
-      fetchNews();
-    }
-  }, [authorized]);
 
   const fetchNews = async () => {
     try {
+      setLoading(true);
       const { data, error } = await supabase
         .from("news")
         .select("*")
@@ -87,14 +61,22 @@ export default function NewsAdmin() {
 
       if (error) throw error;
       setNews(data || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Erreur:", err);
       alert("Erreur lors du chargement des actualités");
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleCreate = async () => {
+    if (!formData.title.trim() || !formData.description.trim()) {
+      alert("Le titre et la description sont requis");
+      return;
+    }
+
     try {
+      setSaving(true);
       const { error } = await supabase
         .from("news")
         .insert([formData]);
@@ -105,14 +87,22 @@ export default function NewsAdmin() {
       setFormData(initialFormState);
       setIsCreating(false);
       fetchNews();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Erreur:", err);
-      alert("Erreur lors de la création");
+      alert("Erreur lors de la création: " + err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleUpdate = async (id: string) => {
+    if (!formData.title.trim() || !formData.description.trim()) {
+      alert("Le titre et la description sont requis");
+      return;
+    }
+
     try {
+      setSaving(true);
       const { error } = await supabase
         .from("news")
         .update(formData)
@@ -124,9 +114,11 @@ export default function NewsAdmin() {
       setEditingId(null);
       setFormData(initialFormState);
       fetchNews();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Erreur:", err);
-      alert("Erreur lors de la mise à jour");
+      alert("Erreur lors de la mise à jour: " + err.message);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -143,9 +135,9 @@ export default function NewsAdmin() {
 
       alert("Actualité supprimée !");
       fetchNews();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Erreur:", err);
-      alert("Erreur lors de la suppression");
+      alert("Erreur lors de la suppression: " + err.message);
     }
   };
 
@@ -158,7 +150,7 @@ export default function NewsAdmin() {
 
       if (error) throw error;
       fetchNews();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Erreur:", err);
       alert("Erreur lors du changement de statut");
     }
@@ -176,50 +168,6 @@ export default function NewsAdmin() {
     setFormData(initialFormState);
   };
 
-  // État de chargement
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Vérification des autorisations...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Pas connecté - Redirection
-  if (!user) {
-    window.location.href = '/login';
-    return null;
-  }
-
-  // Pas autorisé
-  if (!authorized) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-50">
-        <div className="text-center max-w-md">
-          <div className="bg-red-100 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
-            <X className="text-red-600" size={40} />
-          </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Accès refusé</h1>
-          <p className="text-gray-600 mb-6">
-            Vous n'avez pas l'autorisation d'accéder à cette page.<br />
-            Seul le super-administrateur peut gérer les actualités.
-          </p>
-          <button
-            onClick={() => window.location.href = '/'}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <ArrowLeft size={20} />
-            Retour à l'accueil
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  // Interface d'administration (autorisé)
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-6xl mx-auto">
@@ -234,13 +182,13 @@ export default function NewsAdmin() {
                 Créez, modifiez et gérez les actualités de votre vitrine
               </p>
             </div>
-            <a
-              href="/"
+            <Link
+              to="/"
               className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft size={20} />
               Retour à la vitrine
-            </a>
+            </Link>
           </div>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
             <div className="text-blue-600 mt-0.5">ℹ️</div>
@@ -285,6 +233,7 @@ export default function NewsAdmin() {
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   placeholder="Ex: Nouvelle fonctionnalité"
+                  maxLength={100}
                 />
               </div>
 
@@ -298,6 +247,7 @@ export default function NewsAdmin() {
                   rows={3}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   placeholder="Décrivez l'actualité..."
+                  maxLength={500}
                 />
               </div>
 
@@ -371,6 +321,7 @@ export default function NewsAdmin() {
                     value={formData.order}
                     onChange={(e) => setFormData({ ...formData, order: parseInt(e.target.value) || 0 })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    min={0}
                   />
                 </div>
 
@@ -390,9 +341,10 @@ export default function NewsAdmin() {
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={() => isCreating ? handleCreate() : handleUpdate(editingId!)}
-                  className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  disabled={saving}
+                  className="flex items-center gap-2 px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
                 >
-                  <Save size={18} />
+                  {saving ? <Loader className="animate-spin" size={18} /> : <Save size={18} />}
                   {isCreating ? "Créer" : "Enregistrer"}
                 </button>
                 <button
@@ -409,82 +361,90 @@ export default function NewsAdmin() {
 
         {/* Liste des actualités */}
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Ordre
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Titre
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Icône/Couleur
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                    Statut
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {news.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {item.order}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm font-medium text-gray-900">{item.title}</div>
-                      <div className="text-sm text-gray-500 line-clamp-1">{item.description}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-1 rounded text-xs bg-${item.icon_color}-100 text-${item.icon_color}-800`}>
-                          {item.icon}
-                        </span>
-                        <span className="text-gray-400">•</span>
-                        <span>{item.icon_color}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => togglePublished(item.id!, item.published)}
-                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
-                          item.published
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}
-                      >
-                        {item.published ? <Eye size={14} /> : <EyeOff size={14} />}
-                        {item.published ? "Publié" : "Brouillon"}
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => startEdit(item)}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          <Edit2 size={18} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.id!)}
-                          className="text-red-600 hover:text-red-900"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </td>
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader className="animate-spin text-blue-600" size={32} />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Ordre
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Titre
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Icône/Couleur
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Statut
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {news.map((item) => (
+                    <tr key={item.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {item.order}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-medium text-gray-900">{item.title}</div>
+                        <div className="text-sm text-gray-500 line-clamp-1">{item.description}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-1 rounded text-xs bg-${item.icon_color}-100 text-${item.icon_color}-800`}>
+                            {item.icon}
+                          </span>
+                          <span className="text-gray-400">•</span>
+                          <span>{item.icon_color}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => togglePublished(item.id!, item.published)}
+                          className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                            item.published
+                              ? "bg-green-100 text-green-800 hover:bg-green-200"
+                              : "bg-gray-100 text-gray-800 hover:bg-gray-200"
+                          }`}
+                        >
+                          {item.published ? <Eye size={14} /> : <EyeOff size={14} />}
+                          {item.published ? "Publié" : "Brouillon"}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => startEdit(item)}
+                            className="text-blue-600 hover:text-blue-900 p-2 rounded hover:bg-blue-50"
+                            title="Modifier"
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(item.id!)}
+                            className="text-red-600 hover:text-red-900 p-2 rounded hover:bg-red-50"
+                            title="Supprimer"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-          {news.length === 0 && (
+          {!loading && news.length === 0 && (
             <div className="text-center py-12 text-gray-500">
               Aucune actualité. Créez-en une pour commencer !
             </div>

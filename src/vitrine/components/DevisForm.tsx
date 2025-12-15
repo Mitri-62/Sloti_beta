@@ -1,6 +1,14 @@
+// src/vitrine/components/DevisForm.tsx
 import { useState } from "react";
-import { Mail, User, MessageSquare, Send, CheckCircle } from "lucide-react";
+import { Mail, User, MessageSquare, Send, CheckCircle, Building, Phone } from "lucide-react";
 import { supabase } from "../../supabaseClient";
+
+// Logger conditionnel (pas de logs en production)
+const log = (message: string, ...args: any[]) => {
+  if (import.meta.env.DEV) {
+    console.log(message, ...args);
+  }
+};
 
 export default function DevisForm() {
   const [formData, setFormData] = useState({
@@ -13,6 +21,9 @@ export default function DevisForm() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // 🍯 Honeypot anti-spam (champ invisible pour les bots)
+  const [honeypot, setHoneypot] = useState("");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -25,20 +36,30 @@ export default function DevisForm() {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
+    // Nom
     if (!formData.name.trim()) {
       newErrors.name = "Le nom est requis";
+    } else if (formData.name.trim().length < 2) {
+      newErrors.name = "Le nom doit contenir au moins 2 caractères";
     }
 
+    // Email
     if (!formData.email.trim()) {
       newErrors.email = "L'email est requis";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = "Email invalide";
     }
 
+    // Message
     if (!formData.message.trim()) {
       newErrors.message = "Le message est requis";
-    } else if (formData.message.length < 10) {
+    } else if (formData.message.trim().length < 10) {
       newErrors.message = "Le message doit contenir au moins 10 caractères";
+    }
+
+    // Téléphone (optionnel mais validé si rempli)
+    if (formData.phone && !/^[\d\s\+\-\(\)\.]{6,20}$/.test(formData.phone)) {
+      newErrors.phone = "Numéro de téléphone invalide";
     }
 
     setErrors(newErrors);
@@ -47,6 +68,15 @@ export default function DevisForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // 🍯 Vérification honeypot - si rempli, c'est un bot
+    if (honeypot) {
+      log("🤖 Bot détecté via honeypot");
+      // Fake success pour ne pas alerter le bot
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setSubmitted(true);
+      return;
+    }
 
     if (!validateForm()) {
       return;
@@ -59,26 +89,40 @@ export default function DevisForm() {
       const { error: insertError } = await supabase
         .from('leads')
         .insert([{
-          name: formData.name,
-          email: formData.email,
-          company: formData.company || null,
-          phone: formData.phone || null,
-          message: formData.message
+          name: formData.name.trim(),
+          email: formData.email.trim().toLowerCase(),
+          company: formData.company.trim() || null,
+          phone: formData.phone.trim() || null,
+          message: formData.message.trim(),
+          source: 'site', // Source par défaut
         }]);
 
       if (insertError) {
-        console.error("Erreur Supabase:", insertError);
+        log("❌ Erreur Supabase:", insertError);
+        
+        // Gérer les erreurs de contraintes SQL
+        if (insertError.code === '23514') {
+          if (insertError.message.includes('email_format')) {
+            throw new Error("Format d'email invalide");
+          }
+          if (insertError.message.includes('message_min_length')) {
+            throw new Error("Le message est trop court");
+          }
+          if (insertError.message.includes('name_not_empty')) {
+            throw new Error("Le nom est requis");
+          }
+        }
         throw new Error("Erreur lors de l'envoi de votre demande");
       }
 
-      console.log("✅ Lead sauvegardé avec succès !");
+      log("✅ Lead sauvegardé avec succès !");
 
       // 2️⃣ Envoyer la notification email
       try {
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-        console.log("📧 Envoi de l'email...");
+        log("📧 Envoi de l'email...");
         
         const emailResponse = await fetch(
           `${supabaseUrl}/functions/v1/send-lead-notification`,
@@ -88,25 +132,31 @@ export default function DevisForm() {
               "Content-Type": "application/json",
               "Authorization": `Bearer ${supabaseAnonKey}`,
             },
-            body: JSON.stringify(formData),
+            body: JSON.stringify({
+              name: formData.name.trim(),
+              email: formData.email.trim().toLowerCase(),
+              company: formData.company.trim() || null,
+              phone: formData.phone.trim() || null,
+              message: formData.message.trim(),
+            }),
           }
         );
 
         if (!emailResponse.ok) {
           const errorData = await emailResponse.json();
-          console.error("⚠️ Email notification failed:", errorData);
+          log("⚠️ Email notification failed:", errorData);
         } else {
-          console.log("📧 Email envoyé avec succès !");
+          log("📧 Email envoyé avec succès !");
         }
       } catch (emailError) {
         // Ne pas bloquer si l'email échoue
-        console.error("⚠️ Email error:", emailError);
+        log("⚠️ Email error:", emailError);
       }
 
       setSubmitted(true);
       
     } catch (err: any) {
-      console.error("❌ Erreur:", err);
+      log("❌ Erreur:", err);
       setErrors({ submit: err.message || "Une erreur est survenue, veuillez réessayer." });
     } finally {
       setLoading(false);
@@ -128,7 +178,10 @@ export default function DevisForm() {
               Votre demande a bien été enregistrée. Vous recevrez vos accès par email sous 24h.
             </p>
             <button
-              onClick={() => setSubmitted(false)}
+              onClick={() => {
+                setSubmitted(false);
+                setFormData({ name: "", email: "", company: "", phone: "", message: "" });
+              }}
               className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-300 focus:outline-none focus:ring-4 focus:ring-blue-300"
             >
               Envoyer une nouvelle demande
@@ -154,7 +207,7 @@ export default function DevisForm() {
             Rejoindre la bêta
           </h2>
           <p className="text-base sm:text-lg text-gray-600">
-          Testez Sloti <strong>gratuitement pendant 3 mois</strong>, puis conservez le tarif early adopter à vie.
+            Testez Sloti <strong>gratuitement pendant 3 mois</strong>, puis conservez le tarif early adopter à vie.
           </p>
         </div>
 
@@ -168,6 +221,30 @@ export default function DevisForm() {
               {errors.submit}
             </div>
           )}
+
+          {/* 🍯 HONEYPOT - Champ invisible pour les bots */}
+          <div 
+            aria-hidden="true" 
+            style={{ 
+              position: 'absolute', 
+              left: '-9999px', 
+              top: '-9999px',
+              opacity: 0,
+              height: 0,
+              overflow: 'hidden'
+            }}
+          >
+            <label htmlFor="website">Ne pas remplir ce champ</label>
+            <input
+              type="text"
+              id="website"
+              name="website"
+              value={honeypot}
+              onChange={(e) => setHoneypot(e.target.value)}
+              tabIndex={-1}
+              autoComplete="off"
+            />
+          </div>
 
           {/* Nom */}
           <div>
@@ -198,6 +275,7 @@ export default function DevisForm() {
                 aria-required="true"
                 aria-invalid={!!errors.name}
                 aria-describedby={errors.name ? "name-error" : undefined}
+                maxLength={100}
               />
             </div>
             {errors.name && (
@@ -236,6 +314,7 @@ export default function DevisForm() {
                 aria-required="true"
                 aria-invalid={!!errors.email}
                 aria-describedby={errors.email ? "email-error" : undefined}
+                maxLength={254}
               />
             </div>
             {errors.email && (
@@ -253,15 +332,23 @@ export default function DevisForm() {
             >
               Entreprise
             </label>
-            <input
-              type="text"
-              id="company"
-              name="company"
-              value={formData.company}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-              placeholder="Nom de votre entreprise"
-            />
+            <div className="relative">
+              <Building 
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
+                size={20}
+                aria-hidden="true"
+              />
+              <input
+                type="text"
+                id="company"
+                name="company"
+                value={formData.company}
+                onChange={handleChange}
+                className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                placeholder="Nom de votre entreprise"
+                maxLength={100}
+              />
+            </div>
           </div>
 
           {/* Téléphone */}
@@ -272,15 +359,34 @@ export default function DevisForm() {
             >
               Téléphone
             </label>
-            <input
-              type="tel"
-              id="phone"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-              placeholder="+33 1 23 45 67 89"
-            />
+            <div className="relative">
+              <Phone 
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" 
+                size={20}
+                aria-hidden="true"
+              />
+              <input
+                type="tel"
+                id="phone"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                className={`pl-10 w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                  errors.phone 
+                    ? 'border-red-500 focus:ring-red-500' 
+                    : 'border-gray-300 focus:ring-blue-500'
+                }`}
+                placeholder="+33 6 12 34 56 78"
+                aria-invalid={!!errors.phone}
+                aria-describedby={errors.phone ? "phone-error" : undefined}
+                maxLength={20}
+              />
+            </div>
+            {errors.phone && (
+              <p id="phone-error" className="mt-1 text-sm text-red-600" role="alert">
+                {errors.phone}
+              </p>
+            )}
           </div>
 
           {/* Message */}
@@ -312,6 +418,7 @@ export default function DevisForm() {
                 aria-required="true"
                 aria-invalid={!!errors.message}
                 aria-describedby={errors.message ? "message-error" : undefined}
+                maxLength={2000}
               />
             </div>
             {errors.message && (
@@ -319,6 +426,9 @@ export default function DevisForm() {
                 {errors.message}
               </p>
             )}
+            <p className="mt-1 text-xs text-gray-500">
+              {formData.message.length}/2000 caractères
+            </p>
           </div>
 
           {/* Bouton submit */}
@@ -341,7 +451,10 @@ export default function DevisForm() {
           </button>
 
           <p className="text-xs text-gray-500 text-center">
-            En soumettant ce formulaire, vous acceptez notre politique de confidentialité.
+            En soumettant ce formulaire, vous acceptez notre{" "}
+            <a href="/confidentialite" className="text-blue-600 hover:underline">
+              politique de confidentialité
+            </a>.
           </p>
         </form>
       </div>

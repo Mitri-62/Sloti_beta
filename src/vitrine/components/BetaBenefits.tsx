@@ -230,7 +230,7 @@ export default function BetaBenefits() {
             </h3>
             
             <p className="text-lg mb-6 text-white/90 max-w-2xl mx-auto">
-              Il reste <strong className="text-2xl">15 places</strong> sur les 15 disponibles pour la bêta privée
+              Il reste <strong className="text-2xl">14 places</strong> sur les 15 disponibles pour la bêta privée
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">

@@ -1,5 +1,14 @@
+// src/vitrine/pages/Contact.tsx
 import { useState } from "react";
-import { Mail, User, MessageSquare, Phone, MapPin, Send } from "lucide-react";
+import { Mail, User, MessageSquare, Phone, MapPin, Send, Building } from "lucide-react";
+import { supabase } from "../../supabaseClient";
+
+// Logger conditionnel
+const log = (message: string, ...args: any[]) => {
+  if (import.meta.env.DEV) {
+    console.log(message, ...args);
+  }
+};
 
 export default function Contact() {
   const [formData, setFormData] = useState({
@@ -11,6 +20,9 @@ export default function Contact() {
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  
+  // Honeypot anti-spam
+  const [honeypot, setHoneypot] = useState("");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -46,6 +58,14 @@ export default function Contact() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Vérification honeypot
+    if (honeypot) {
+      log("🤖 Bot détecté");
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      setSubmitted(true);
+      return;
+    }
+
     if (!validateForm()) {
       return;
     }
@@ -53,13 +73,28 @@ export default function Contact() {
     setLoading(true);
 
     try {
-      // Simuler l'envoi (remplacer par votre vraie API ou Netlify Forms)
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+      // Sauvegarder comme lead avec source "email"
+      const { error: insertError } = await supabase
+        .from('leads')
+        .insert([{
+          name: formData.name.trim(),
+          email: formData.email.trim().toLowerCase(),
+          phone: formData.phone.trim() || null,
+          message: formData.message.trim(),
+          source: 'email',
+          company: null,
+        }]);
+
+      if (insertError) {
+        log("❌ Erreur Supabase:", insertError);
+        throw new Error("Erreur lors de l'envoi");
+      }
+
+      log("✅ Message envoyé");
       setSubmitted(true);
-    } catch (err) {
-      console.error("Erreur:", err);
-      setErrors({ submit: "Une erreur est survenue. Veuillez réessayer." });
+    } catch (err: any) {
+      log("❌ Erreur:", err);
+      setErrors({ submit: err.message || "Une erreur est survenue. Veuillez réessayer." });
     } finally {
       setLoading(false);
     }
@@ -81,7 +116,10 @@ export default function Contact() {
             Merci pour votre message. Nous vous répondrons dans les plus brefs délais.
           </p>
           <button
-            onClick={() => setSubmitted(false)}
+            onClick={() => {
+              setSubmitted(false);
+              setFormData({ name: "", email: "", phone: "", message: "" });
+            }}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-300 focus:outline-none focus:ring-4 focus:ring-blue-300"
           >
             Envoyer un autre message
@@ -126,8 +164,8 @@ export default function Contact() {
                 </div>
                 <div>
                   <h3 className="font-semibold mb-1">Téléphone</h3>
-                  <a href="tel:+33123456789" className="text-blue-100 hover:text-white transition-colors">
-                    +33 1 23 45 67 89
+                  <a href="tel:+33630671713" className="text-blue-100 hover:text-white transition-colors">
+                    +33 6 30 67 17 13
                   </a>
                 </div>
               </div>
@@ -139,8 +177,8 @@ export default function Contact() {
                 <div>
                   <h3 className="font-semibold mb-1">Adresse</h3>
                   <p className="text-blue-100">
-                    123 Avenue de la Logistique<br />
-                    75001 Paris, France
+                    Arras, 62000<br />
+                    Hauts-de-France, France
                   </p>
                 </div>
               </div>
@@ -148,9 +186,9 @@ export default function Contact() {
 
             <div className="mt-10 pt-8 border-t border-white/20">
               <p className="text-blue-100 text-sm">
-                Horaires d'ouverture :<br />
+                Horaires de contact :<br />
                 Lundi - Vendredi : 9h - 18h<br />
-                Samedi - Dimanche : Fermé
+                Réponse sous 24h garantie
               </p>
             </div>
           </div>
@@ -167,6 +205,21 @@ export default function Contact() {
                   {errors.submit}
                 </div>
               )}
+
+              {/* Honeypot */}
+              <div 
+                aria-hidden="true" 
+                style={{ position: 'absolute', left: '-9999px', opacity: 0 }}
+              >
+                <input
+                  type="text"
+                  name="website"
+                  value={honeypot}
+                  onChange={(e) => setHoneypot(e.target.value)}
+                  tabIndex={-1}
+                  autoComplete="off"
+                />
+              </div>
 
               {/* Nom */}
               <div>
@@ -187,6 +240,7 @@ export default function Contact() {
                     placeholder="Jean Dupont"
                     aria-required="true"
                     aria-invalid={!!errors.name}
+                    maxLength={100}
                   />
                 </div>
                 {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name}</p>}
@@ -211,6 +265,7 @@ export default function Contact() {
                     placeholder="jean.dupont@exemple.com"
                     aria-required="true"
                     aria-invalid={!!errors.email}
+                    maxLength={254}
                   />
                 </div>
                 {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email}</p>}
@@ -230,7 +285,8 @@ export default function Contact() {
                     value={formData.phone}
                     onChange={handleChange}
                     className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
-                    placeholder="+33 1 23 45 67 89"
+                    placeholder="+33 6 12 34 56 78"
+                    maxLength={20}
                   />
                 </div>
               </div>
@@ -254,6 +310,7 @@ export default function Contact() {
                     placeholder="Votre message..."
                     aria-required="true"
                     aria-invalid={!!errors.message}
+                    maxLength={2000}
                   />
                 </div>
                 {errors.message && <p className="mt-1 text-sm text-red-600">{errors.message}</p>}
