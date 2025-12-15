@@ -734,7 +734,9 @@ export default function FounderDashboard() {
                         {lead.company && (
                           <span className="text-sm text-gray-500 dark:text-gray-400">• {lead.company}</span>
                         )}
-                        <SourceIcon size={14} className={sourceConfig.color} title={sourceConfig.label} />
+                        <span title={sourceConfig.label}>
+  <SourceIcon size={14} className={sourceConfig.color} />
+</span>
                       </div>
                       <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400 flex-wrap">
                         <span className="flex items-center gap-1">

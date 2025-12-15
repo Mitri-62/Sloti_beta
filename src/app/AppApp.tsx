@@ -1,4 +1,4 @@
-// src/app/AppApp.tsx - VERSION AVEC FLOTTE
+// src/app/AppApp.tsx - VERSION SÉCURISÉE
 import { Routes, Route } from "react-router-dom";
 import { AuthProvider } from "../contexts/AuthContext";
 import { ThemeProvider } from "../contexts/ThemeContext";
@@ -7,6 +7,7 @@ import { Toaster } from "sonner";
 // Layout Components
 import Layout from "../components/Layout";
 import PrivateRoute from "../components/PrivateRoute";
+import ProtectedDriverRoute from "../components/ProtectedDriverRoute"; // ✅ NOUVEAU
 
 // Pages
 import ChatPage from "../pages/ChatPage";
@@ -30,10 +31,9 @@ import Inventaire from "../pages/Inventaire";
 import HelpCenter from "../pages/HelpCenter";
 import DriverApp from "../pages/DriverApp";
 import DockManagement from '../pages/DockManagement/DockManagement';
-// ✅ NOUVEAU : Booking Transport
 import BookingTransport from "../pages/BookingTransport";
 
-// ✅ NOUVEAU : Pages Flotte
+// Pages Flotte
 import VehiclesManagement from "../pages/Fleet/VehiclesManagement";
 import DriversManagement from "../pages/Fleet/DriversManagement";
 
@@ -46,7 +46,7 @@ function AppContent() {
   return (
     <Routes>
       {/* ========================================= */}
-      {/* Routes SANS Layout (standalone)          */}
+      {/* Routes PUBLIQUES (sans authentification) */}
       {/* ========================================= */}
       
       {/* Page de visualisation de l'invitation */}
@@ -55,11 +55,18 @@ function AppContent() {
       {/* Page d'inscription via invitation */}
       <Route path="/signup-invite/:token" element={<SignupInvitePage />} />
       
-      {/* Application chauffeur */}
-      <Route path="/driver-app/:tourId" element={<DriverApp />} />
+      {/* ✅ CORRIGÉ: Application chauffeur avec token d'accès */}
+      <Route 
+        path="/driver-app/:tourId" 
+        element={
+          <ProtectedDriverRoute>
+            <DriverApp />
+          </ProtectedDriverRoute>
+        } 
+      />
 
       {/* ========================================= */}
-      {/* Routes AVEC Layout (interface principale) */}
+      {/* Routes PROTÉGÉES (authentification requise) */}
       {/* ========================================= */}
       
       <Route element={<Layout />}>
@@ -83,10 +90,10 @@ function AppContent() {
         <Route path="tour-planning/:tourId" element={<PrivateRoute><TourDetailView /></PrivateRoute>} />
         <Route path="dock-management" element={<PrivateRoute><DockManagement /></PrivateRoute>} />
         
-        {/* ✅ NOUVEAU : Booking Transport */}
+        {/* Booking Transport */}
         <Route path="booking" element={<PrivateRoute><BookingTransport /></PrivateRoute>} />
 
-        {/* ✅ NOUVEAU : Gestion de la Flotte */}
+        {/* Gestion de la Flotte */}
         <Route path="fleet/vehicles" element={<PrivateRoute><VehiclesManagement /></PrivateRoute>} />
         <Route path="fleet/drivers" element={<PrivateRoute><DriversManagement /></PrivateRoute>} />
         
@@ -106,6 +113,8 @@ function AppContent() {
 
         {/* Administration */}
         <Route path="team" element={<PrivateRoute><TeamManagement /></PrivateRoute>} />
+        
+        {/* ✅ Route fondateur - Protection double via PrivateRoute + useSuperAdmin dans le composant */}
         <Route path="founder/dashboard" element={<PrivateRoute><FounderDashboard /></PrivateRoute>} />
       </Route>
     </Routes>
