@@ -111,16 +111,16 @@ const Hero: FC = () => {
             <FeatureBadge icon={MessageCircle} label="Communication interne" color="purple" />
           </div>
 
-          {/* Bouton CTA CORRIGÉ */}
+          {/* Bouton CTA - Pointe vers #demo */}
           <div 
             className={`flex flex-col sm:flex-row justify-center gap-4 mb-8 ${animationClass('delay-600')}`}
           >
             <a
-              href="#DevisForm"
+              href="#demo"
               className="group px-8 py-4 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 transition-all duration-300 font-bold text-lg shadow-2xl hover:shadow-3xl transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-orange-300 flex items-center justify-center gap-2 whitespace-nowrap"
             >
-              <Rocket className="group-hover:rotate-12 transition-transform" size={24} />
-              Rejoindre la bêta gratuite
+              <Calendar className="group-hover:rotate-12 transition-transform" size={24} />
+              Réserver ma démo gratuite
             </a>
           </div>
 
@@ -130,7 +130,7 @@ const Hero: FC = () => {
           >
             <TrustBadge symbol="🎁" text="3 mois gratuits" color="text-green-400" />
             <span className="text-white/40 hidden sm:block">•</span>
-            <TrustBadge symbol="🔥" text="15 places seulement" color="text-red-400" />
+            <TrustBadge symbol="🔥" text="14 places seulement" color="text-red-400" />
             <span className="text-white/40 hidden sm:block">•</span>
             <TrustBadge symbol="⭐" text="Puis 149€/mois à vie" color="text-yellow-400" />
           </div>
@@ -149,63 +149,6 @@ const Hero: FC = () => {
           />
         </a>
       </section>
-
-      {/* Section "Pourquoi Sloti" - Stats avec message bêta - COMMENTÉE
-      <section id="beta-benefits" className="py-12 sm:py-16 bg-gradient-to-b from-blue-50 to-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          
-          <div className="text-center mb-10">
-            <div className="inline-flex items-center gap-2 bg-orange-100 px-4 py-2 rounded-full mb-4">
-              <Users size={18} className="text-orange-600" />
-              <span className="text-sm font-semibold text-orange-600">
-                Développé par un professionnel du terrain
-              </span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-3">
-              La logistique manuelle{" "}
-              <span className="text-red-600">coûte cher</span>
-            </h2>
-            <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
-              Après 13 ans en entrepôt, j'ai créé Sloti pour résoudre les vrais problèmes du terrain
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 sm:gap-8 mb-10">
-            <StatCard value="87%" title="Des erreurs viennent du papier" source="Source : Supply Chain Magazine 2024" color="red" />
-            <StatCard value="3h/jour" title="Perdues en double saisie" source="Source : Étude Gartner Logistics" color="orange" />
-            <StatCard value="15%" title="Du CA perdu (stocks mal gérés)" source="Source : Aberdeen Group Research" color="red" />
-          </div>
-
-          <div className="text-center bg-gradient-to-r from-[#2792B0] to-[#207A94] rounded-2xl shadow-xl p-8 sm:p-10 text-white" id="devis">
-            <div className="mb-4">
-              <span className="inline-block bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full text-sm font-semibold">
-                ✨ La solution
-              </span>
-            </div>
-            <h3 className="text-2xl sm:text-3xl font-bold mb-4">
-              Sloti résout ces 3 problèmes
-            </h3>
-            <p className="text-base sm:text-lg mb-6 max-w-2xl mx-auto text-white/90">
-              Testez gratuitement pendant 3 mois, puis conservez le tarif early adopter à vie
-            </p>
-            <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
-              <a
-                href="#DevisForm"
-                className="px-6 sm:px-8 py-3 sm:py-4 rounded-lg bg-white text-[#2792B0] hover:bg-gray-100 transition-all duration-300 font-semibold text-base sm:text-lg shadow-lg hover:shadow-xl transform hover:scale-105"
-              >
-                Rejoindre la bêta gratuite
-              </a>
-              <a
-                href="#features"
-                className="px-6 sm:px-8 py-3 sm:py-4 rounded-lg border-2 border-white text-white hover:bg-white hover:text-[#2792B0] transition-all duration-300 font-semibold text-base sm:text-lg shadow-lg hover:shadow-xl transform hover:scale-105"
-              >
-                Découvrir les fonctionnalités
-              </a>
-            </div>
-          </div>
-        </div>
-      </section>
-      */}
     </>
   );
 }
@@ -250,36 +193,3 @@ const TrustBadge: FC<TrustBadgeProps> = ({ symbol, text, color }) => (
       <span className="font-semibold">{text}</span>
     </div>
 );
-
-interface StatCardProps {
-    value: string;
-    title: string;
-    source: string;
-    color: 'red' | 'orange';
-}
-
-const StatCard: FC<StatCardProps> = ({ value, title, source, color }) => {
-    const colorClass = {
-        red: "border-red-500 text-red-600",
-        orange: "border-orange-500 text-orange-600",
-    }[color];
-    
-    return (
-        <div className="bg-white rounded-2xl shadow-lg p-6 sm:p-8 text-center border-t-4 hover:shadow-xl transition-shadow">
-            <div className={`text-4xl sm:text-5xl font-bold mb-3 ${colorClass}`}>
-                {value}
-            </div>
-            <p className="text-base sm:text-lg text-gray-700 font-medium mb-2">
-                {title.split('(').map((part, index) => (
-                    <span key={index}>
-                        {index > 0 && <br className="hidden sm:block" />}
-                        {part}
-                    </span>
-                ))}
-            </p>
-            <p className="text-xs text-gray-500">
-                {source}
-            </p>
-        </div>
-    );
-};

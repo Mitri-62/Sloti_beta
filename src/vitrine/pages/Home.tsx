@@ -1,15 +1,12 @@
 import { lazy, Suspense } from "react";
 import Navbar from "../components/Navbar";
 import Hero from "../components/Hero";
-import BetaBenefits from "../components/BetaBenefits"; // 👈 AJOUTER
-//import About from "../components/About";
-import News from "../components/News";
+import BetaBenefits from "../components/BetaBenefits";
+import CTABooking from "../components/CTABooking"; // 👈 Même dossier que les autres composants vitrine
 
 // Lazy loading des composants lourds pour optimiser les performances
 const Features = lazy(() => import("../components/Features"));
 const Pricing = lazy(() => import("../components/Pricing"));
-const FAQ = lazy(() => import("../components/FAQ"));
-const DevisForm = lazy(() => import("../components/DevisForm"));
 const Footer = lazy(() => import("../components/Footer"));
 
 // Composant de chargement
@@ -45,22 +42,9 @@ export default function Home() {
           </Suspense>
         </section>
 
-        {/* Section Actualités dynamiques */}
-       {/* <News /> */}
-
-        {/* Section FAQ 
-        <section id="faq" aria-labelledby="faq-title">
-          <Suspense fallback={<LoadingSpinner />}>
-            <FAQ />
-          </Suspense>
-        </section>
-      */}
-
-        {/* Section Devis */}
-        <section id="DevisForm" aria-labelledby="devis-title">
-          <Suspense fallback={<LoadingSpinner />}>
-            <DevisForm />
-          </Suspense>
+        {/* Section CTA avec prise de RDV intégrée */}
+        <section id="demo" aria-labelledby="demo-title">
+          <CTABooking />
         </section>
       </main>
       

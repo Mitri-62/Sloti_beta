@@ -1,5 +1,5 @@
 // src/vitrine/components/Footer.tsx
-import { Globe, Linkedin, Mail, Phone, MapPin } from "lucide-react";
+import { Globe, Linkedin, Mail, Phone, MapPin, Calendar } from "lucide-react";
 import { Link } from "react-router-dom";
 import logo from "../../assets/Sloti.svg";
 
@@ -52,10 +52,11 @@ export default function Footer() {
                 Tarifs
               </a>
               <a 
-                href="#DevisForm" 
-                className="block text-sm hover:text-[#FFBC45] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white rounded px-1"
+                href="#demo" 
+                className="flex items-center gap-1 text-sm hover:text-[#FFBC45] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white rounded px-1 justify-center sm:justify-start"
               >
-                Devis
+                <Calendar size={14} />
+                Réserver une démo
               </a>
             </nav>
           </div>

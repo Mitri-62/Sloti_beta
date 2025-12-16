@@ -1,7 +1,7 @@
 // src/vitrine/components/Navbar.tsx
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Calendar } from "lucide-react";
 import logo from "../../assets/Sloti.svg";
 
 export default function Navbar() {
@@ -34,8 +34,7 @@ export default function Navbar() {
   const navLinks = [
     { href: "#features", label: "Fonctionnalités" },
     { href: "#pricing", label: "Tarifs" },
-    /*{ href: "#news", label: "Actualités" },*/
-    { href: "#DevisForm", label: "Devis" },
+    { href: "#demo", label: "Réserver une démo" },
   ];
 
   return (
@@ -88,8 +87,11 @@ export default function Navbar() {
             <a
               key={link.href}
               href={link.href}
-              className="hover:text-[#FFBC45] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1"
+              className={`hover:text-[#FFBC45] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded px-2 py-1 ${
+                link.href === "#demo" ? "flex items-center gap-1" : ""
+              }`}
             >
+              {link.href === "#demo" && <Calendar size={16} />}
               {link.label}
             </a>
           ))}
@@ -145,8 +147,9 @@ export default function Navbar() {
               key={link.href}
               href={link.href}
               onClick={handleLinkClick}
-              className="text-lg font-medium text-gray-800 hover:text-[#FFBC45] py-3 border-b border-gray-200 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+              className="text-lg font-medium text-gray-800 hover:text-[#FFBC45] py-3 border-b border-gray-200 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded flex items-center gap-2"
             >
+              {link.href === "#demo" && <Calendar size={20} />}
               {link.label}
             </a>
           ))}
