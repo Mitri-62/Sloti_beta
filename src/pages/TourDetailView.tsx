@@ -1,4 +1,5 @@
 // src/pages/TourDetailView.tsx - VERSION UX AMÉLIORÉE
+// 🔒 SÉCURITÉ: Defense-in-depth avec filtres sur UPDATE delivery_stops
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { 
@@ -36,6 +37,7 @@ interface DeliveryStop {
   latitude: number;
   longitude: number;
   failure_reason?: string;
+  tour_id?: string;
 }
 
 interface Tour {
@@ -131,6 +133,7 @@ export default function TourDetailView() {
   const { tourId } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const companyId = user?.company_id ?? null; // 🔒 Récupération du company_id
   
   const [tour, setTour] = useState<Tour | null>(null);
   const [stops, setStops] = useState<DeliveryStop[]>([]);
@@ -182,7 +185,7 @@ export default function TourDetailView() {
   }, [tourId]);
 
   const loadTourDetails = useCallback(async () => {
-    if (!tourId || !user?.company_id) return;
+    if (!tourId || !companyId) return;
 
     setLoading(true);
 
@@ -194,7 +197,7 @@ export default function TourDetailView() {
         vehicle:vehicles(id, name, registration, type, capacity_kg, capacity_m3, current_location_lat, current_location_lng, last_location_update)
       `)
       .eq('id', tourId)
-      .eq('company_id', user!.company_id)
+      .eq('company_id', companyId)
       .single();
 
     if (tourError) {
@@ -206,10 +209,10 @@ export default function TourDetailView() {
     setTour(tourData);
     await loadStops();
     setLoading(false);
-  }, [tourId, user?.company_id, loadStops]);
+  }, [tourId, companyId, loadStops]);
 
   useEffect(() => {
-    if (!tourId || !user?.company_id) return;
+    if (!tourId || !companyId) return;
 
     loadTourDetails();
 
@@ -265,7 +268,7 @@ export default function TourDetailView() {
       supabase.removeChannel(stopsChannel);
       supabase.removeChannel(tourChannel);
     };
-  }, [tourId, user?.company_id]);
+  }, [tourId, companyId]);
 
   const handleManualRefresh = async () => {
     toast.loading('Actualisation...', { id: 'refresh' });
@@ -352,13 +355,15 @@ export default function TourDetailView() {
         }
       });
 
+      // 🔒 SÉCURITÉ: UPDATE tours avec company_id
       await supabase
         .from('tours')
         .update({
           total_distance_km: Math.round(totalDistance * 10) / 10,
           estimated_duration_minutes: Math.round(totalDuration)
         })
-        .eq('id', tourId);
+        .eq('id', tourId)
+        .eq('company_id', companyId); // 🔒 Defense-in-depth
 
       const hours = Math.floor(totalDuration / 60);
       const mins = Math.round(totalDuration % 60);
@@ -467,6 +472,7 @@ export default function TourDetailView() {
         }
       });
 
+      // 🔒 SÉCURITÉ: UPDATE delivery_stops avec tour_id
       for (let i = 0; i < optimizedStops.length; i++) {
         const arrivalTime = result.estimated_arrival_times[i];
 
@@ -480,16 +486,19 @@ export default function TourDetailView() {
             sequence_order: i + 1,
             estimated_arrival: estimatedDate.toISOString()
           })
-          .eq('id', optimizedStops[i].id);
+          .eq('id', optimizedStops[i].id)
+          .eq('tour_id', tourId); // 🔒 Defense-in-depth
       }
 
+      // 🔒 SÉCURITÉ: UPDATE tours avec company_id
       await supabase
         .from('tours')
         .update({
           total_distance_km: Math.round(totalRealDistance * 10) / 10,
           estimated_duration_minutes: Math.round(totalRealDuration)
         })
-        .eq('id', tourId);
+        .eq('id', tourId)
+        .eq('company_id', companyId); // 🔒 Defense-in-depth
 
       toast.dismiss('optimizing');
 
@@ -526,7 +535,10 @@ export default function TourDetailView() {
     }
   };
 
+  // 🔒 SÉCURITÉ: UPDATE delivery_stops avec tour_id pour defense-in-depth
   const updateStopStatus = async (stopId: string, newStatus: string, failureReason?: string) => {
+    if (!tourId) return; // 🔒 Guard clause
+
     const updateData: any = { 
       status: newStatus,
       actual_arrival: newStatus === 'completed' ? new Date().toISOString() : null
@@ -536,10 +548,12 @@ export default function TourDetailView() {
       updateData.failure_reason = failureReason;
     }
     
+    // 🔒 SÉCURITÉ: Defense-in-depth - Ajout du filtre tour_id sur UPDATE
     const { error } = await supabase
       .from('delivery_stops')
       .update(updateData)
-      .eq('id', stopId);
+      .eq('id', stopId)
+      .eq('tour_id', tourId); // 🔒 Defense-in-depth
 
     if (error) {
       toast.error('Erreur lors de la mise à jour');
@@ -578,12 +592,14 @@ export default function TourDetailView() {
     setSelectedStopForProblem(null);
   };
 
+  // 🔒 SÉCURITÉ: UPDATE tours avec company_id
   const startTour = async () => {
-    if (!tour) return;
+    if (!tour || !companyId) return;
     const { error } = await supabase
       .from('tours')
       .update({ status: 'in_progress' })
-      .eq('id', tour.id);
+      .eq('id', tour.id)
+      .eq('company_id', companyId); // 🔒 Defense-in-depth
 
     if (!error) {
       setTour({ ...tour, status: 'in_progress' });
@@ -591,8 +607,9 @@ export default function TourDetailView() {
     }
   };
 
+  // 🔒 SÉCURITÉ: UPDATE tours avec company_id
   const completeTour = async () => {
-    if (!tour) return;
+    if (!tour || !companyId) return;
     const allCompleted = stops.every(s => s.status === 'completed');
     
     if (!allCompleted && !confirm('Tous les points ne sont pas livrés. Terminer quand même ?')) return;
@@ -600,7 +617,8 @@ export default function TourDetailView() {
     const { error } = await supabase
       .from('tours')
       .update({ status: 'completed' })
-      .eq('id', tour.id);
+      .eq('id', tour.id)
+      .eq('company_id', companyId); // 🔒 Defense-in-depth
 
     if (!error) {
       setTour({ ...tour, status: 'completed' });
@@ -625,8 +643,9 @@ export default function TourDetailView() {
     if (tour && stops.length > 0) printTourPDF(tour, stops);
   };
 
+  // 🔒 SÉCURITÉ: UPDATE tours avec company_id
   const openDriverView = async () => {
-    if (!tour?.id) return;
+    if (!tour?.id || !companyId) return;
 
     try {
       toast.loading('Génération du lien...', { id: 'driver-link' });
@@ -635,6 +654,7 @@ export default function TourDetailView() {
         .from('tours')
         .select('access_token, token_expires_at')
         .eq('id', tour.id)
+        .eq('company_id', companyId) // 🔒 Defense-in-depth
         .single();
 
       let token = tourData?.access_token;
@@ -649,7 +669,8 @@ export default function TourDetailView() {
         await supabase
           .from('tours')
           .update({ access_token: token, token_expires_at: expiresAt })
-          .eq('id', tour.id);
+          .eq('id', tour.id)
+          .eq('company_id', companyId); // 🔒 Defense-in-depth
       }
 
       const url = `${window.location.origin}/app/driver-app/${tour.id}?token=${token}`;
@@ -662,8 +683,9 @@ export default function TourDetailView() {
     }
   };
 
+  // 🔒 SÉCURITÉ: UPDATE tours avec company_id
   const regenerateToken = async () => {
-    if (!tour?.id) return;
+    if (!tour?.id || !companyId) return;
 
     const newToken = btoa(Math.random().toString(36).substring(2) + Date.now().toString(36));
     const newExpiry = new Date();
@@ -672,14 +694,16 @@ export default function TourDetailView() {
     await supabase
       .from('tours')
       .update({ access_token: newToken, token_expires_at: newExpiry.toISOString() })
-      .eq('id', tour.id);
+      .eq('id', tour.id)
+      .eq('company_id', companyId); // 🔒 Defense-in-depth
 
     setDriverUrl(`${window.location.origin}/app/driver-app/${tour.id}?token=${newToken}`);
     setTour({ ...tour, access_token: newToken, token_expires_at: newExpiry.toISOString() });
   };
 
+  // 🔒 SÉCURITÉ: UPDATE tours avec company_id
   const handleUpdateTour = async (tourData: any) => {
-    if (!tour || !user?.company_id) return;
+    if (!tour || !companyId) return;
 
     try {
       setUpdating(true);
@@ -701,7 +725,7 @@ export default function TourDetailView() {
           start_time: startTimeTimestamp
         })
         .eq('id', tour.id)
-        .eq('company_id', user.company_id);
+        .eq('company_id', companyId); // 🔒 Defense-in-depth
 
       if (tourData.stops?.length > 0) {
         await supabase.from('delivery_stops').delete().eq('tour_id', tour.id);

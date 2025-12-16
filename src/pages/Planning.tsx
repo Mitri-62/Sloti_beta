@@ -1,4 +1,5 @@
 // src/pages/Planning.tsx - VERSION COMPLÈTE AVEC KANBAN 10/10 INTÉGRÉ
+// 🔒 SÉCURITÉ: Defense-in-depth avec filtre company_id sur DELETE dock_bookings
 import { useState, useMemo, useCallback } from "react";
 import { 
   Calendar as CalendarIcon, 
@@ -35,7 +36,7 @@ import DockAssignModal from "../components/DockAssignModal";
 
 type ViewType = "list" | "kanban" | "agenda" | "forecast";
 
-export default function Planning() {
+export default function PlanningPage() {
   const { user, isLoading: authLoading } = useAuth();
   const companyId = user?.company_id ?? null;
 
@@ -151,6 +152,8 @@ export default function Planning() {
 
   // Fonction pour assigner un quai à un planning
   const handleDockAssignment = useCallback(async (planningId: string, dockId: string) => {
+    if (!companyId) return; // 🔒 SÉCURITÉ: Guard clause
+
     try {
       const planning = enrichedPlannings.find(p => p.id === planningId);
       if (!planning) return;
@@ -182,7 +185,8 @@ export default function Planning() {
       const { error: linkError } = await supabase
         .from('plannings')
         .update({ dock_booking_id: bookingData.id })
-        .eq('id', planningId);
+        .eq('id', planningId)
+        .eq('company_id', companyId); // 🔒 SÉCURITÉ: Defense-in-depth
 
       if (linkError) throw linkError;
 
@@ -192,25 +196,29 @@ export default function Planning() {
     }
   }, [companyId, enrichedPlannings]);
 
-  // Fonction pour retirer un quai
+  // 🔒 SÉCURITÉ: Fonction pour retirer un quai - AVEC FILTRE COMPANY_ID
   const removeDockAssignment = useCallback(async (planningId: string) => {
+    if (!companyId) return; // 🔒 SÉCURITÉ: Guard clause
+
     try {
       const planning = enrichedPlannings.find(p => p.id === planningId);
       if (!planning?.dock_booking_id) return;
 
-      // Supprimer la réservation
+      // 🔒 SÉCURITÉ: Supprimer la réservation AVEC filtre company_id
       const { error: deleteError } = await supabase
         .from('dock_bookings')
         .delete()
-        .eq('id', planning.dock_booking_id);
+        .eq('id', planning.dock_booking_id)
+        .eq('company_id', companyId); // 🔒 SÉCURITÉ: Defense-in-depth - garantit que le booking appartient à cette company
 
       if (deleteError) throw deleteError;
 
-      // Mettre à jour le planning
+      // 🔒 SÉCURITÉ: Mettre à jour le planning AVEC filtre company_id
       const { error: updateError } = await supabase
         .from('plannings')
         .update({ dock_booking_id: null })
-        .eq('id', planningId);
+        .eq('id', planningId)
+        .eq('company_id', companyId); // 🔒 SÉCURITÉ: Defense-in-depth
 
       if (updateError) throw updateError;
 
@@ -218,7 +226,7 @@ export default function Planning() {
       console.error('Erreur retrait quai:', err);
       toast.error('Impossible de retirer le quai');
     }
-  }, [enrichedPlannings]);
+  }, [companyId, enrichedPlannings]);
 
   const handleSave = useCallback(async () => {
     if (!companyId || !user) {
@@ -333,7 +341,7 @@ export default function Planning() {
       setSaveError(errorMsg);
       toast.error(errorMsg);
     }
-  }, [newEvent, editingId, user, companyId, add, update]);
+  }, [newEvent, editingId, user, companyId, add, update, enrichedPlannings, removeDockAssignment, handleDockAssignment]);
 
   const handleDuplicate = useCallback((planning: Planning) => {
     openAddModal({

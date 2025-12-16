@@ -14,8 +14,6 @@ import type {
   VehicleFormData,
   VehicleType,
   VehicleStatus,
-  VEHICLE_TYPE_LABELS,
-  VEHICLE_STATUS_LABELS
 } from '../../types/vehicle.types';
 
 // Labels pour affichage
@@ -76,7 +74,6 @@ export default function VehiclesManagement() {
         .from('drivers')
         .select('id, name')
         .eq('company_id', user.company_id)
-        .eq('status', 'active')
         .order('name');
 
       if (driversError) throw driversError;
@@ -165,14 +162,15 @@ export default function VehiclesManagement() {
       };
 
       if (editingVehicle) {
-        // Mise à jour
+        // ✅ UPDATE avec filtre company_id (defense in depth)
         const { error } = await supabase
           .from('vehicles')
           .update({
             ...cleanedData,
             updated_at: new Date().toISOString()
           })
-          .eq('id', editingVehicle.id);
+          .eq('id', editingVehicle.id)
+          .eq('company_id', user.company_id);
 
         if (error) throw error;
         toast.success('✅ Véhicule mis à jour avec succès');
@@ -199,13 +197,16 @@ export default function VehiclesManagement() {
   };
 
   const handleDelete = async (id: string, name: string) => {
+    if (!user?.company_id) return;
     if (!confirm(`Voulez-vous vraiment supprimer le véhicule "${name}" ?\n\nCette action est irréversible.`)) return;
 
     try {
+      // ✅ DELETE avec filtre company_id (defense in depth)
       const { error } = await supabase
         .from('vehicles')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('company_id', user.company_id);
 
       if (error) throw error;
       toast.success('🗑️ Véhicule supprimé');

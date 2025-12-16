@@ -2,6 +2,7 @@
 /**
  * Service pour la gestion des bookings de transport
  * Intégration Sendcloud via Supabase Edge Function
+ * 🔒 SÉCURITÉ: Defense-in-depth avec filtres company_id sur toutes les opérations
  */
 
 import { supabase } from '../supabaseClient';
@@ -19,12 +20,19 @@ import type {
 /**
  * Récupère tous les transporteurs actifs depuis la DB locale
  */
-export async function getCarriers(): Promise<Carrier[]> {
-  const { data, error } = await supabase
+export async function getCarriers(companyId?: string): Promise<Carrier[]> {
+  let query = supabase
     .from('carriers')
     .select('*')
     .eq('is_active', true)
     .order('rating', { ascending: false });
+
+  // 🔒 SÉCURITÉ: Filtrer par company_id si fourni
+  if (companyId) {
+    query = query.eq('company_id', companyId);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
   return data || [];
@@ -34,6 +42,8 @@ export async function getCarriers(): Promise<Carrier[]> {
  * Crée les transporteurs de démo pour une company
  */
 export async function seedDemoCarriers(companyId: string): Promise<void> {
+  if (!companyId) throw new Error('company_id requis');
+
   const demoCarriers = [
     { company_id: companyId, name: 'Chronopost', type: 'express', base_price_per_km: 2.80, min_price: 80.00, delivery_delay_hours: 24, rating: 4.8 },
     { company_id: companyId, name: 'Colissimo', type: 'standard', base_price_per_km: 1.50, min_price: 50.00, delivery_delay_hours: 48, rating: 4.5 },
@@ -178,7 +188,8 @@ function getCarrierRating(carrier: string, methodName: string): number {
  * Génère des devis - essaie Sendcloud d'abord, puis fallback simulation
  */
 export async function getQuotes(
-  formData: TransportBookingFormData
+  formData: TransportBookingFormData,
+  companyId?: string
 ): Promise<CarrierQuote[]> {
   const quotes: CarrierQuote[] = [];
   const weight = formData.weight_kg || 5; // Poids par défaut 5kg
@@ -273,7 +284,7 @@ export async function getQuotes(
   if (quotes.length === 0) {
     console.log('🔄 Utilisation des tarifs simulés...');
     
-    const carriers = await getCarriers();
+    const carriers = await getCarriers(companyId);
     const distance = estimateDistance(formData.origin_city, formData.destination_city);
     
     for (const carrier of carriers) {
@@ -341,6 +352,7 @@ function estimateDistance(originCity: string, destinationCity: string): number {
 
 // ============================================================
 // BOOKINGS CRUD
+// 🔒 SÉCURITÉ: Toutes les opérations incluent company_id
 // ============================================================
 
 /**
@@ -351,6 +363,9 @@ export async function createBooking(
   companyId: string,
   userId: string
 ): Promise<TransportBooking> {
+  if (!companyId) throw new Error('company_id requis');
+  if (!userId) throw new Error('user_id requis');
+
   const { data, error } = await supabase
     .from('transport_bookings')
     .insert({
@@ -368,14 +383,18 @@ export async function createBooking(
 
 /**
  * Confirme un booking avec un transporteur
+ * 🔒 SÉCURITÉ: Ajout du filtre company_id
  */
 export async function confirmBooking(
   bookingId: string,
+  companyId: string, // 🔒 Paramètre ajouté
   carrierId: string,
   carrierName: string,
   quotedPrice: number,
   estimatedDelivery: Date
 ): Promise<TransportBooking> {
+  if (!companyId) throw new Error('company_id requis'); // 🔒 Guard clause
+
   const { data, error } = await supabase
     .from('transport_bookings')
     .update({
@@ -387,6 +406,7 @@ export async function confirmBooking(
       tracking_number: 'TRK-' + Math.random().toString(36).substring(2, 10).toUpperCase()
     })
     .eq('id', bookingId)
+    .eq('company_id', companyId) // 🔒 Defense-in-depth
     .select()
     .single();
 
@@ -396,30 +416,36 @@ export async function confirmBooking(
 
 /**
  * Récupère tous les bookings d'une company
+ * 🔒 SÉCURITÉ: company_id obligatoire
  */
-export async function getBookings(companyId?: string): Promise<TransportBooking[]> {
-  let query = supabase
+export async function getBookings(companyId: string): Promise<TransportBooking[]> {
+  if (!companyId) throw new Error('company_id requis'); // 🔒 Guard clause
+
+  const { data, error } = await supabase
     .from('transport_bookings')
     .select('*, carrier:carriers(*)')
+    .eq('company_id', companyId) // 🔒 Filtre obligatoire
     .order('created_at', { ascending: false });
 
-  if (companyId) {
-    query = query.eq('company_id', companyId);
-  }
-
-  const { data, error } = await query;
   if (error) throw error;
   return data || [];
 }
 
 /**
  * Récupère un booking par ID
+ * 🔒 SÉCURITÉ: Ajout du filtre company_id
  */
-export async function getBookingById(id: string): Promise<TransportBooking | null> {
+export async function getBookingById(
+  id: string,
+  companyId: string // 🔒 Paramètre ajouté
+): Promise<TransportBooking | null> {
+  if (!companyId) throw new Error('company_id requis'); // 🔒 Guard clause
+
   const { data, error } = await supabase
     .from('transport_bookings')
     .select('*, carrier:carriers(*)')
     .eq('id', id)
+    .eq('company_id', companyId) // 🔒 Defense-in-depth
     .single();
 
   if (error) {
@@ -431,11 +457,15 @@ export async function getBookingById(id: string): Promise<TransportBooking | nul
 
 /**
  * Met à jour le statut d'un booking
+ * 🔒 SÉCURITÉ: Ajout du filtre company_id
  */
 export async function updateBookingStatus(
   id: string,
+  companyId: string, // 🔒 Paramètre ajouté
   status: TransportBooking['status']
 ): Promise<TransportBooking> {
+  if (!companyId) throw new Error('company_id requis'); // 🔒 Guard clause
+
   const updates: Partial<TransportBooking> = { status };
   
   if (status === 'delivered') {
@@ -446,6 +476,7 @@ export async function updateBookingStatus(
     .from('transport_bookings')
     .update(updates)
     .eq('id', id)
+    .eq('company_id', companyId) // 🔒 Defense-in-depth
     .select()
     .single();
 
@@ -455,24 +486,38 @@ export async function updateBookingStatus(
 
 /**
  * Annule un booking
+ * 🔒 SÉCURITÉ: Ajout du filtre company_id
  */
-export async function cancelBooking(id: string): Promise<void> {
+export async function cancelBooking(
+  id: string,
+  companyId: string // 🔒 Paramètre ajouté
+): Promise<void> {
+  if (!companyId) throw new Error('company_id requis'); // 🔒 Guard clause
+
   const { error } = await supabase
     .from('transport_bookings')
     .update({ status: 'cancelled' })
-    .eq('id', id);
+    .eq('id', id)
+    .eq('company_id', companyId); // 🔒 Defense-in-depth
 
   if (error) throw error;
 }
 
 /**
  * Supprime un booking (brouillon uniquement)
+ * 🔒 SÉCURITÉ: Ajout du filtre company_id
  */
-export async function deleteBooking(id: string): Promise<void> {
+export async function deleteBooking(
+  id: string,
+  companyId: string // 🔒 Paramètre ajouté
+): Promise<void> {
+  if (!companyId) throw new Error('company_id requis'); // 🔒 Guard clause
+
   const { error } = await supabase
     .from('transport_bookings')
     .delete()
     .eq('id', id)
+    .eq('company_id', companyId) // 🔒 Defense-in-depth
     .eq('status', 'draft');
 
   if (error) throw error;

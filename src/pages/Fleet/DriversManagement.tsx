@@ -134,10 +134,12 @@ export default function DriversManagement() {
       };
 
       if (editingDriver) {
+        // ✅ UPDATE avec filtre company_id (defense in depth)
         const { error } = await supabase
           .from('drivers')
           .update(cleanedData)
-          .eq('id', editingDriver.id);
+          .eq('id', editingDriver.id)
+          .eq('company_id', user.company_id);
 
         if (error) throw error;
         toast.success('Chauffeur mis à jour avec succès');
@@ -162,13 +164,16 @@ export default function DriversManagement() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!user?.company_id) return;
     if (!confirm('Voulez-vous vraiment supprimer ce chauffeur ?')) return;
 
     try {
+      // ✅ DELETE avec filtre company_id (defense in depth)
       const { error } = await supabase
         .from('drivers')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .eq('company_id', user.company_id);
 
       if (error) throw error;
       toast.success('Chauffeur supprimé');

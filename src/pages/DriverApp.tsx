@@ -1,4 +1,5 @@
 // src/pages/DriverApp.tsx - VERSION CORRIGÉE AVEC TEMPS RÉEL COMPLET
+// 🔒 SÉCURITÉ: Defense-in-depth avec filtres tour_id sur UPDATE stops
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Navigation, MapPin, Package, CheckCircle, AlertCircle, Phone, Clock, Lock, RefreshCw } from 'lucide-react';
@@ -363,8 +364,10 @@ export default function DriverApp() {
     };
   }, []);
 
-  // ✅ Marquer un arrêt comme "Arrivé" - avec feedback immédiat
+  // 🔒 SÉCURITÉ: Marquer un arrêt comme "Arrivé" - avec filtre tour_id
   const markArrived = async (stopId: string) => {
+    if (!tourId) return;
+    
     // Feedback immédiat (optimistic update)
     setStops(prev => prev.map(s => 
       s.id === stopId ? { ...s, status: 'arrived' as const } : s
@@ -373,7 +376,8 @@ export default function DriverApp() {
     const { error } = await supabase
       .from('delivery_stops')
       .update({ status: 'arrived' })
-      .eq('id', stopId);
+      .eq('id', stopId)
+      .eq('tour_id', tourId); // 🔒 SÉCURITÉ: Defense-in-depth - garantit que le stop appartient à cette tournée
 
     if (error) {
       toast.error('Erreur lors de la mise à jour');
@@ -385,8 +389,10 @@ export default function DriverApp() {
     }
   };
 
-  // ✅ Marquer un arrêt comme "Complété" - avec feedback immédiat
+  // 🔒 SÉCURITÉ: Marquer un arrêt comme "Complété" - avec filtre tour_id
   const markCompleted = async (stopId: string) => {
+    if (!tourId) return;
+    
     // Feedback immédiat (optimistic update)
     setStops(prev => prev.map(s => 
       s.id === stopId ? { ...s, status: 'completed' as const } : s
@@ -398,7 +404,8 @@ export default function DriverApp() {
         status: 'completed',
         actual_arrival: new Date().toISOString()
       })
-      .eq('id', stopId);
+      .eq('id', stopId)
+      .eq('tour_id', tourId); // 🔒 SÉCURITÉ: Defense-in-depth - garantit que le stop appartient à cette tournée
 
     if (error) {
       toast.error('Erreur lors de la mise à jour');

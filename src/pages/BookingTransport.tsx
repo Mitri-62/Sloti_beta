@@ -1,6 +1,7 @@
 // src/pages/BookingTransport.tsx
 /**
  * Module de Booking Transport - Réservation de transporteurs externes
+ * 🔒 SÉCURITÉ: Toutes les opérations utilisent le company_id de l'utilisateur
  */
 
 import React, { useState, useEffect } from 'react';
@@ -92,7 +93,8 @@ type Step = 'form' | 'quotes' | 'confirm' | 'history';
 // ============================================================
 
 const BookingTransport: React.FC = () => {
-    const { user } = useAuth();
+  const { user } = useAuth();
+  const companyId = user?.company_id ?? null; // 🔒 Récupération du company_id
   
   // États
   const [step, setStep] = useState<Step>('form');
@@ -131,26 +133,34 @@ const BookingTransport: React.FC = () => {
 
   // Chargement initial
   useEffect(() => {
-    loadData();
-  }, []);
+    if (companyId) {
+      loadData();
+    }
+  }, [companyId]);
 
   const loadData = async () => {
+    // 🔒 Guard clause
+    if (!companyId) {
+      console.warn('company_id manquant, chargement annulé');
+      return;
+    }
+
     try {
       setLoading(true);
       
-      // Charger les transporteurs
-      let carriersList = await getCarriers();
+      // 🔒 Charger les transporteurs avec company_id
+      let carriersList = await getCarriers(companyId);
       
       // Si aucun transporteur, créer les données de démo
-      if (carriersList.length === 0 && user?.company_id) {
-        await seedDemoCarriers(user.company_id);
-        carriersList = await getCarriers();
+      if (carriersList.length === 0) {
+        await seedDemoCarriers(companyId);
+        carriersList = await getCarriers(companyId);
       }
       
       setCarriers(carriersList);
       
-      // Charger l'historique
-      const bookingsList = await getBookings();
+      // 🔒 Charger l'historique avec company_id
+      const bookingsList = await getBookings(companyId);
       setBookings(bookingsList);
       
     } catch (error) {
@@ -178,6 +188,12 @@ const BookingTransport: React.FC = () => {
   };
 
   const handleGetQuotes = async () => {
+    // 🔒 Vérification company_id
+    if (!companyId || !user?.id) {
+      toast.error('Erreur d\'authentification');
+      return;
+    }
+
     // Validation
     if (!formData.origin_city || !formData.destination_city) {
       toast.error('Veuillez remplir les villes de départ et d\'arrivée');
@@ -194,13 +210,13 @@ const BookingTransport: React.FC = () => {
       // Créer le booking en base
       const booking = await createBooking(
         formData,
-        user?.company_id || '',
-        user?.id || ''
+        companyId, // 🔒 Utilisation de la variable
+        user.id
       );
       setCurrentBooking(booking);
       
-      // Obtenir les devis
-      const quotesList = await getQuotes(formData);
+      // 🔒 Obtenir les devis avec company_id pour le fallback
+      const quotesList = await getQuotes(formData, companyId);
       setQuotes(quotesList);
       
       setStep('quotes');
@@ -219,13 +235,19 @@ const BookingTransport: React.FC = () => {
   };
 
   const handleConfirmBooking = async () => {
-    if (!currentBooking || !selectedQuote) return;
+    // 🔒 Vérification company_id
+    if (!currentBooking || !selectedQuote || !companyId) {
+      toast.error('Erreur: données manquantes');
+      return;
+    }
 
     try {
       setLoading(true);
       
+      // 🔒 Confirmation avec company_id
       const confirmed = await confirmBooking(
         currentBooking.id,
+        companyId, // 🔒 Ajout du company_id
         selectedQuote.carrier.id,
         selectedQuote.carrier.name,
         selectedQuote.price,
@@ -235,8 +257,8 @@ const BookingTransport: React.FC = () => {
       setCurrentBooking(confirmed);
       setStep('confirm');
       
-      // Rafraîchir l'historique
-      const bookingsList = await getBookings();
+      // 🔒 Rafraîchir l'historique avec company_id
+      const bookingsList = await getBookings(companyId);
       setBookings(bookingsList);
       
       toast.success('Réservation confirmée !');
@@ -683,7 +705,7 @@ const BookingTransport: React.FC = () => {
       <div className="flex justify-end">
         <button
           onClick={handleGetQuotes}
-          disabled={loading}
+          disabled={loading || !companyId}
           className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? (
@@ -1024,6 +1046,20 @@ const BookingTransport: React.FC = () => {
   // ============================================================
   // RENDU PRINCIPAL
   // ============================================================
+
+  // 🔒 Afficher un message si pas de company_id
+  if (!companyId) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Truck className="mx-auto text-gray-300 dark:text-gray-600 mb-4" size={48} />
+          <p className="text-gray-500 dark:text-gray-400">
+            Erreur d'authentification. Veuillez vous reconnecter.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading && carriers.length === 0) {
     return (

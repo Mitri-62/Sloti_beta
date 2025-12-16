@@ -52,7 +52,7 @@ export default function StockSorties() {
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // 🔹 Suppression du stock
+  // 🔒 SÉCURITÉ: Suppression du stock AVEC filtre company_id
   const removeStock = async (ean: string, extra: any = {}) => {
     if (!companyId || !ean) return false;
   
@@ -66,7 +66,18 @@ export default function StockSorties() {
       .maybeSingle();
   
     if (existing) {
-      await supabase.from("stocks").delete().eq("id", existing.id);
+      // 🔒 SÉCURITÉ: Defense-in-depth - Ajout du filtre company_id sur DELETE
+      const { error: deleteError } = await supabase
+        .from("stocks")
+        .delete()
+        .eq("id", existing.id)
+        .eq("company_id", companyId); // 🔒 Defense-in-depth
+
+      if (deleteError) {
+        console.error("Erreur suppression stock:", deleteError);
+        return false;
+      }
+
       await supabase.from("stock_movements").insert([
         {
           stock_id: existing.id,

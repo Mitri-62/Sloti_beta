@@ -7,6 +7,7 @@ import ResetPassword from "./pages/ResetPassword";
 import ProtectedAdminRoute from "./components/ProtectedAdminRoute";
 import NewsAdmin from "./pages/admin/NewsAdmin";
 import LeadsAdmin from "./pages/admin/LeadsAdmin";
+import CookieBanner from "../components/CookieBanner"; // 👈 Ajouter
 
 // Pages légales
 import MentionsLegales from "./pages/MentionsLegales";
@@ -15,35 +16,40 @@ import CGU from "./pages/CGU";
 
 export default function VitrineApp() {
   return (
-    <Routes>
-      {/* Pages publiques */}
-      <Route path="/" element={<HomeVitrine />} />
-      <Route path="login" element={<Login />} />
-      <Route path="signup" element={<Signup />} />
-      <Route path="reset-password" element={<ResetPassword />} />
-      
-      {/* Pages légales */}
-      <Route path="mentions-legales" element={<MentionsLegales />} />
-      <Route path="confidentialite" element={<Confidentialite />} />
-      <Route path="cgu" element={<CGU />} />
+    <>
+      <Routes>
+        {/* Pages publiques */}
+        <Route path="/" element={<HomeVitrine />} />
+        <Route path="login" element={<Login />} />
+        <Route path="signup" element={<Signup />} />
+        <Route path="reset-password" element={<ResetPassword />} />
+        
+        {/* Pages légales */}
+        <Route path="mentions-legales" element={<MentionsLegales />} />
+        <Route path="confidentialite" element={<Confidentialite />} />
+        <Route path="cgu" element={<CGU />} />
 
-      {/* Routes admin protégées */}
-      <Route
-        path="admin/news"
-        element={
-          <ProtectedAdminRoute>
-            <NewsAdmin />
-          </ProtectedAdminRoute>
-        }
-      />
-      <Route
-        path="admin/leads"
-        element={
-          <ProtectedAdminRoute>
-            <LeadsAdmin />
-          </ProtectedAdminRoute>
-        }
-      />
-    </Routes>
+        {/* Routes admin protégées */}
+        <Route
+          path="admin/news"
+          element={
+            <ProtectedAdminRoute>
+              <NewsAdmin />
+            </ProtectedAdminRoute>
+          }
+        />
+        <Route
+          path="admin/leads"
+          element={
+            <ProtectedAdminRoute>
+              <LeadsAdmin />
+            </ProtectedAdminRoute>
+          }
+        />
+      </Routes>
+      
+      {/* 🍪 Bandeau cookies RGPD */}
+      <CookieBanner />
+    </>
   );
 }

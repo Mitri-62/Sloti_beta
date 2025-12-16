@@ -1,4 +1,5 @@
 // src/pages/TeamManagement.tsx
+// 🔒 SÉCURITÉ: Defense-in-depth avec filtre company_id sur UPDATE/DELETE users
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
@@ -154,7 +155,7 @@ export default function TeamManagement() {
     }
   };
 
-  // Changer le rôle d'un membre
+  // 🔒 SÉCURITÉ: Changer le rôle d'un membre AVEC filtre company_id
   const handleChangeRole = async (memberId: string, newRole: string) => {
     // Ne pas permettre de changer son propre rôle
     if (memberId === user?.id) {
@@ -162,11 +163,15 @@ export default function TeamManagement() {
       return;
     }
 
+    if (!user?.company_id) return; // 🔒 Guard clause
+
     try {
+      // 🔒 SÉCURITÉ: Defense-in-depth - Ajout du filtre company_id sur UPDATE
       const { error } = await supabase
         .from('users')
         .update({ role: newRole })
-        .eq('id', memberId);
+        .eq('id', memberId)
+        .eq('company_id', user.company_id); // 🔒 Defense-in-depth
 
       if (error) throw error;
 
@@ -178,22 +183,26 @@ export default function TeamManagement() {
     }
   };
 
-  // Supprimer un membre
+  // 🔒 SÉCURITÉ: Supprimer un membre AVEC filtre company_id
   const handleRemoveMember = async (member: TeamMember) => {
     if (member.id === user?.id) {
       toast.error('Vous ne pouvez pas vous supprimer vous-même');
       return;
     }
 
+    if (!user?.company_id) return; // 🔒 Guard clause
+
     if (!confirm(`Supprimer ${member.full_name || member.email} de l'équipe ?`)) {
       return;
     }
 
     try {
+      // 🔒 SÉCURITÉ: Defense-in-depth - Ajout du filtre company_id sur DELETE
       const { error } = await supabase
         .from('users')
         .delete()
-        .eq('id', member.id);
+        .eq('id', member.id)
+        .eq('company_id', user.company_id); // 🔒 Defense-in-depth
 
       if (error) throw error;
 

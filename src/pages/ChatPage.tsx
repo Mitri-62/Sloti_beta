@@ -1,4 +1,5 @@
 // src/pages/ChatPage.tsx - VERSION COMPLÈTE AVEC DM
+// 🔒 SÉCURITÉ: Filtres user_id ajoutés sur UPDATE/DELETE messages
 import { useState, useRef, useEffect } from "react";
 import { 
   Send, Paperclip, Smile, Hash, AlertCircle, 
@@ -227,14 +228,15 @@ export default function ChatPage() {
     }
   };
 
-  // Edition
+  // 🔒 SÉCURITÉ: Edition avec filtre user_id obligatoire
   const editMessage = async (id: string) => {
-    if (!editContent.trim()) return;
+    if (!editContent.trim() || !user?.id) return;
     try {
       const { error } = await supabase
         .from("chat_messages")
         .update({ content: editContent.trim(), edited: true })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("user_id", user.id); // 🔒 SÉCURITÉ: Seul l'auteur peut modifier
         
       if (error) throw error;
       
@@ -245,14 +247,15 @@ export default function ChatPage() {
     }
   };
 
-  // Suppression
+  // 🔒 SÉCURITÉ: Suppression avec filtre user_id obligatoire
   const deleteMessage = async (id: string) => {
-    if (!confirm("Supprimer ce message ?")) return;
+    if (!confirm("Supprimer ce message ?") || !user?.id) return;
     try {
       const { error } = await supabase
         .from("chat_messages")
         .delete()
-        .eq("id", id);
+        .eq("id", id)
+        .eq("user_id", user.id); // 🔒 SÉCURITÉ: Seul l'auteur peut supprimer
         
       if (error) throw error;
     } catch (err: any) {
@@ -260,10 +263,18 @@ export default function ChatPage() {
     }
   };
 
-  // Réactions
+  // 🔒 SÉCURITÉ: Réactions - lecture du message puis vérification company_id
   const toggleReaction = async (messageId: string, emoji: string) => {
+    if (!user?.id) return;
+    
     const message = messages.find((m: any) => m.id === messageId);
     if (!message) return;
+
+    // 🔒 SÉCURITÉ: Vérifier que le message appartient à la même company
+    if (message.company_id !== user.company_id) {
+      setError("Vous ne pouvez pas réagir à ce message.");
+      return;
+    }
 
     const reactions = message.reactions || [];
     const existing = reactions.find((r: any) => r.emoji === emoji);
@@ -287,7 +298,8 @@ export default function ChatPage() {
       const { error } = await supabase
         .from("chat_messages")
         .update({ reactions: newReactions })
-        .eq("id", messageId);
+        .eq("id", messageId)
+        .eq("company_id", user.company_id); // 🔒 SÉCURITÉ: Filtre company_id
         
       if (error) throw error;
       

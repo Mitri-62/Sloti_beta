@@ -1,4 +1,5 @@
 // src/pages/StockSynoptique.tsx - VERSION COMPLÈTE AVEC LES 3 VUES
+// 🔒 SÉCURITÉ: Defense-in-depth avec filtre company_id sur UPDATE stocks
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../supabaseClient";
 import { useAuth } from "../contexts/AuthContext";
@@ -34,7 +35,7 @@ type StockItem = {
   movement_name?: string;
   created_at?: string;
   updated_at?: string;
-  tus?: 'EUR' | 'CHEP' | string | null;  // ← Ajoute ça
+  tus?: 'EUR' | 'CHEP' | string | null;
 };
 
 type ForecastData = {
@@ -239,15 +240,18 @@ export default function StockSynoptique() {
     setEditingValues({});
   };
 
+  // 🔒 SÉCURITÉ: Sauvegarde avec filtre company_id
   const saveEditing = async () => {
-    if (!editingId) return;
+    if (!editingId || !companyId) return; // 🔒 Guard clause
 
     setSaving(true);
     try {
+      // 🔒 SÉCURITÉ: Defense-in-depth - Ajout du filtre company_id sur UPDATE
       const { error } = await supabase
         .from("stocks")
         .update(editingValues)
-        .eq("id", editingId);
+        .eq("id", editingId)
+        .eq("company_id", companyId); // 🔒 Defense-in-depth
 
       if (error) throw error;
 
@@ -526,7 +530,7 @@ export default function StockSynoptique() {
               </div>
             </div>
 
-            {/* Graphiques ... (reste du code forecast) */}
+            {/* Graphiques */}
             <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <BarChart3 size={20} className="text-blue-600" />

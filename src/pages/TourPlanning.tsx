@@ -1,4 +1,5 @@
 // src/pages/TourPlanning.tsx - VERSION UX AMÉLIORÉE
+// 🔒 SÉCURITÉ: Defense-in-depth avec filtres company_id sur UPDATE/DELETE tours
 import { useState, useEffect } from "react";
 import { 
   Calendar, Truck, User, Plus, Clock,
@@ -61,6 +62,7 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
 export default function TourPlanning() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const companyId = user?.company_id ?? null; // 🔒 Récupération du company_id
   
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [showNewTourModal, setShowNewTourModal] = useState(false);
@@ -75,14 +77,14 @@ export default function TourPlanning() {
   const [showOptimizationModal, setShowOptimizationModal] = useState(false);
   const [calculatingRoutes, setCalculatingRoutes] = useState<string | null>(null);
   
-  // ✅ NOUVEAU: Récupérer le dépôt configuré
+  // ✅ Récupérer le dépôt configuré
   const { depot } = useDepot();
 
-  // ✅ NOUVEAU: Afficher le conseil une seule fois en haut
+  // ✅ Afficher le conseil une seule fois en haut
   const [showTip, setShowTip] = useState(true);
 
   const loadTours = async () => {
-    if (!user?.company_id) return;
+    if (!companyId) return;
     
     setLoading(true);
     const dateStr = selectedDate.toISOString().split('T')[0];
@@ -94,7 +96,7 @@ export default function TourPlanning() {
         driver:drivers(id, name, phone, current_location_lat, current_location_lng),
         vehicle:vehicles(id, name, registration, type, max_weight, volume, capacity_kg, capacity_m3)
       `)
-      .eq('company_id', user.company_id)
+      .eq('company_id', companyId)
       .eq('date', dateStr)
       .order('start_time', { ascending: true });
 
@@ -143,20 +145,22 @@ export default function TourPlanning() {
   useEffect(() => {
     loadTours();
 
+    if (!companyId) return;
+
     const channel = supabase
       .channel('tours_changes')
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 
         table: 'tours',
-        filter: `company_id=eq.${user!.company_id}`
+        filter: `company_id=eq.${companyId}`
       }, loadTours)
       .subscribe();
 
     return () => {
       channel.unsubscribe();
     };
-  }, [user?.company_id, selectedDate]);
+  }, [companyId, selectedDate]);
 
   const goToPreviousDay = () => {
     const newDate = new Date(selectedDate);
@@ -199,8 +203,9 @@ export default function TourPlanning() {
     setShowEditTourModal(true);
   };
 
+  // 🔒 SÉCURITÉ: UPDATE tours avec company_id
   const handleUpdateTour = async (tourData: any): Promise<void> => {
-    if (!editingTour?.id) return;
+    if (!editingTour?.id || !companyId) return; // 🔒 Guard clause
   
     try {
       setLoading(true);
@@ -209,6 +214,7 @@ export default function TourPlanning() {
         ? `${tourData.date}T${tourData.start_time}:00`
         : null;
   
+      // 🔒 SÉCURITÉ: Defense-in-depth - Ajout du filtre company_id sur UPDATE
       const { error: tourError } = await supabase
         .from('tours')
         .update({
@@ -218,7 +224,8 @@ export default function TourPlanning() {
           vehicle_id: tourData.vehicle_id,
           start_time: startTimeFormatted
         })
-        .eq('id', editingTour.id);
+        .eq('id', editingTour.id)
+        .eq('company_id', companyId); // 🔒 Defense-in-depth
   
       if (tourError) throw tourError;
   
@@ -265,13 +272,18 @@ export default function TourPlanning() {
     }
   };
   
+  // 🔒 SÉCURITÉ: DELETE tours avec company_id
   const handleDeleteTour = async (tourId: string) => {
+    if (!companyId) return; // 🔒 Guard clause
+
     if (!confirm("Êtes-vous sûr de vouloir supprimer cette tournée ?")) return;
 
+    // 🔒 SÉCURITÉ: Defense-in-depth - Ajout du filtre company_id sur DELETE
     const { error } = await supabase
       .from('tours')
       .delete()
-      .eq('id', tourId);
+      .eq('id', tourId)
+      .eq('company_id', companyId); // 🔒 Defense-in-depth
 
     if (error) {
       toast.error('Erreur lors de la suppression');
@@ -282,7 +294,7 @@ export default function TourPlanning() {
     }
   };
 
-  // ✅ CORRIGÉ: Utilise le dépôt configuré
+  // ✅ Utilise le dépôt configuré
   const getDepotLocation = (tour: Tour) => {
     // 1. Dépôt configuré
     if (depot.isConfigured && depot.latitude && depot.longitude) {
@@ -302,7 +314,10 @@ export default function TourPlanning() {
     return { latitude: 50.2928, longitude: 2.8828, source: 'default' };
   };
 
+  // 🔒 SÉCURITÉ: UPDATE tours avec company_id
   const calculateTourRoutes = async (tourId: string) => {
+    if (!companyId) return; // 🔒 Guard clause
+
     try {
       setCalculatingRoutes(tourId);
       toast.loading('Calcul des distances...', { id: 'calc-route' });
@@ -365,13 +380,15 @@ export default function TourPlanning() {
         }
       });
 
+      // 🔒 SÉCURITÉ: Defense-in-depth - Ajout du filtre company_id sur UPDATE
       const { error: updateError } = await supabase
         .from('tours')
         .update({
           total_distance_km: Math.round(totalDistance * 10) / 10,
           estimated_duration_minutes: Math.round(totalDuration)
         })
-        .eq('id', tourId);
+        .eq('id', tourId)
+        .eq('company_id', companyId); // 🔒 Defense-in-depth
 
       if (updateError) throw updateError;
 
@@ -393,7 +410,10 @@ export default function TourPlanning() {
     }
   };
 
+  // 🔒 SÉCURITÉ: UPDATE tours et delivery_stops avec filtres
   const handleOptimizeTour = async (tourId: string) => {
+    if (!companyId) return; // 🔒 Guard clause
+
     try {
       setOptimizing(tourId);
       
@@ -406,6 +426,7 @@ export default function TourPlanning() {
           driver:drivers(id, current_location_lat, current_location_lng)
         `)
         .eq('id', tourId)
+        .eq('company_id', companyId) // 🔒 Defense-in-depth
         .single();
   
       if (tourError || !tourData) {
@@ -449,7 +470,7 @@ export default function TourPlanning() {
   
       toast.loading('Optimisation en cours...', { id: 'optimizing' });
       
-      // ✅ CORRIGÉ: Utilise le dépôt configuré
+      // ✅ Utilise le dépôt configuré
       let depotLocation = { latitude: 50.2928, longitude: 2.8828 };
       
       if (depot.isConfigured && depot.latitude && depot.longitude) {
@@ -501,6 +522,7 @@ export default function TourPlanning() {
         }
       });
 
+      // 🔒 SÉCURITÉ: UPDATE delivery_stops avec tour_id
       for (let i = 0; i < optimizedStops.length; i++) {
         const arrivalTime = result.estimated_arrival_times[i];
         
@@ -514,16 +536,19 @@ export default function TourPlanning() {
             sequence_order: i + 1,
             estimated_arrival: estimatedDate.toISOString()
           })
-          .eq('id', optimizedStops[i].id);
+          .eq('id', optimizedStops[i].id)
+          .eq('tour_id', tourId); // 🔒 Defense-in-depth
       }
 
+      // 🔒 SÉCURITÉ: UPDATE tours avec company_id
       await supabase
         .from('tours')
         .update({
           total_distance_km: Math.round(totalRealDistance * 10) / 10,
           estimated_duration_minutes: Math.round(totalRealDuration)
         })
-        .eq('id', tourId);
+        .eq('id', tourId)
+        .eq('company_id', companyId); // 🔒 Defense-in-depth
 
       toast.dismiss('optimizing');
       
@@ -559,13 +584,12 @@ export default function TourPlanning() {
   };
    
   const handleCreateTour = (tourData: any): void => {
-    if (!user?.id || !user?.company_id) {
+    if (!user?.id || !companyId) {
       toast.error('Erreur d\'authentification');
       return;
     }
   
     const userId = user.id;
-    const companyId = user.company_id;
   
     (async () => {
       toast.loading('Création de la tournée...', { id: 'create-tour' });
@@ -651,7 +675,7 @@ export default function TourPlanning() {
         </div>
       </div>
 
-      {/* ✅ NOUVEAU: Conseil affiché une seule fois */}
+      {/* ✅ Conseil affiché une seule fois */}
       {showTip && filteredTours.some(t => t.stops >= 2 && !t.total_distance_km) && (
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 mb-4 flex items-start justify-between gap-3">
           <div className="flex items-start gap-2">

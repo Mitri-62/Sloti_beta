@@ -3,13 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     
-    <!-- Google Analytics -->
+    <!-- Google Analytics avec Consent Mode RGPD -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-B91N1FMNMX"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
+      
+      // 🔒 Consent mode par défaut (refusé jusqu'au consentement explicite)
+      gtag('consent', 'default', {
+        'analytics_storage': 'denied',
+        'ad_storage': 'denied'
+      });
+      
       gtag('js', new Date());
-      gtag('config', 'G-B91N1FMNMX');
+      gtag('config', 'G-B91N1FMNMX', {
+        'anonymize_ip': true  // Anonymisation IP pour RGPD
+      });
     </script>
     
     <link rel="icon" type="image/svg+xml" href="/Sloti.svg" />
