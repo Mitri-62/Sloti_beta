@@ -58,7 +58,7 @@ export async function seedDemoCarriers(companyId: string): Promise<void> {
 }
 
 // ============================================================
-// SENDCLOUD API via Edge Function
+// SENDCLOUD API via Edge Function (NOUVELLE VERSION)
 // ============================================================
 
 interface SendcloudShippingMethod {
@@ -79,23 +79,61 @@ interface SendcloudShippingMethod {
 }
 
 /**
- * Récupère les méthodes d'expédition via Supabase Edge Function
+ * Récupère les méthodes d'expédition via la NOUVELLE Edge Function sendcloud-api
  */
 async function getSendcloudShippingMethods(): Promise<SendcloudShippingMethod[]> {
   try {
-    console.log('📦 Appel Edge Function sendcloud-quotes...');
+    console.log('📦 Appel Edge Function sendcloud-api...');
     
-    const { data, error } = await supabase.functions.invoke('sendcloud-quotes');
+    // ✅ NOUVEAU: Appel à sendcloud-api avec action=shipping-methods
+    const { data, error } = await supabase.functions.invoke('sendcloud-api', {
+      body: { action: 'shipping-methods' }
+    });
 
     if (error) {
-      console.error('Edge function error:', error);
+      console.error('❌ Edge function error:', error);
       return [];
     }
 
     console.log('✅ Réponse Sendcloud:', data?.shipping_methods?.length, 'méthodes');
     return data?.shipping_methods || [];
   } catch (error) {
-    console.error('Erreur Sendcloud shipping_methods:', error);
+    console.error('❌ Erreur Sendcloud shipping_methods:', error);
+    return [];
+  }
+}
+
+/**
+ * Récupère les tarifs réels via l'Edge Function sendcloud-api
+ */
+async function getSendcloudRates(
+  fromPostalCode: string,
+  toPostalCode: string,
+  weightKg: number
+): Promise<any[]> {
+  try {
+    console.log('📦 Appel Edge Function sendcloud-api pour les tarifs...');
+    
+    const { data, error } = await supabase.functions.invoke('sendcloud-api', {
+      body: {
+        action: 'get-rates',
+        from_postal_code: fromPostalCode,
+        from_country: 'FR',
+        to_postal_code: toPostalCode,
+        to_country: 'FR',
+        weight: weightKg
+      }
+    });
+
+    if (error) {
+      console.error('❌ Edge function error:', error);
+      return [];
+    }
+
+    console.log('✅ Tarifs Sendcloud:', data?.rates?.length, 'offres');
+    return data?.rates || [];
+  } catch (error) {
+    console.error('❌ Erreur Sendcloud rates:', error);
     return [];
   }
 }
@@ -201,6 +239,60 @@ export async function getQuotes(
   try {
     console.log('📦 Récupération des tarifs Sendcloud...');
     
+    // ✅ NOUVEAU: Essayer d'abord les tarifs réels
+    if (formData.origin_postal_code && formData.destination_postal_code) {
+      const rates = await getSendcloudRates(
+        formData.origin_postal_code,
+        formData.destination_postal_code,
+        weight
+      );
+      
+      if (rates.length > 0) {
+        console.log('✅ Tarifs réels Sendcloud disponibles!');
+        
+        for (const rate of rates.slice(0, 10)) {
+          const pickupDate = new Date(formData.pickup_date);
+          const deliveryDays = rate.delivery_days || 3;
+          const estimatedDelivery = new Date(pickupDate);
+          estimatedDelivery.setDate(estimatedDelivery.getDate() + deliveryDays);
+          
+          let price = rate.price || getSimulatedPrice(rate.carrier, rate.name, weight);
+          
+          // Majorations
+          if (formData.is_fragile) price *= 1.15;
+          if (formData.is_dangerous) price *= 1.30;
+          if (formData.temperature_controlled) price *= 1.25;
+          price *= (formData.quantity || 1);
+          price = Math.round(price * 100) / 100;
+          
+          quotes.push({
+            carrier: {
+              id: `sendcloud-${rate.id}`,
+              company_id: '',
+              name: rate.name || rate.carrier,
+              logo_url: null,
+              type: mapCarrierType(rate.carrier),
+              base_price_per_km: 0,
+              min_price: price,
+              delivery_delay_hours: deliveryDays * 24,
+              rating: Math.round(getCarrierRating(rate.carrier, rate.name) * 10) / 10,
+              is_active: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+            price,
+            estimated_delivery: estimatedDelivery,
+            delivery_delay_hours: deliveryDays * 24,
+          });
+        }
+        
+        if (quotes.length > 0) {
+          return quotes.sort((a, b) => a.price - b.price);
+        }
+      }
+    }
+    
+    // Fallback: récupérer les méthodes d'expédition génériques
     const shippingMethods = await getSendcloudShippingMethods();
     
     if (shippingMethods.length > 0) {
