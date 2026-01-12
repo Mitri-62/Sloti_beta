@@ -7,7 +7,8 @@ import ResetPassword from "./pages/ResetPassword";
 import ProtectedAdminRoute from "./components/ProtectedAdminRoute";
 import NewsAdmin from "./pages/admin/NewsAdmin";
 import LeadsAdmin from "./pages/admin/LeadsAdmin";
-import CookieBanner from "../components/CookieBanner"; // 👈 Ajouter
+import BookingsAdmin from "./pages/admin/BookingsAdmin"; // 👈 Nouveau
+import CookieBanner from "../components/CookieBanner";
 
 // Pages légales
 import MentionsLegales from "./pages/MentionsLegales";
@@ -43,6 +44,14 @@ export default function VitrineApp() {
           element={
             <ProtectedAdminRoute>
               <LeadsAdmin />
+            </ProtectedAdminRoute>
+          }
+        />
+        <Route
+          path="admin/bookings"
+          element={
+            <ProtectedAdminRoute>
+              <BookingsAdmin />
             </ProtectedAdminRoute>
           }
         />
