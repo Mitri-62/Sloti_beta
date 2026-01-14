@@ -10,7 +10,7 @@ export default function CTABooking() {
   const benefits = [
     { icon: Clock, text: "Démo personnalisée 30 min" },
     { icon: Users, text: "Accès beta gratuit" },
-    { icon: Sparkles, text: "149€/mois à vie (au lieu de 349€)" },
+    { icon: Sparkles, text: "249€/mois à vie (au lieu de 349€)" },
   ];
 
   return (

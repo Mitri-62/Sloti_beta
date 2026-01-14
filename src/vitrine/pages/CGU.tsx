@@ -99,7 +99,7 @@ export default function CGU() {
               </p>
               <p className="leading-relaxed mt-4">
                 <strong>6.2 Tarif early adopter</strong><br />
-                149€ HT/mois, garanti à vie pour les participants à la bêta.
+                249€ HT/mois, garanti à vie pour les participants à la bêta.
               </p>
               <p className="leading-relaxed mt-4">
                 <strong>6.3 Tarif standard</strong><br />

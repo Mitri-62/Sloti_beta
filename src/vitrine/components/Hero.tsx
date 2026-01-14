@@ -89,7 +89,7 @@ const Hero: FC = () => {
             <div className="flex items-center gap-2">
               <div className="text-left">
                 <div className="flex items-center gap-2">
-                  <span className="text-[#8BC34A] font-bold text-lg">149€/mois</span>
+                  <span className="text-[#8BC34A] font-bold text-lg">249€/mois</span>
                   <span className="text-white/50 line-through text-sm">349€</span>
                 </div>
                 <div className="text-white/70 text-sm">À vie, dès mars 2026</div>
@@ -132,7 +132,7 @@ const Hero: FC = () => {
             <span className="text-white/40 hidden sm:block">•</span>
             <TrustBadge symbol="🔥" text="14 places seulement" color="text-red-400" />
             <span className="text-white/40 hidden sm:block">•</span>
-            <TrustBadge symbol="⭐" text="Puis 149€/mois à vie" color="text-yellow-400" />
+            <TrustBadge symbol="⭐" text="Puis 249€/mois à vie" color="text-yellow-400" />
           </div>
         </div>
 

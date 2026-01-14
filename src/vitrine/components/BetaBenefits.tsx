@@ -42,11 +42,11 @@ export default function BetaBenefits() {
                 </h3>
                 <p className="text-gray-700 text-lg mb-4">
                   <span className="text-3xl font-bold text-orange-600">GRATUIT pendant 3 mois</span>
-                  {" "}puis 149€/mois au lieu{" "}
+                  {" "}puis 249€/mois au lieu{" "}
                   <span className="line-through text-gray-500">349€/mois</span>
                 </p>
                 <p className="text-gray-600 leading-relaxed">
-                  Vous conservez ce tarif préférentiel <strong>pour toujours</strong>, même après le lancement public. Une économie de <strong>200€/mois à vie</strong>.
+                  Vous conservez ce tarif préférentiel <strong>pour toujours</strong>, même après le lancement public. Une économie de <strong>100€/mois à vie</strong>.
                 </p>
               </div>
             </div>

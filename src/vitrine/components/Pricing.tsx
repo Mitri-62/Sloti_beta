@@ -30,7 +30,7 @@ export default function Pricing() {
   const benefits = [
     { icon: Gift, text: "3 mois 100% gratuits (déc-fév)" },
     { icon: Users, text: "Influence directe sur la roadmap" },
-    { icon: Shield, text: "Puis 149€/mois à vie (au lieu de 349€)" },
+    { icon: Shield, text: "Puis 249€/mois à vie (au lieu de 349€)" },
     { icon: Clock, text: "Support dédié pendant toute la beta" },
   ];
 
@@ -104,12 +104,12 @@ export default function Pricing() {
                 </div>
               </div>
               
-              {/* Étape 2 : Puis 149€ */}
+              {/* Étape 2 : Puis 249€ */}
               <div className="flex items-center justify-center gap-4">
                 <div className="text-center">
                   <div className="text-white/60 text-sm mb-1">Puis à partir de {timeline.paidStart}</div>
                   <div className="flex items-center justify-center gap-3">
-                    <span className="text-4xl sm:text-5xl font-extrabold text-green-300">149€</span>
+                    <span className="text-4xl sm:text-5xl font-extrabold text-green-300">249€</span>
                     <span className="text-lg text-white/80">/mois</span>
                     <div className="text-left">
                       <div className="text-base line-through text-white/50">349€</div>
@@ -191,7 +191,7 @@ export default function Pricing() {
             <span className="hidden sm:block text-gray-400">→</span>
             <div className="flex items-center gap-2">
               <span className="text-gray-600 text-sm">
-                <span className="font-semibold">Mars 2026 :</span> 149€/mois à vie
+                <span className="font-semibold">Mars 2026 :</span> 249€/mois à vie
               </span>
             </div>
           </div>
